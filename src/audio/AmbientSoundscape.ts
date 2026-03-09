@@ -1,0 +1,133 @@
+import { AudioManager } from './AudioManager';
+import { clamp, lerp } from '../utils/math';
+
+/**
+ * Manages layered ambient audio that responds to game state.
+ *
+ * Since we don't have audio files yet, this creates synthetic
+ * white-noise-based ocean sounds using the Web Audio API as a fallback.
+ */
+export class AmbientSoundscape {
+  private audioCtx: AudioContext | null = null;
+  private oceanGain: GainNode | null = null;
+  private windGain: GainNode | null = null;
+  private masterGain: GainNode | null = null;
+  private started = false;
+  private muted = false;
+
+  private targetOceanVolume = 0.15;
+  private targetWindVolume = 0.05;
+  private currentOceanVolume = 0;
+  private currentWindVolume = 0;
+
+  constructor() {}
+
+  /**
+   * Initialize Web Audio synthesis as a fallback when no audio files are present.
+   * Generates gentle noise-based ocean and wind ambience.
+   */
+  private initSynthetic(): void {
+    if (this.audioCtx) return;
+
+    this.audioCtx = new AudioContext();
+    this.masterGain = this.audioCtx.createGain();
+    this.masterGain.gain.value = 0.5;
+    this.masterGain.connect(this.audioCtx.destination);
+
+    // Ocean: filtered brown noise
+    this.oceanGain = this.audioCtx.createGain();
+    this.oceanGain.gain.value = 0;
+    this.oceanGain.connect(this.masterGain);
+
+    const oceanBuffer = this.createBrownNoise(this.audioCtx, 4);
+    const oceanSource = this.audioCtx.createBufferSource();
+    oceanSource.buffer = oceanBuffer;
+    oceanSource.loop = true;
+
+    const oceanFilter = this.audioCtx.createBiquadFilter();
+    oceanFilter.type = 'lowpass';
+    oceanFilter.frequency.value = 400;
+    oceanFilter.Q.value = 0.5;
+
+    oceanSource.connect(oceanFilter);
+    oceanFilter.connect(this.oceanGain);
+    oceanSource.start();
+
+    // Wind: filtered white noise with higher frequency
+    this.windGain = this.audioCtx.createGain();
+    this.windGain.gain.value = 0;
+    this.windGain.connect(this.masterGain);
+
+    const windBuffer = this.createBrownNoise(this.audioCtx, 3);
+    const windSource = this.audioCtx.createBufferSource();
+    windSource.buffer = windBuffer;
+    windSource.loop = true;
+
+    const windFilter = this.audioCtx.createBiquadFilter();
+    windFilter.type = 'bandpass';
+    windFilter.frequency.value = 800;
+    windFilter.Q.value = 0.3;
+
+    windSource.connect(windFilter);
+    windFilter.connect(this.windGain);
+    windSource.start();
+
+    this.started = true;
+  }
+
+  private createBrownNoise(ctx: AudioContext, durationSec: number): AudioBuffer {
+    const sampleRate = ctx.sampleRate;
+    const length = sampleRate * durationSec;
+    const buffer = ctx.createBuffer(2, length, sampleRate);
+
+    for (let channel = 0; channel < 2; channel++) {
+      const data = buffer.getChannelData(channel);
+      let lastOut = 0;
+      for (let i = 0; i < length; i++) {
+        const white = Math.random() * 2 - 1;
+        lastOut = (lastOut + 0.02 * white) / 1.02;
+        data[i] = lastOut * 3.5; // amplify
+      }
+    }
+
+    return buffer;
+  }
+
+  start(): void {
+    const initOnInteraction = () => {
+      this.initSynthetic();
+      if (this.audioCtx?.state === 'suspended') {
+        this.audioCtx.resume();
+      }
+    };
+    window.addEventListener('click', initOnInteraction, { once: true });
+    window.addEventListener('keydown', initOnInteraction, { once: true });
+  }
+
+  update(windStrength: number, nearIsland: boolean, dt: number): void {
+    if (!this.started || this.muted) return;
+
+    // Target volumes based on conditions
+    this.targetOceanVolume = 0.1 + clamp(windStrength * 0.02, 0, 0.15);
+    this.targetWindVolume = clamp(windStrength * 0.015, 0.02, 0.12);
+
+    // Smooth volume transitions
+    this.currentOceanVolume = lerp(this.currentOceanVolume, this.targetOceanVolume, 1 - Math.exp(-2 * dt));
+    this.currentWindVolume = lerp(this.currentWindVolume, this.targetWindVolume, 1 - Math.exp(-2 * dt));
+
+    if (this.oceanGain) {
+      this.oceanGain.gain.value = this.currentOceanVolume;
+    }
+    if (this.windGain) {
+      this.windGain.gain.value = this.currentWindVolume;
+    }
+  }
+
+  toggleMute(): boolean {
+    this.muted = !this.muted;
+    if (this.masterGain) {
+      this.masterGain.gain.value = this.muted ? 0 : 0.5;
+    }
+    return this.muted;
+  }
+}

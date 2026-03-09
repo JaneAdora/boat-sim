@@ -1,0 +1,27 @@
+{
+  "name": "boat-sim",
+  "version": "1.0.0",
+  "description": "A soothing boat simulator",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "howler": "^2.2.4",
+    "simplex-noise": "^4.0.3",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@types/howler": "^2.2.12",
+    "@types/three": "^0.183.1",
+    "lil-gui": "^0.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-glsl": "^1.5.5"
+  }
+}
