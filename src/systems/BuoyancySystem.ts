@@ -48,53 +48,53 @@ export class BuoyancySystem extends System {
           _force.set(0, forceMagnitude, 0);
           rb.force.add(_force);
 
-          // Compute torque from off-center force application
-          // torque = force × leverArm (note order: produces restoring torque)
+          // Torque = r × F (standard physics formula)
+          // r = vector from center of mass to force application point
           _leverArm.copy(_worldPoint).sub(transform.position);
-          _torque.crossVectors(_force, _leverArm);
+          _torque.crossVectors(_leverArm, _force);
           rb.torque.add(_torque);
         }
       }
 
       // Damping (resist velocity — simulates water resistance)
-      const speed = rb.velocity.length();
-      if (speed > 0.001) {
-        // Get boat's forward direction
-        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(transform.quaternion);
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(transform.quaternion);
+      const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(transform.quaternion);
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(transform.quaternion);
 
-        // Decompose velocity into forward and lateral
-        const forwardSpeed = rb.velocity.dot(forward);
-        const lateralSpeed = rb.velocity.dot(right);
+      const forwardSpeed = rb.velocity.dot(forward);
+      const lateralSpeed = rb.velocity.dot(right);
 
-        // Lateral drag is much higher than forward drag (boats resist sideways motion)
-        const forwardDrag = -forwardSpeed * buoyancy.dampingLinear * 0.3;
-        const lateralDrag = -lateralSpeed * buoyancy.dampingLinear * 3.0;
-        const verticalDrag = -rb.velocity.y * buoyancy.dampingLinear * 1.0;
+      rb.force.addScaledVector(forward, -forwardSpeed * buoyancy.dampingLinear * 0.3 * rb.mass);
+      rb.force.addScaledVector(right, -lateralSpeed * buoyancy.dampingLinear * 3.0 * rb.mass);
+      rb.force.y += -rb.velocity.y * buoyancy.dampingLinear * 2.0 * rb.mass;
 
-        rb.force.addScaledVector(forward, forwardDrag * rb.mass);
-        rb.force.addScaledVector(right, lateralDrag * rb.mass);
-        rb.force.y += verticalDrag * rb.mass;
-      }
+      // === STABILITY SYSTEM ===
+      // Boats self-right due to keel weight and hull shape (metacentric height).
+      // We model this as a strong restoring torque that pushes the boat upright.
 
-      // Righting moment — boats have metacentric stability from keel weight
-      // Extract current pitch and roll from quaternion
-      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(transform.quaternion);
+      const boatUp = new THREE.Vector3(0, 1, 0).applyQuaternion(transform.quaternion);
       const worldUp = new THREE.Vector3(0, 1, 0);
 
-      // Compute the rotation axis needed to bring the boat upright
-      const rightingAxis = new THREE.Vector3().crossVectors(up, worldUp);
-      const tiltAngle = Math.asin(Math.min(rightingAxis.length(), 1));
+      // Restoring axis: cross product of boat-up with world-up
+      // gives the axis to rotate around to get back upright
+      const restoreAxis = new THREE.Vector3().crossVectors(boatUp, worldUp);
+      const tiltAmount = restoreAxis.length(); // sin(tilt angle)
 
-      if (tiltAngle > 0.001) {
-        rightingAxis.normalize();
-        // Strong righting force proportional to tilt — simulates keel + hull shape stability
-        const rightingStrength = tiltAngle * rb.mass * 8.0;
-        rb.torque.addScaledVector(rightingAxis, rightingStrength);
+      if (tiltAmount > 0.001) {
+        restoreAxis.normalize();
+        // Very strong righting force — this is what keeps a keelboat from capsizing
+        const rightingStrength = tiltAmount * rb.mass * 25.0;
+        rb.torque.addScaledVector(restoreAxis, rightingStrength);
       }
 
-      // Angular damping — generous to prevent oscillation
-      rb.torque.addScaledVector(rb.angularVelocity, -buoyancy.dampingAngular * rb.mass * 3.0);
+      // Strong angular damping to prevent oscillation
+      rb.torque.addScaledVector(rb.angularVelocity, -rb.mass * 8.0);
+
+      // Hard clamp angular velocity — boats don't spin fast
+      const maxAngVel = 0.8; // rad/s
+      const angSpeed = rb.angularVelocity.length();
+      if (angSpeed > maxAngVel) {
+        rb.angularVelocity.multiplyScalar(maxAngVel / angSpeed);
+      }
     }
   }
 }
