@@ -49,8 +49,9 @@ export class BuoyancySystem extends System {
           rb.force.add(_force);
 
           // Compute torque from off-center force application
+          // torque = force × leverArm (note order: produces restoring torque)
           _leverArm.copy(_worldPoint).sub(transform.position);
-          _torque.crossVectors(_leverArm, _force);
+          _torque.crossVectors(_force, _leverArm);
           rb.torque.add(_torque);
         }
       }
@@ -76,8 +77,24 @@ export class BuoyancySystem extends System {
         rb.force.y += verticalDrag * rb.mass;
       }
 
-      // Angular damping
-      rb.torque.addScaledVector(rb.angularVelocity, -buoyancy.dampingAngular * rb.mass);
+      // Righting moment — boats have metacentric stability from keel weight
+      // Extract current pitch and roll from quaternion
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(transform.quaternion);
+      const worldUp = new THREE.Vector3(0, 1, 0);
+
+      // Compute the rotation axis needed to bring the boat upright
+      const rightingAxis = new THREE.Vector3().crossVectors(up, worldUp);
+      const tiltAngle = Math.asin(Math.min(rightingAxis.length(), 1));
+
+      if (tiltAngle > 0.001) {
+        rightingAxis.normalize();
+        // Strong righting force proportional to tilt — simulates keel + hull shape stability
+        const rightingStrength = tiltAngle * rb.mass * 8.0;
+        rb.torque.addScaledVector(rightingAxis, rightingStrength);
+      }
+
+      // Angular damping — generous to prevent oscillation
+      rb.torque.addScaledVector(rb.angularVelocity, -buoyancy.dampingAngular * rb.mass * 3.0);
     }
   }
 }
