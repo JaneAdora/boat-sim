@@ -45,21 +45,39 @@ export class DayNightSystem extends System {
     this.sunLight.intensity = Math.max(0, sunElevation * 2);
 
     // Update ambient light
-    if (sunElevation > 0.1) {
-      // Day
-      this.ambientLight.color.setRGB(0.4, 0.5, 0.7);    // sky
-      this.ambientLight.groundColor.setRGB(0.15, 0.12, 0.1); // ground
+    if (sunElevation > 0.15) {
+      // Full day
+      this.ambientLight.color.setRGB(0.4, 0.5, 0.7);
+      this.ambientLight.groundColor.setRGB(0.15, 0.12, 0.1);
       this.ambientLight.intensity = 0.6;
-    } else if (sunElevation > -0.1) {
-      // Twilight
-      const t = (sunElevation + 0.1) / 0.2;
+    } else if (sunElevation > 0.05) {
+      // Late afternoon warm light
+      const t = (sunElevation - 0.05) / 0.1;
       this.ambientLight.color.setRGB(
-        THREE.MathUtils.lerp(0.05, 0.4, t),
-        THREE.MathUtils.lerp(0.05, 0.5, t),
-        THREE.MathUtils.lerp(0.15, 0.7, t)
+        THREE.MathUtils.lerp(0.5, 0.4, t),
+        THREE.MathUtils.lerp(0.35, 0.5, t),
+        THREE.MathUtils.lerp(0.4, 0.7, t)
       );
-      this.ambientLight.groundColor.setRGB(0.05, 0.04, 0.03);
-      this.ambientLight.intensity = THREE.MathUtils.lerp(0.15, 0.6, t);
+      this.ambientLight.groundColor.setRGB(
+        THREE.MathUtils.lerp(0.2, 0.15, t),
+        THREE.MathUtils.lerp(0.1, 0.12, t),
+        THREE.MathUtils.lerp(0.06, 0.1, t)
+      );
+      this.ambientLight.intensity = THREE.MathUtils.lerp(0.55, 0.6, t);
+    } else if (sunElevation > -0.1) {
+      // Golden hour → twilight → night
+      const t = (sunElevation + 0.1) / 0.15;
+      this.ambientLight.color.setRGB(
+        THREE.MathUtils.lerp(0.05, 0.5, t),
+        THREE.MathUtils.lerp(0.05, 0.35, t),
+        THREE.MathUtils.lerp(0.15, 0.4, t)
+      );
+      this.ambientLight.groundColor.setRGB(
+        THREE.MathUtils.lerp(0.03, 0.2, t),
+        THREE.MathUtils.lerp(0.02, 0.1, t),
+        THREE.MathUtils.lerp(0.02, 0.06, t)
+      );
+      this.ambientLight.intensity = THREE.MathUtils.lerp(0.15, 0.55, t);
     } else {
       // Night
       this.ambientLight.color.setRGB(0.05, 0.05, 0.15);
@@ -73,21 +91,48 @@ export class DayNightSystem extends System {
     // Update ocean colors based on time of day
     this.ocean.setSunColor(sunColor);
 
-    if (sunElevation > 0.1) {
+    if (sunElevation > 0.15) {
+      // Full day — rich blue ocean
       this.ocean.setDeepColor(new THREE.Color(0.005, 0.03, 0.14));
       this.ocean.setShallowColor(new THREE.Color(0.02, 0.18, 0.35));
-    } else if (sunElevation > 0) {
-      // Sunset/sunrise warm tones
-      const t = sunElevation / 0.1;
+    } else if (sunElevation > 0.05) {
+      // Late afternoon / early morning — warm golden tones creep in
+      const t = (sunElevation - 0.05) / 0.1;
       this.ocean.setDeepColor(new THREE.Color(
-        THREE.MathUtils.lerp(0.08, 0.01, t),
-        THREE.MathUtils.lerp(0.02, 0.04, t),
-        THREE.MathUtils.lerp(0.12, 0.18, t)
+        THREE.MathUtils.lerp(0.06, 0.005, t),
+        THREE.MathUtils.lerp(0.025, 0.03, t),
+        THREE.MathUtils.lerp(0.1, 0.14, t)
       ));
       this.ocean.setShallowColor(new THREE.Color(
-        THREE.MathUtils.lerp(0.15, 0.0, t),
-        THREE.MathUtils.lerp(0.06, 0.15, t),
-        THREE.MathUtils.lerp(0.18, 0.3, t)
+        THREE.MathUtils.lerp(0.12, 0.02, t),
+        THREE.MathUtils.lerp(0.1, 0.18, t),
+        THREE.MathUtils.lerp(0.22, 0.35, t)
+      ));
+    } else if (sunElevation > 0) {
+      // Golden hour / sunset — dramatic warm ocean
+      const t = sunElevation / 0.05;
+      this.ocean.setDeepColor(new THREE.Color(
+        THREE.MathUtils.lerp(0.1, 0.06, t),
+        THREE.MathUtils.lerp(0.02, 0.025, t),
+        THREE.MathUtils.lerp(0.08, 0.1, t)
+      ));
+      this.ocean.setShallowColor(new THREE.Color(
+        THREE.MathUtils.lerp(0.2, 0.12, t),
+        THREE.MathUtils.lerp(0.08, 0.1, t),
+        THREE.MathUtils.lerp(0.15, 0.22, t)
+      ));
+    } else if (sunElevation > -0.1) {
+      // Twilight — cooling to night
+      const t = (sunElevation + 0.1) / 0.1;
+      this.ocean.setDeepColor(new THREE.Color(
+        THREE.MathUtils.lerp(0.005, 0.1, t),
+        THREE.MathUtils.lerp(0.01, 0.02, t),
+        THREE.MathUtils.lerp(0.04, 0.08, t)
+      ));
+      this.ocean.setShallowColor(new THREE.Color(
+        THREE.MathUtils.lerp(0.01, 0.2, t),
+        THREE.MathUtils.lerp(0.03, 0.08, t),
+        THREE.MathUtils.lerp(0.08, 0.15, t)
       ));
     } else {
       // Night — dark ocean
