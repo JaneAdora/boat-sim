@@ -12,18 +12,18 @@ const SPEED_MIN = 3.0;   // no spray below this
 const SPEED_MAX = 10.0;  // max spray at this speed
 const SPAWN_RATE_MAX = 20; // particles/sec per emitter at full speed
 const GRAVITY = -9.8;
-const PARTICLE_LIFE_MIN = 1.0;
-const PARTICLE_LIFE_MAX = 2.0;
-const PARTICLE_SIZE_MIN = 0.3;
-const PARTICLE_SIZE_MAX = 0.8;
+const PARTICLE_LIFE_MIN = 0.6;
+const PARTICLE_LIFE_MAX = 1.2;
+const PARTICLE_SIZE_MIN = 0.2;
+const PARTICLE_SIZE_MAX = 0.5;
 
-// Bow offsets in local boat space (port and starboard)
-const BOW_OFFSET_PORT = new THREE.Vector3(-1.0, 0.2, 3.5);
-const BOW_OFFSET_STARBOARD = new THREE.Vector3(1.0, 0.2, 3.5);
+// Bow offsets in local boat space (port and starboard) — at the waterline
+const BOW_OFFSET_PORT = new THREE.Vector3(-0.8, -0.3, 3.0);
+const BOW_OFFSET_STARBOARD = new THREE.Vector3(0.8, -0.3, 3.0);
 
-// Spray launch directions in local space (outward + upward at ~45 degrees)
-const SPRAY_DIR_PORT = new THREE.Vector3(-0.7, 0.7, 0.3).normalize();
-const SPRAY_DIR_STARBOARD = new THREE.Vector3(0.7, 0.7, 0.3).normalize();
+// Spray launch directions in local space — outward and slightly up, no forward
+const SPRAY_DIR_PORT = new THREE.Vector3(-0.85, 0.5, -0.15).normalize();
+const SPRAY_DIR_STARBOARD = new THREE.Vector3(0.85, 0.5, -0.15).normalize();
 
 interface Particle {
   alive: boolean;
@@ -266,12 +266,11 @@ export class BowSpray {
     p.vy = this._tempDir.y * launchSpeed;
     p.vz = this._tempDir.z * launchSpeed;
 
-    // Add a slight component of the boat's forward velocity so spray
-    // doesn't fall behind at high speeds
+    // Add a small component of boat's forward velocity so spray
+    // doesn't clip through the hull at high speeds
     const forward = this._tempVec.set(0, 0, 1).applyQuaternion(boatQuat);
-    p.vx += forward.x * speed * 0.3;
-    p.vy += forward.y * speed * 0.3;
-    p.vz += forward.z * speed * 0.3;
+    p.vx += forward.x * speed * 0.1;
+    p.vz += forward.z * speed * 0.1;
 
     // Add slight wind drift (random small lateral push)
     p.vx += (Math.random() - 0.5) * 0.5;
