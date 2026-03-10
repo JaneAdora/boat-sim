@@ -11,6 +11,9 @@ export class AmbientSoundscape {
   private audioCtx: AudioContext | null = null;
   private oceanGain: GainNode | null = null;
   private windGain: GainNode | null = null;
+  private engineGain: GainNode | null = null;
+  private engineOsc: OscillatorNode | null = null;
+  private engineOsc2: OscillatorNode | null = null;
   private masterGain: GainNode | null = null;
   private started = false;
   private muted = false;
@@ -19,6 +22,7 @@ export class AmbientSoundscape {
   private targetWindVolume = 0.05;
   private currentOceanVolume = 0;
   private currentWindVolume = 0;
+  private currentEngineVolume = 0;
 
   constructor() {}
 
@@ -52,6 +56,45 @@ export class AmbientSoundscape {
     oceanSource.connect(oceanFilter);
     oceanFilter.connect(this.oceanGain);
     oceanSource.start();
+
+    // Engine: detuned sawtooth oscillators + noise for diesel rumble
+    this.engineGain = this.audioCtx.createGain();
+    this.engineGain.gain.value = 0;
+    this.engineGain.connect(this.masterGain);
+
+    const engineFilter = this.audioCtx.createBiquadFilter();
+    engineFilter.type = 'lowpass';
+    engineFilter.frequency.value = 120;
+    engineFilter.Q.value = 2;
+    engineFilter.connect(this.engineGain);
+
+    this.engineOsc = this.audioCtx.createOscillator();
+    this.engineOsc.type = 'sawtooth';
+    this.engineOsc.frequency.value = 58;
+    this.engineOsc.connect(engineFilter);
+    this.engineOsc.start();
+
+    this.engineOsc2 = this.audioCtx.createOscillator();
+    this.engineOsc2.type = 'sawtooth';
+    this.engineOsc2.frequency.value = 63;
+    this.engineOsc2.connect(engineFilter);
+    this.engineOsc2.start();
+
+    // Exhaust noise layer
+    const exhaustBuffer = this.createBrownNoise(this.audioCtx, 2);
+    const exhaustSource = this.audioCtx.createBufferSource();
+    exhaustSource.buffer = exhaustBuffer;
+    exhaustSource.loop = true;
+    const exhaustFilter = this.audioCtx.createBiquadFilter();
+    exhaustFilter.type = 'lowpass';
+    exhaustFilter.frequency.value = 200;
+    exhaustFilter.Q.value = 0.5;
+    exhaustSource.connect(exhaustFilter);
+    const exhaustGain = this.audioCtx.createGain();
+    exhaustGain.gain.value = 0.3;
+    exhaustFilter.connect(exhaustGain);
+    exhaustGain.connect(this.engineGain);
+    exhaustSource.start();
 
     // Wind: filtered white noise with higher frequency
     this.windGain = this.audioCtx.createGain();
@@ -120,6 +163,25 @@ export class AmbientSoundscape {
     }
     if (this.windGain) {
       this.windGain.gain.value = this.currentWindVolume;
+    }
+  }
+
+  updateEngine(throttle: number, dt: number): void {
+    if (!this.started || this.muted) return;
+
+    const absThrottle = Math.abs(throttle);
+    const targetVolume = clamp(absThrottle * 0.18, 0, 0.18);
+    this.currentEngineVolume = lerp(this.currentEngineVolume, targetVolume, 1 - Math.exp(-4 * dt));
+
+    if (this.engineGain) {
+      this.engineGain.gain.value = this.currentEngineVolume;
+    }
+    // Pitch rises slightly with throttle
+    if (this.engineOsc) {
+      this.engineOsc.frequency.value = 58 + absThrottle * 20;
+    }
+    if (this.engineOsc2) {
+      this.engineOsc2.frequency.value = 63 + absThrottle * 20;
     }
   }
 

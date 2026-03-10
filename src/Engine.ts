@@ -14,14 +14,17 @@ import { PhysicsSystem } from './systems/PhysicsSystem';
 import { CameraSystem } from './systems/CameraSystem';
 import { RenderSystem } from './systems/RenderSystem';
 import { DayNightSystem } from './systems/DayNightSystem';
+import { SailAnimationSystem } from './systems/SailAnimationSystem';
+import { WildlifeSystem } from './systems/WildlifeSystem';
 import { spawnBoat } from './boats/BoatFactory';
-import { SAILBOAT } from './boats/Sailboat';
+import { TUGBOAT } from './boats/Tugboat';
 import { HUD } from './ui/HUD';
 import { AmbientSoundscape } from './audio/AmbientSoundscape';
 import { PostProcessing } from './rendering/PostProcessing';
 import { WakeTrail } from './rendering/WakeTrail';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
+import { BoatControl } from './components/BoatControl';
 
 export class Engine {
   private world: World;
@@ -76,7 +79,11 @@ export class Engine {
     this.world.addSystem(buoyancySystem);
 
     const physicsSystem = new PhysicsSystem(this.windSystem);
+    physicsSystem.setChunkManager(this.chunkManager);
     this.world.addSystem(physicsSystem);
+
+    const sailAnimationSystem = new SailAnimationSystem(this.windSystem);
+    this.world.addSystem(sailAnimationSystem);
 
     this.dayNightSystem = new DayNightSystem(sky, stars, this.ocean, sunLight, ambientLight);
     this.world.addSystem(this.dayNightSystem);
@@ -88,8 +95,12 @@ export class Engine {
     this.world.addSystem(renderSystem);
 
     // Spawn the boat
-    this.boatEntity = spawnBoat(this.world, this.sceneManager.scene, SAILBOAT);
+    this.boatEntity = spawnBoat(this.world, this.sceneManager.scene, TUGBOAT);
     this.cameraSystem.setTarget(this.boatEntity);
+
+    // Wildlife & ambient vessels
+    const wildlifeSystem = new WildlifeSystem(this.sceneManager.scene, this.ocean, this.boatEntity);
+    this.world.addSystem(wildlifeSystem);
 
     // UI
     this.hud = new HUD(this.input);
@@ -166,6 +177,10 @@ export class Engine {
 
     // Update ambient audio
     this.soundscape.update(this.windSystem.strength, false, dt);
+    const boatCtrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
+    if (boatCtrl) {
+      this.soundscape.updateEngine(boatCtrl.throttle, dt);
+    }
 
     // Render with post-processing
     this.postProcessing.render();

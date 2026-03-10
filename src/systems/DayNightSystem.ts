@@ -7,7 +7,7 @@ import { Ocean } from '../rendering/Ocean';
 
 export class DayNightSystem extends System {
   timeOfDay = 0.35; // start mid-morning
-  cycleDuration = 600; // seconds per full day (10 minutes)
+  cycleDuration = 360; // seconds per full day (6 minutes)
 
   private sky: SkyRenderer;
   private stars: Stars;

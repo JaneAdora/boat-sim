@@ -5,3 +5,4 @@ dist
 *.png
 *.jpg
 .playwright-mcp/
+.netlify/

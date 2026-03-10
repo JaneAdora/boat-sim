@@ -104,4 +104,24 @@ export class ChunkManager {
   getIslandPositions(): { x: number; z: number; radius: number }[] {
     return this.islandPositions;
   }
+
+  /** Sample terrain height at a world position. Returns 0 if open ocean. */
+  getTerrainHeight(worldX: number, worldZ: number): number {
+    for (const chunk of this.chunks.values()) {
+      const island = chunk.island;
+      if (!island) continue;
+
+      const scale = island.radius * 2.5 / island.heightmapSize;
+      const hx = (worldX - island.centerX) / scale + island.heightmapSize / 2;
+      const hz = (worldZ - island.centerZ) / scale + island.heightmapSize / 2;
+
+      if (hx < 0 || hx >= island.heightmapSize || hz < 0 || hz >= island.heightmapSize) continue;
+
+      const ix = Math.floor(hx);
+      const iz = Math.floor(hz);
+      const h = island.heightmap[iz * island.heightmapSize + ix];
+      if (h > 0.3) return h;
+    }
+    return 0;
+  }
 }

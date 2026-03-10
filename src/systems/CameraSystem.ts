@@ -57,10 +57,9 @@ export class CameraSystem extends System {
     }
 
     // Compute desired camera position behind and above the boat
-    const boatHeading = Math.atan2(
-      Math.sin(transform.rotation.y),
-      Math.cos(transform.rotation.y)
-    );
+    // Use forward vector projected onto XZ plane — immune to pitch/roll gimbal issues
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(transform.quaternion);
+    const boatHeading = Math.atan2(fwd.x, fwd.z);
     const totalAngle = boatHeading + this.orbitAngle + Math.PI; // PI to be behind
 
     _desiredPos.set(

@@ -82,9 +82,14 @@ export class HUD {
       this.windArrow.setAttribute('transform', `rotate(${relAngle}, 12, 12)`);
     }
 
-    // Sail trim
+    // Throttle / Sail
     if (this.sailValue && ctrl) {
-      this.sailValue.textContent = `${Math.round(ctrl.sailTrim * 100)}%`;
+      if (ctrl.enginePower > 0) {
+        const pct = Math.round(ctrl.throttle * 100);
+        this.sailValue.textContent = pct >= 0 ? `${pct}%` : `R ${-pct}%`;
+      } else {
+        this.sailValue.textContent = `${Math.round(ctrl.sailTrim * 100)}%`;
+      }
     }
   }
 }

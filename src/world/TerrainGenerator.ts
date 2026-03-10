@@ -29,8 +29,8 @@ export function createTerrainMesh(island: IslandData): THREE.Mesh {
     const z = Math.floor(i / size);
     const height = island.heightmap[z * size + x];
 
-    // Set vertex height
-    positions.setY(i, height);
+    // Set vertex height — sink near-zero verts below water to hide square edges
+    positions.setY(i, height < 0.3 ? -2 : height);
 
     // Compute slope from neighbors for rock/grass blend
     let slope = 0;

@@ -63,7 +63,7 @@ export class BuoyancySystem extends System {
       const forwardSpeed = rb.velocity.dot(forward);
       const lateralSpeed = rb.velocity.dot(right);
 
-      rb.force.addScaledVector(forward, -forwardSpeed * buoyancy.dampingLinear * 0.3 * rb.mass);
+      rb.force.addScaledVector(forward, -forwardSpeed * buoyancy.dampingLinear * 0.12 * rb.mass);
       rb.force.addScaledVector(right, -lateralSpeed * buoyancy.dampingLinear * 3.0 * rb.mass);
       rb.force.y += -rb.velocity.y * buoyancy.dampingLinear * 2.0 * rb.mass;
 

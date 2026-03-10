@@ -6,6 +6,7 @@ import { RigidBody } from '../components/RigidBody';
 import { BoatControl } from '../components/BoatControl';
 import { WindReceiver } from '../components/WindReceiver';
 import { WindSystem } from './WindSystem';
+import { ChunkManager } from '../world/ChunkManager';
 
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -14,8 +15,14 @@ const _angularDelta = new THREE.Quaternion();
 const _axis = new THREE.Vector3();
 
 export class PhysicsSystem extends System {
+  private chunkManager: ChunkManager | null = null;
+
   constructor(private windSystem: WindSystem) {
     super(40); // priority — after buoyancy
+  }
+
+  setChunkManager(cm: ChunkManager): void {
+    this.chunkManager = cm;
   }
 
   update(world: World, dt: number): void {
@@ -53,17 +60,26 @@ export class PhysicsSystem extends System {
         }
 
         const apparentSpeed = Math.sqrt(apparentX * apparentX + apparentZ * apparentZ);
-        const forceAmount = efficiency * ctrl.sailTrim * wind.sailArea * wind.liftCoefficient * apparentSpeed * 0.5;
+        const forceAmount = efficiency * ctrl.sailTrim * wind.sailArea * wind.liftCoefficient * apparentSpeed * 4.0;
 
         _sailForce.copy(_forward).multiplyScalar(forceAmount);
         rb.force.add(_sailForce);
+      }
+
+      // Engine thrust
+      if (ctrl && ctrl.enginePower > 0 && Math.abs(ctrl.throttle) > 0.01) {
+        rb.force.addScaledVector(_forward, ctrl.throttle * ctrl.enginePower);
       }
 
       // Rudder torque
       if (ctrl && Math.abs(ctrl.rudderAngle) > 0.01) {
         const speed = rb.velocity.dot(_forward);
         // Rudder effectiveness proportional to speed^2
-        const rudderForce = ctrl.rudderAngle * speed * Math.abs(speed) * 2.0;
+        let rudderForce = ctrl.rudderAngle * speed * Math.abs(speed) * 2.0;
+        // Propeller wash gives rudder authority even at low speed
+        if (ctrl.enginePower > 0 && Math.abs(ctrl.throttle) > 0.1) {
+          rudderForce += ctrl.rudderAngle * ctrl.throttle * 5.0;
+        }
         rb.torque.y += -rudderForce * rb.mass * 0.1;
       }
 
@@ -83,6 +99,41 @@ export class PhysicsSystem extends System {
         _angularDelta.setFromAxisAngle(_axis, angSpeed * dt);
         transform.quaternion.premultiply(_angularDelta);
         transform.quaternion.normalize();
+      }
+
+      // Island ground collision — push boat off land
+      if (this.chunkManager) {
+        const terrainH = this.chunkManager.getTerrainHeight(
+          transform.position.x, transform.position.z
+        );
+        if (terrainH > 0.5) {
+          // Find nearest island center to push away from
+          const islands = this.chunkManager.getIslandPositions();
+          let nearestDist = Infinity;
+          let pushX = 0, pushZ = 0;
+          for (const isl of islands) {
+            const dx = transform.position.x - isl.x;
+            const dz = transform.position.z - isl.z;
+            const d = dx * dx + dz * dz;
+            if (d < nearestDist) {
+              nearestDist = d;
+              const len = Math.sqrt(d) || 1;
+              pushX = dx / len;
+              pushZ = dz / len;
+            }
+          }
+          // Gentle repulsion — kill inward velocity, set outward drift
+          const outwardSpeed = rb.velocity.x * pushX + rb.velocity.z * pushZ;
+          // If moving inward (outwardSpeed < 0) or too slow, set to gentle outward
+          const desiredPush = Math.min(4, 1 + terrainH * 0.2);
+          if (outwardSpeed < desiredPush) {
+            rb.velocity.x = pushX * desiredPush;
+            rb.velocity.z = pushZ * desiredPush;
+          }
+          // Nudge position outward so it doesn't stick
+          transform.position.x += pushX * 2 * dt;
+          transform.position.z += pushZ * 2 * dt;
+        }
       }
 
       // Sync euler from quaternion

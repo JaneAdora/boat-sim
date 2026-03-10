@@ -21,7 +21,7 @@ const noise = new SeededNoise(WORLD_SEED);
  */
 export function hasIsland(chunkX: number, chunkZ: number): boolean {
   const value = noise.sample2D(chunkX * 0.15 + 100, chunkZ * 0.15 + 100);
-  return value > 0.35;
+  return value > 0.05;
 }
 
 /**
