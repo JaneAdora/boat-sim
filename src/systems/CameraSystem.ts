@@ -18,6 +18,9 @@ export class CameraSystem extends System {
   private smoothing = 4;
   private targetEntity: number | null = null;
 
+  // Track whether last orbit input was mouse (sticky) or keyboard (spring-back)
+  private lastOrbitInputWasMouse = false;
+
   // Smoothed camera state
   private currentPos = new THREE.Vector3();
   private currentLookAt = new THREE.Vector3();
@@ -46,15 +49,27 @@ export class CameraSystem extends System {
     // Orbit controls (keyboard)
     if (this.input.isPressed('KeyQ')) {
       this.orbitAngle -= 1.5 * dt;
+      this.lastOrbitInputWasMouse = false;
     }
     if (this.input.isPressed('KeyE')) {
       this.orbitAngle += 1.5 * dt;
+      this.lastOrbitInputWasMouse = false;
     }
     if (this.input.isPressed('KeyR')) {
       this.distance = Math.max(10, this.distance - 15 * dt);
     }
     if (this.input.isPressed('KeyF')) {
       this.distance = Math.min(60, this.distance + 15 * dt);
+    }
+
+    // Mouse orbit and zoom
+    const mouseDeltas = this.input.consumeMouseDeltas();
+    if (mouseDeltas.dragX !== 0) {
+      this.orbitAngle += mouseDeltas.dragX * 0.005;
+      this.lastOrbitInputWasMouse = true;
+    }
+    if (mouseDeltas.scrollDelta !== 0) {
+      this.distance = Math.max(10, Math.min(60, this.distance + mouseDeltas.scrollDelta * 0.5));
     }
 
     // Touch camera gestures
@@ -64,8 +79,8 @@ export class CameraSystem extends System {
       this.touchControls.consumeCameraDeltas();
     }
 
-    // Slowly return orbit to center when not pressing Q/E
-    if (!this.input.isPressed('KeyQ') && !this.input.isPressed('KeyE')) {
+    // Slowly return orbit to center — only when keyboard was the last orbit input source
+    if (!this.lastOrbitInputWasMouse && !this.input.isPressed('KeyQ') && !this.input.isPressed('KeyE')) {
       this.orbitAngle *= Math.max(0, 1 - 1.5 * dt);
     }
 
