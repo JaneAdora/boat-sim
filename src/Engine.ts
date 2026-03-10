@@ -29,6 +29,8 @@ import { BowSpray } from './rendering/BowSpray';
 import { Bioluminescence } from './rendering/Bioluminescence';
 import { Moon } from './rendering/Moon';
 import { WeatherSystem } from './rendering/WeatherSystem';
+import { BoatLights } from './rendering/BoatLights';
+import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
 import { BoatControl } from './components/BoatControl';
@@ -51,6 +53,7 @@ export class Engine {
   private bioluminescence: Bioluminescence;
   private moon: Moon;
   private weather: WeatherSystem;
+  private boatLights: BoatLights;
   private clouds: Clouds;
   private boatEntity: number;
   private elapsedTime = 0;
@@ -116,6 +119,10 @@ export class Engine {
     // Spawn the boat
     this.boatEntity = spawnBoat(this.world, this.sceneManager.scene, boatDef);
     this.cameraSystem.setTarget(this.boatEntity);
+
+    // Navigation lights for the player boat
+    const boatMesh = this.world.getComponent<MeshRenderable>(this.boatEntity, 'MeshRenderable');
+    this.boatLights = new BoatLights(boatMesh!.object3D as THREE.Group, boatDef.meshType);
 
     // Wildlife & ambient vessels
     const wildlifeSystem = new WildlifeSystem(this.sceneManager.scene, this.ocean, this.boatEntity);
@@ -225,8 +232,9 @@ export class Engine {
       }
     }
 
-    // Update moon
+    // Update moon and boat lights
     this.moon.update(sunDir, sunDir.y);
+    this.boatLights.update(sunDir.y);
 
     // Update HUD
     this.hud.update(this.world, this.boatEntity, this.windSystem, dt);
