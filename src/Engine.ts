@@ -25,6 +25,10 @@ import { TouchControls } from './ui/TouchControls';
 import { AmbientSoundscape } from './audio/AmbientSoundscape';
 import { PostProcessing } from './rendering/PostProcessing';
 import { WakeTrail } from './rendering/WakeTrail';
+import { BowSpray } from './rendering/BowSpray';
+import { Bioluminescence } from './rendering/Bioluminescence';
+import { Moon } from './rendering/Moon';
+import { WeatherSystem } from './rendering/WeatherSystem';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
 import { BoatControl } from './components/BoatControl';
@@ -43,6 +47,10 @@ export class Engine {
   private soundscape: AmbientSoundscape;
   private postProcessing: PostProcessing;
   private wakeTrail: WakeTrail;
+  private bowSpray: BowSpray;
+  private bioluminescence: Bioluminescence;
+  private moon: Moon;
+  private weather: WeatherSystem;
   private clouds: Clouds;
   private boatEntity: number;
   private elapsedTime = 0;
@@ -137,6 +145,16 @@ export class Engine {
     // Wake trail
     this.wakeTrail = new WakeTrail(this.sceneManager.scene);
 
+    // Bow spray particles
+    this.bowSpray = new BowSpray(this.sceneManager.scene);
+
+    // Night-time visual effects
+    this.bioluminescence = new Bioluminescence(this.sceneManager.scene);
+    this.moon = new Moon(this.sceneManager.scene);
+
+    // Weather (rain, fog, lightning)
+    this.weather = new WeatherSystem(this.sceneManager.scene);
+
     // Mute toggle
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyM') {
@@ -161,20 +179,29 @@ export class Engine {
     const sunDir = this.dayNightSystem.getSunDirection();
     this.ocean.update(dt, this.sceneManager.camera.position, sunDir);
 
-    // Update fog color with time of day
+    // Update weather system (rain, lightning, fog density)
     const fog = this.sceneManager.scene.fog as THREE.FogExp2;
     if (fog) {
+      this.weather.update(dt, this.sceneManager.camera.position, fog);
+
+      // Fog color based on time of day + weather darkness
       const sunElev = sunDir.y;
+      const dark = this.weather.getWeatherDarkness();
+      const flash = this.weather.getLightningFlash();
       if (sunElev > 0.1) {
-        fog.color.setRGB(0.53, 0.67, 0.8);
+        fog.color.setRGB(
+          THREE.MathUtils.lerp(0.53, 0.35, dark) + flash * 0.3,
+          THREE.MathUtils.lerp(0.67, 0.45, dark) + flash * 0.3,
+          THREE.MathUtils.lerp(0.8, 0.55, dark) + flash * 0.3
+        );
       } else if (sunElev > 0) {
         fog.color.setRGB(
-          THREE.MathUtils.lerp(0.3, 0.53, sunElev * 10),
-          THREE.MathUtils.lerp(0.2, 0.67, sunElev * 10),
-          THREE.MathUtils.lerp(0.3, 0.8, sunElev * 10)
+          THREE.MathUtils.lerp(0.3, 0.53, sunElev * 10) * (1 - dark * 0.4) + flash * 0.2,
+          THREE.MathUtils.lerp(0.2, 0.67, sunElev * 10) * (1 - dark * 0.4) + flash * 0.2,
+          THREE.MathUtils.lerp(0.3, 0.8, sunElev * 10) * (1 - dark * 0.4) + flash * 0.2
         );
       } else {
-        fog.color.setRGB(0.05, 0.05, 0.1);
+        fog.color.setRGB(0.05 + flash * 0.15, 0.05 + flash * 0.15, 0.1 + flash * 0.1);
       }
     }
 
@@ -193,14 +220,19 @@ export class Engine {
         const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(boatTransform.quaternion);
         const speed = Math.abs(boatRb.velocity.dot(forward));
         this.wakeTrail.update(boatTransform.position, boatTransform.quaternion, speed, dt);
+        this.bowSpray.update(dt, boatTransform.position, boatTransform.quaternion, speed);
+        this.bioluminescence.update(dt, boatTransform.position, boatTransform.quaternion, speed, sunDir.y);
       }
     }
+
+    // Update moon
+    this.moon.update(sunDir, sunDir.y);
 
     // Update HUD
     this.hud.update(this.world, this.boatEntity, this.windSystem, dt);
 
     // Update ambient audio
-    this.soundscape.update(this.windSystem.strength, false, dt);
+    this.soundscape.update(this.windSystem.strength, false, dt, this.weather.getRainIntensity());
     const boatCtrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
     if (boatCtrl) {
       this.soundscape.updateEngine(boatCtrl.throttle, dt);

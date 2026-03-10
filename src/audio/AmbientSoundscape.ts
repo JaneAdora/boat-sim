@@ -14,6 +14,7 @@ export class AmbientSoundscape {
   private engineGain: GainNode | null = null;
   private engineOsc: OscillatorNode | null = null;
   private engineOsc2: OscillatorNode | null = null;
+  private rainGain: GainNode | null = null;
   private masterGain: GainNode | null = null;
   private started = false;
   private muted = false;
@@ -23,6 +24,7 @@ export class AmbientSoundscape {
   private currentOceanVolume = 0;
   private currentWindVolume = 0;
   private currentEngineVolume = 0;
+  private currentRainVolume = 0;
 
   constructor() {}
 
@@ -115,6 +117,31 @@ export class AmbientSoundscape {
     windFilter.connect(this.windGain);
     windSource.start();
 
+    // Rain: higher-pitched filtered noise (like rain on water)
+    this.rainGain = this.audioCtx.createGain();
+    this.rainGain.gain.value = 0;
+    this.rainGain.connect(this.masterGain);
+
+    const rainBuffer = this.createBrownNoise(this.audioCtx, 3);
+    const rainSource = this.audioCtx.createBufferSource();
+    rainSource.buffer = rainBuffer;
+    rainSource.loop = true;
+
+    const rainFilter = this.audioCtx.createBiquadFilter();
+    rainFilter.type = 'highpass';
+    rainFilter.frequency.value = 2000;
+    rainFilter.Q.value = 0.3;
+
+    const rainFilter2 = this.audioCtx.createBiquadFilter();
+    rainFilter2.type = 'lowpass';
+    rainFilter2.frequency.value = 8000;
+    rainFilter2.Q.value = 0.5;
+
+    rainSource.connect(rainFilter);
+    rainFilter.connect(rainFilter2);
+    rainFilter2.connect(this.rainGain);
+    rainSource.start();
+
     this.started = true;
   }
 
@@ -147,22 +174,27 @@ export class AmbientSoundscape {
     window.addEventListener('keydown', initOnInteraction, { once: true });
   }
 
-  update(windStrength: number, nearIsland: boolean, dt: number): void {
+  update(windStrength: number, nearIsland: boolean, dt: number, rainIntensity: number = 0): void {
     if (!this.started || this.muted) return;
 
     // Target volumes based on conditions
     this.targetOceanVolume = 0.1 + clamp(windStrength * 0.02, 0, 0.15);
     this.targetWindVolume = clamp(windStrength * 0.015, 0.02, 0.12);
+    const targetRainVolume = clamp(rainIntensity * 0.2, 0, 0.2);
 
     // Smooth volume transitions
     this.currentOceanVolume = lerp(this.currentOceanVolume, this.targetOceanVolume, 1 - Math.exp(-2 * dt));
     this.currentWindVolume = lerp(this.currentWindVolume, this.targetWindVolume, 1 - Math.exp(-2 * dt));
+    this.currentRainVolume = lerp(this.currentRainVolume, targetRainVolume, 1 - Math.exp(-1.5 * dt));
 
     if (this.oceanGain) {
       this.oceanGain.gain.value = this.currentOceanVolume;
     }
     if (this.windGain) {
       this.windGain.gain.value = this.currentWindVolume;
+    }
+    if (this.rainGain) {
+      this.rainGain.gain.value = this.currentRainVolume;
     }
   }
 
