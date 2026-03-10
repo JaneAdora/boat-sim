@@ -3,6 +3,8 @@ import { SeededNoise } from '../utils/noise';
 import { WORLD_SEED } from './WorldSeed';
 import { smoothstep } from '../utils/math';
 
+export type Biome = 'tropical' | 'rocky' | 'autumn' | 'desert';
+
 export interface IslandData {
   chunkX: number;
   chunkZ: number;
@@ -12,6 +14,7 @@ export interface IslandData {
   heightmap: Float32Array;
   heightmapSize: number;
   treePositions: { x: number; y: number; z: number; scale: number }[];
+  biome: Biome;
 }
 
 const noise = new SeededNoise(WORLD_SEED);
@@ -77,29 +80,66 @@ export function generateIsland(chunkX: number, chunkZ: number, chunkSize: number
     }
   }
 
+  // Determine biome from noise
+  const biomeNoise = noise.sample2D(chunkX * 0.3 + 200, chunkZ * 0.3 + 200);
+  let biome: Biome;
+  if (biomeNoise < -0.3) {
+    biome = 'desert';
+  } else if (biomeNoise < 0.0) {
+    biome = 'rocky';
+  } else if (biomeNoise < 0.35) {
+    biome = 'tropical';
+  } else {
+    biome = 'autumn';
+  }
+
   // Place trees using simple grid + jitter (pseudo Poisson disk)
+  // Biome-dependent tree placement parameters
   const treePositions: { x: number; y: number; z: number; scale: number }[] = [];
-  const treeSpacing = 12;
 
-  for (let z = 2; z < hmSize - 2; z += 3) {
-    for (let x = 2; x < hmSize - 2; x += 3) {
-      const h = heightmap[z * hmSize + x];
-      if (h < 1.5 || h > 18) continue; // no trees on beaches or peaks
+  if (biome === 'desert') {
+    // Desert: no trees at all
+  } else {
+    const gridStep = biome === 'rocky' ? 5 : biome === 'autumn' ? 2.5 : 3;
+    const minHeight = biome === 'rocky' ? 3 : 1.5;
+    const maxHeight = biome === 'autumn' ? 20 : 18;
 
-      // Jitter position
-      const jx = noise.sample2D(x * 3.7 + chunkX * 100, z * 3.7 + chunkZ * 100) * 1.5;
-      const jz = noise.sample2D(x * 3.7 + chunkX * 100 + 50, z * 3.7 + chunkZ * 100 + 50) * 1.5;
+    // Use fractional step with floor to handle non-integer steps
+    for (let zf = 2; zf < hmSize - 2; zf += gridStep) {
+      const z = Math.floor(zf);
+      for (let xf = 2; xf < hmSize - 2; xf += gridStep) {
+        const x = Math.floor(xf);
+        const h = heightmap[z * hmSize + x];
+        if (h < minHeight || h > maxHeight) continue;
 
-      const worldX = centerX + (x + jx - hmSize / 2) * scale;
-      const worldZ = centerZ + (z + jz - hmSize / 2) * scale;
+        // Rocky biome: skip steep slopes
+        if (biome === 'rocky') {
+          let slope = 0;
+          if (x > 0 && x < hmSize - 1 && z > 0 && z < hmSize - 1) {
+            const hL = heightmap[z * hmSize + (x - 1)];
+            const hR = heightmap[z * hmSize + (x + 1)];
+            const hU = heightmap[(z - 1) * hmSize + x];
+            const hD = heightmap[(z + 1) * hmSize + x];
+            slope = Math.abs(hR - hL) + Math.abs(hD - hU);
+          }
+          if (slope > 2) continue; // only on gentler slopes
+        }
 
-      // Random probability to thin out
-      const prob = noise.sample2D(worldX * 0.1, worldZ * 0.1);
-      if (prob < 0.0) continue;
+        // Jitter position
+        const jx = noise.sample2D(x * 3.7 + chunkX * 100, z * 3.7 + chunkZ * 100) * 1.5;
+        const jz = noise.sample2D(x * 3.7 + chunkX * 100 + 50, z * 3.7 + chunkZ * 100 + 50) * 1.5;
 
-      const treeScale = 0.8 + noise.sample2D(worldX * 0.5, worldZ * 0.5) * 0.5;
+        const worldX = centerX + (x + jx - hmSize / 2) * scale;
+        const worldZ = centerZ + (z + jz - hmSize / 2) * scale;
 
-      treePositions.push({ x: worldX, y: h, z: worldZ, scale: treeScale });
+        // Random probability to thin out
+        const prob = noise.sample2D(worldX * 0.1, worldZ * 0.1);
+        if (prob < 0.0) continue;
+
+        const treeScale = 0.8 + noise.sample2D(worldX * 0.5, worldZ * 0.5) * 0.5;
+
+        treePositions.push({ x: worldX, y: h, z: worldZ, scale: treeScale });
+      }
     }
   }
 
@@ -112,5 +152,6 @@ export function generateIsland(chunkX: number, chunkZ: number, chunkSize: number
     heightmap,
     heightmapSize: hmSize,
     treePositions,
+    biome,
   };
 }
