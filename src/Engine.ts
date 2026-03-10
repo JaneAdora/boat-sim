@@ -16,9 +16,12 @@ import { RenderSystem } from './systems/RenderSystem';
 import { DayNightSystem } from './systems/DayNightSystem';
 import { SailAnimationSystem } from './systems/SailAnimationSystem';
 import { WildlifeSystem } from './systems/WildlifeSystem';
+import { SeagullSystem } from './systems/SeagullSystem';
+import { Clouds } from './rendering/Clouds';
 import { spawnBoat } from './boats/BoatFactory';
-import { TUGBOAT } from './boats/Tugboat';
+import { BoatDefinition } from './boats/BoatDefinition';
 import { HUD } from './ui/HUD';
+import { TouchControls } from './ui/TouchControls';
 import { AmbientSoundscape } from './audio/AmbientSoundscape';
 import { PostProcessing } from './rendering/PostProcessing';
 import { WakeTrail } from './rendering/WakeTrail';
@@ -40,9 +43,11 @@ export class Engine {
   private soundscape: AmbientSoundscape;
   private postProcessing: PostProcessing;
   private wakeTrail: WakeTrail;
+  private clouds: Clouds;
   private boatEntity: number;
+  private elapsedTime = 0;
 
-  constructor() {
+  constructor(boatDef: BoatDefinition) {
     // Core
     this.world = new World();
     this.input = new InputManager();
@@ -68,8 +73,13 @@ export class Engine {
     // World generation
     this.chunkManager = new ChunkManager(this.sceneManager.scene);
 
+    // Touch controls (mobile only)
+    const isTouchDevice = 'ontouchstart' in window;
+    const touchControls = isTouchDevice ? new TouchControls() : null;
+
     // Systems (added in priority order)
     const boatControlSystem = new BoatControlSystem(this.input);
+    if (touchControls) boatControlSystem.setTouchControls(touchControls);
     this.world.addSystem(boatControlSystem);
 
     this.windSystem = new WindSystem();
@@ -89,18 +99,26 @@ export class Engine {
     this.world.addSystem(this.dayNightSystem);
 
     this.cameraSystem = new CameraSystem(this.sceneManager.camera, this.input);
+    if (touchControls) this.cameraSystem.setTouchControls(touchControls);
     this.world.addSystem(this.cameraSystem);
 
     const renderSystem = new RenderSystem();
     this.world.addSystem(renderSystem);
 
     // Spawn the boat
-    this.boatEntity = spawnBoat(this.world, this.sceneManager.scene, TUGBOAT);
+    this.boatEntity = spawnBoat(this.world, this.sceneManager.scene, boatDef);
     this.cameraSystem.setTarget(this.boatEntity);
 
     // Wildlife & ambient vessels
     const wildlifeSystem = new WildlifeSystem(this.sceneManager.scene, this.ocean, this.boatEntity);
     this.world.addSystem(wildlifeSystem);
+
+    // Seagulls near islands
+    const seagullSystem = new SeagullSystem(this.sceneManager.scene, this.chunkManager, this.boatEntity);
+    this.world.addSystem(seagullSystem);
+
+    // Clouds
+    this.clouds = new Clouds(this.sceneManager.scene);
 
     // UI
     this.hud = new HUD(this.input);
@@ -134,6 +152,8 @@ export class Engine {
   }
 
   private update(dt: number): void {
+    this.elapsedTime += dt;
+
     // Update ECS systems
     this.world.update(dt);
 
@@ -158,11 +178,15 @@ export class Engine {
       }
     }
 
+    // Update clouds
+    this.clouds.update(dt, this.sceneManager.camera.position, sunDir.y);
+
     // Update chunk loading and wake based on boat position
     const boatTransform = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
     const boatRb = this.world.getComponent<RigidBody>(this.boatEntity, 'RigidBody');
     if (boatTransform) {
       this.chunkManager.update(boatTransform.position.x, boatTransform.position.z);
+      this.chunkManager.updateAnimations(dt, this.elapsedTime, sunDir.y);
 
       // Update wake trail
       if (boatRb) {
@@ -187,24 +211,13 @@ export class Engine {
   }
 
   start(): void {
-    // Hide loading screen
     const loadingScreen = document.getElementById('loading-screen');
     if (loadingScreen) {
-      const bar = document.getElementById('loading-bar');
-      if (bar) bar.style.width = '100%';
-      const text = document.getElementById('loading-text');
-      if (text) text.textContent = 'Click to begin';
-
-      const startGame = () => {
-        loadingScreen.classList.add('hidden');
-        setTimeout(() => {
-          loadingScreen.style.display = 'none';
-        }, 800);
-        this.gameLoop.start();
-      };
-
-      window.addEventListener('click', startGame, { once: true });
-      window.addEventListener('keydown', startGame, { once: true });
+      loadingScreen.classList.add('hidden');
+      setTimeout(() => {
+        loadingScreen.style.display = 'none';
+      }, 800);
     }
+    this.gameLoop.start();
   }
 }

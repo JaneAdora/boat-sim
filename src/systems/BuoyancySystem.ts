@@ -65,7 +65,9 @@ export class BuoyancySystem extends System {
 
       rb.force.addScaledVector(forward, -forwardSpeed * buoyancy.dampingLinear * 0.12 * rb.mass);
       rb.force.addScaledVector(right, -lateralSpeed * buoyancy.dampingLinear * 3.0 * rb.mass);
-      rb.force.y += -rb.velocity.y * buoyancy.dampingLinear * 2.0 * rb.mass;
+      // Heavier vessels get stronger vertical damping to prevent bobbing
+      const verticalDampScale = rb.mass > 10000 ? 5.0 : 2.0;
+      rb.force.y += -rb.velocity.y * buoyancy.dampingLinear * verticalDampScale * rb.mass;
 
       // === STABILITY SYSTEM ===
       // Boats self-right due to keel weight and hull shape (metacentric height).

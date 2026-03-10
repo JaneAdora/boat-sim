@@ -86,6 +86,135 @@ export function createTerrainMesh(island: IslandData): THREE.Mesh {
 }
 
 /**
+ * Create shore rocks (boulders along the coastline where land meets water).
+ */
+export function createShoreRocks(island: IslandData): THREE.Group {
+  const group = new THREE.Group();
+  const size = island.heightmapSize;
+  const scale = island.radius * 2.5 / size;
+  const rockPositions: { x: number; y: number; z: number; s: number }[] = [];
+
+  // Find coastline vertices (where height transitions near water level)
+  for (let z = 1; z < size - 1; z += 2) {
+    for (let x = 1; x < size - 1; x += 2) {
+      const h = island.heightmap[z * size + x];
+      if (h < 0.5 || h > 3.0) continue; // only along shoreline
+
+      // Random probability — don't place too many
+      const prob = Math.sin(x * 7.3 + z * 13.1 + island.centerX * 0.1) * 0.5 + 0.5;
+      if (prob < 0.7) continue;
+
+      const worldX = island.centerX + (x - size / 2) * scale;
+      const worldZ = island.centerZ + (z - size / 2) * scale;
+      const rockScale = 0.5 + prob * 1.5;
+
+      rockPositions.push({ x: worldX, y: h * 0.5, z: worldZ, s: rockScale });
+    }
+  }
+
+  if (rockPositions.length === 0) return group;
+
+  // Rock geometry — distorted icosahedron for organic look
+  const rockGeom = new THREE.IcosahedronGeometry(1, 1);
+  const posAttr = rockGeom.attributes.position;
+  for (let i = 0; i < posAttr.count; i++) {
+    const noise = Math.sin(i * 3.7) * 0.2 + Math.cos(i * 5.1) * 0.15;
+    posAttr.setX(i, posAttr.getX(i) * (1 + noise));
+    posAttr.setY(i, posAttr.getY(i) * (0.6 + Math.abs(noise)));
+    posAttr.setZ(i, posAttr.getZ(i) * (1 + noise * 0.5));
+  }
+  rockGeom.computeVertexNormals();
+
+  const rockMat = new THREE.MeshStandardMaterial({
+    color: 0x707065,
+    roughness: 0.95,
+    metalness: 0.0,
+  });
+
+  const instanced = new THREE.InstancedMesh(rockGeom, rockMat, rockPositions.length);
+  const dummy = new THREE.Object3D();
+
+  for (let i = 0; i < rockPositions.length; i++) {
+    const r = rockPositions[i];
+    dummy.position.set(r.x, r.y, r.z);
+    dummy.scale.set(r.s, r.s * 0.6, r.s);
+    dummy.rotation.set(0, r.x * 0.5 + r.z * 0.3, 0);
+    dummy.updateMatrix();
+    instanced.setMatrixAt(i, dummy.matrix);
+  }
+
+  group.add(instanced);
+  return group;
+}
+
+/**
+ * Create a lighthouse on an island (only on some islands, placed at highest point).
+ */
+export function createLighthouse(island: IslandData): THREE.Group | null {
+  // Only some islands get a lighthouse — use deterministic check
+  const hash = Math.sin(island.centerX * 0.01 + island.centerZ * 0.017) * 0.5 + 0.5;
+  if (hash < 0.65) return null; // ~35% of islands
+
+  // Find the highest point
+  const size = island.heightmapSize;
+  const scale = island.radius * 2.5 / size;
+  let maxH = 0;
+  let maxX = 0;
+  let maxZ = 0;
+
+  for (let z = 4; z < size - 4; z++) {
+    for (let x = 4; x < size - 4; x++) {
+      const h = island.heightmap[z * size + x];
+      if (h > maxH) {
+        maxH = h;
+        maxX = x;
+        maxZ = z;
+      }
+    }
+  }
+
+  if (maxH < 3) return null; // too flat
+
+  const worldX = island.centerX + (maxX - size / 2) * scale;
+  const worldZ = island.centerZ + (maxZ - size / 2) * scale;
+
+  const group = new THREE.Group();
+  group.position.set(worldX, maxH, worldZ);
+
+  // Tower — white cylinder
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0xF5F0E8, roughness: 0.6, metalness: 0.05 });
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.2, 12, 8), towerMat);
+  tower.position.y = 6;
+  group.add(tower);
+
+  // Red band near top
+  const bandMat = new THREE.MeshStandardMaterial({ color: 0xCC3333, roughness: 0.5 });
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 1.5, 8), bandMat);
+  band.position.y = 10.5;
+  group.add(band);
+
+  // Lamp room — glass look
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0xFFEEAA, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.8 });
+  const lampRoom = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.75, 1.5, 8), lampMat);
+  lampRoom.position.y = 12;
+  group.add(lampRoom);
+
+  // Roof — dark cone
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.2 });
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.5, 8), roofMat);
+  roof.position.y = 13.5;
+  group.add(roof);
+
+  // Beacon light — point light that shines at night
+  const beacon = new THREE.PointLight(0xFFEE88, 0, 150);
+  beacon.position.y = 12;
+  beacon.name = 'beacon';
+  group.add(beacon);
+
+  return group;
+}
+
+/**
  * Create instanced palm trees for an island.
  */
 export function createTreeInstances(island: IslandData): THREE.Group {

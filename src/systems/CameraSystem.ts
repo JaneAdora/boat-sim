@@ -3,6 +3,7 @@ import { System } from '../ecs/System';
 import { World } from '../ecs/World';
 import { Transform } from '../components/Transform';
 import { InputManager } from '../core/InputManager';
+import { TouchControls } from '../ui/TouchControls';
 
 const _desiredPos = new THREE.Vector3();
 const _lookTarget = new THREE.Vector3();
@@ -10,6 +11,7 @@ const _lookTarget = new THREE.Vector3();
 export class CameraSystem extends System {
   private camera: THREE.PerspectiveCamera;
   private input: InputManager;
+  private touchControls: TouchControls | null = null;
   private orbitAngle = 0; // horizontal orbit offset
   private distance = 25;
   private height = 10;
@@ -27,6 +29,10 @@ export class CameraSystem extends System {
     this.input = input;
   }
 
+  setTouchControls(tc: TouchControls): void {
+    this.touchControls = tc;
+  }
+
   setTarget(entity: number): void {
     this.targetEntity = entity;
   }
@@ -37,7 +43,7 @@ export class CameraSystem extends System {
     const transform = world.getComponent<Transform>(this.targetEntity, 'Transform');
     if (!transform) return;
 
-    // Orbit controls
+    // Orbit controls (keyboard)
     if (this.input.isPressed('KeyQ')) {
       this.orbitAngle -= 1.5 * dt;
     }
@@ -49,6 +55,13 @@ export class CameraSystem extends System {
     }
     if (this.input.isPressed('KeyF')) {
       this.distance = Math.min(60, this.distance + 15 * dt);
+    }
+
+    // Touch camera gestures
+    if (this.touchControls) {
+      this.orbitAngle += this.touchControls.cameraOrbitDelta;
+      this.distance = Math.max(10, Math.min(60, this.distance + this.touchControls.cameraZoomDelta));
+      this.touchControls.consumeCameraDeltas();
     }
 
     // Slowly return orbit to center when not pressing Q/E

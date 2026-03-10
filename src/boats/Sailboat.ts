@@ -3,6 +3,7 @@ import { BoatDefinition } from './BoatDefinition';
 
 export const SAILBOAT: BoatDefinition = {
   name: 'Sailboat',
+  meshType: 'sailboat',
   mass: 2000,
   hullSamplePoints: [
     // Bow (front)

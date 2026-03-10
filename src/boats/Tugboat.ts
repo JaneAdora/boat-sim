@@ -3,6 +3,7 @@ import { BoatDefinition } from './BoatDefinition';
 
 export const TUGBOAT: BoatDefinition = {
   name: 'Tugboat',
+  meshType: 'tugboat',
   mass: 2800,
   hullSamplePoints: [
     // Bow

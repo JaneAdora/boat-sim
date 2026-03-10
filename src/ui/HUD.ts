@@ -25,6 +25,19 @@ export class HUD {
     this.hudContainer = document.getElementById('hud');
     this.controlsHelp = document.getElementById('controls-help');
 
+    // Mobile HUD toggle button
+    const toggle = document.getElementById('hud-toggle');
+    if (toggle) {
+      toggle.textContent = '\u25C9'; // ◉ eye-like icon
+      toggle.addEventListener('click', () => {
+        this.visible = !this.visible;
+        if (this.hudContainer) {
+          this.hudContainer.style.display = this.visible ? 'flex' : 'none';
+        }
+        toggle.textContent = this.visible ? '\u25C9' : '\u25CE';
+      });
+    }
+
     // Show controls briefly at start
     this.showControls(5);
   }

@@ -348,6 +348,251 @@ function createTugboatMesh(): BoatParts {
   return { group, sailPivot: null, rudderPivot };
 }
 
+// ─── Cruise Ship mesh ────────────────────────────────────────
+
+function createCruiseShipMesh(): BoatParts {
+  const group = new THREE.Group();
+
+  const hull = new THREE.Group();
+  hull.position.y = 1.2;
+  group.add(hull);
+
+  // Hull — long, wide, tall
+  const hullGeometry = createParametricHull({
+    length: 20,
+    segments: 24,
+    radialSegments: 12,
+    squareness: 0.5,
+    widthProfile: (t) => {
+      // Stern rounds inward slightly
+      if (t < 0.08) return 2.5 + 1.0 * Math.sqrt(t / 0.08);
+      if (t < 0.75) return 3.5 + 0.3 * Math.sin((t - 0.08) / 0.67 * Math.PI);
+      return Math.max(0.02, 3.8 * Math.pow(Math.max(0, 1 - (t - 0.75) / 0.25), 0.5));
+    },
+    depthProfile: (t) => {
+      if (t > 0.85) return 1.8 * (1 - (t - 0.85) / 0.15 * 0.5);
+      return 1.8;
+    },
+  });
+
+  const hullMat = new THREE.MeshStandardMaterial({
+    color: 0x1a2744, roughness: 0.5, metalness: 0.1, side: THREE.DoubleSide,
+  });
+  hull.add(new THREE.Mesh(hullGeometry, hullMat));
+
+  // White superstructure — stacked decks
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0xF8F8F0, roughness: 0.4, metalness: 0.05 });
+  const windowMat = new THREE.MeshStandardMaterial({ color: 0x1a3a5c, roughness: 0.2, metalness: 0.4 });
+
+  // Deck 1 (main) — extends to hull stern
+  const deck1 = new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.0, 17), deckMat);
+  deck1.position.set(0, 1.0, -1.5);
+  hull.add(deck1);
+
+  // Deck 2 — slightly narrower, stepped back
+  const deck2 = new THREE.Mesh(new THREE.BoxGeometry(5.8, 1.8, 15), deckMat);
+  deck2.position.set(0, 2.9, -1);
+  hull.add(deck2);
+
+  // Deck 3 (bridge deck, shorter)
+  const deck3 = new THREE.Mesh(new THREE.BoxGeometry(5.0, 1.5, 12), deckMat);
+  deck3.position.set(0, 4.55, -0.5);
+  hull.add(deck3);
+
+  // Bridge (top)
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(4.0, 1.2, 3), deckMat);
+  bridge.position.set(0, 5.9, 2);
+  hull.add(bridge);
+
+  // Bridge windows
+  for (let i = -2; i <= 2; i++) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.05), windowMat);
+    win.position.set(i * 0.75, 6.0, 3.52);
+    hull.add(win);
+  }
+
+  // Window rows on decks
+  for (let deck = 0; deck < 3; deck++) {
+    const y = 0.8 + deck * 1.85;
+    const z_start = deck === 2 ? -3.5 : -7;
+    const z_end = deck === 2 ? 3.5 : 5.5;
+    for (let z = z_start; z <= z_end; z += 1.2) {
+      // Port side
+      const winL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.4, 0.6), windowMat);
+      winL.position.set(deck === 2 ? -2.52 : deck === 1 ? -2.92 : -3.22, y, z);
+      hull.add(winL);
+      // Starboard
+      const winR = winL.clone();
+      winR.position.x = -winL.position.x;
+      hull.add(winR);
+    }
+  }
+
+  // Funnel
+  const funnelMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, roughness: 0.4, metalness: 0.15 });
+  const funnel = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 2.5, 10), funnelMat);
+  funnel.position.set(0, 5.5, -2);
+  hull.add(funnel);
+  const funnelTop = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.6, 0.2, 10),
+    new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.3, metalness: 0.4 }));
+  funnelTop.position.set(0, 6.85, -2);
+  hull.add(funnelTop);
+
+  // Railing posts along top deck edges
+  const railMat = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.3, metalness: 0.6 });
+  for (let z = -3; z <= 3; z += 1.5) {
+    for (const x of [-2.6, 2.6]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), railMat);
+      post.position.set(x, 5.55, z);
+      hull.add(post);
+    }
+  }
+
+  // Stern balcony ledges — tiered overhangs that break up the flat back
+  const ledgeMat = new THREE.MeshStandardMaterial({ color: 0xE8E8E0, roughness: 0.45, metalness: 0.05 });
+  const ledgeWidths = [6.6, 6.0, 5.2];
+  const ledgeZs = [-10, -8.5, -6.5];
+  const ledgeYs = [0.0, 1.95, 3.8];
+  for (let i = 0; i < 3; i++) {
+    const ledge = new THREE.Mesh(new THREE.BoxGeometry(ledgeWidths[i], 0.12, 0.6), ledgeMat);
+    ledge.position.set(0, ledgeYs[i], ledgeZs[i] - 0.3);
+    hull.add(ledge);
+  }
+
+  // Stern railing posts along each ledge
+  for (let i = 0; i < 3; i++) {
+    const w = ledgeWidths[i] / 2 - 0.2;
+    for (let x = -w; x <= w; x += 1.2) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), railMat);
+      post.position.set(x, ledgeYs[i] + 0.31, ledgeZs[i] - 0.5);
+      hull.add(post);
+    }
+  }
+
+  // Stern windows (dark rectangles on the back face of each deck)
+  for (let deck = 0; deck < 2; deck++) {
+    const y = 0.8 + deck * 1.9;
+    const z = deck === 0 ? -10.0 : -8.5;
+    const deckW = deck === 0 ? 6.4 : 5.8;
+    for (let x = -deckW / 2 + 0.8; x <= deckW / 2 - 0.8; x += 1.2) {
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.05), windowMat);
+      win.position.set(x, y, z - 0.03);
+      hull.add(win);
+    }
+  }
+
+  // Rudder
+  const rudderPivot = new THREE.Group();
+  rudderPivot.position.set(0, -1.0, -9.5);
+  hull.add(rudderPivot);
+  const rudderMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5, metalness: 0.3 });
+  rudderPivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.5, 0.8), rudderMat));
+
+  return { group, sailPivot: null, rudderPivot };
+}
+
+// ─── Speedboat mesh ─────────────────────────────────────────
+
+function createSpeedboatMesh(): BoatParts {
+  const group = new THREE.Group();
+
+  const hull = new THREE.Group();
+  hull.position.y = 0.35;
+  group.add(hull);
+
+  // Hull — narrow, sleek, shallow
+  const hullGeometry = createParametricHull({
+    length: 5.5,
+    segments: 16,
+    radialSegments: 10,
+    squareness: 0.7,
+    widthProfile: (t) => {
+      if (t < 0.1) return 0.9;
+      if (t < 0.6) return 0.9 + 0.15 * Math.sin((t - 0.1) / 0.5 * Math.PI);
+      return Math.max(0.02, 1.05 * Math.pow(Math.max(0, 1 - (t - 0.6) / 0.4), 0.4));
+    },
+    depthProfile: (t) => {
+      if (t > 0.8) return 0.5 * (1 - (t - 0.8) / 0.2 * 0.4);
+      return 0.5;
+    },
+  });
+
+  const hullMat = new THREE.MeshStandardMaterial({
+    color: 0xE8E8E8, roughness: 0.3, metalness: 0.15, side: THREE.DoubleSide,
+  });
+  hull.add(new THREE.Mesh(hullGeometry, hullMat));
+
+  // Racing stripe (dark accent along hull sides)
+  const stripeMat = new THREE.MeshStandardMaterial({ color: 0xCC2200, roughness: 0.4, metalness: 0.1 });
+  const stripeGeom = new THREE.BoxGeometry(0.02, 0.15, 4.0);
+  const stripeL = new THREE.Mesh(stripeGeom, stripeMat);
+  stripeL.position.set(-0.92, -0.05, 0.2);
+  hull.add(stripeL);
+  const stripeR = stripeL.clone();
+  stripeR.position.x = 0.92;
+  hull.add(stripeR);
+
+  // Cockpit floor
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7, metalness: 0.05 });
+  const cockpitFloor = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 2.0), deckMat);
+  cockpitFloor.position.set(0, 0.02, -0.3);
+  hull.add(cockpitFloor);
+
+  // Windshield
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x88bbdd, roughness: 0.1, metalness: 0.3, transparent: true, opacity: 0.6,
+  });
+  const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.7, 0.05), glassMat);
+  windshield.position.set(0, 0.45, 0.8);
+  windshield.rotation.x = -0.3;
+  hull.add(windshield);
+
+  // Windshield frame
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.5 });
+  const frameTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.04, 0.04), frameMat);
+  frameTop.position.set(0, 0.78, 0.72);
+  frameTop.rotation.x = -0.3;
+  hull.add(frameTop);
+
+  // Console/dashboard
+  const consoleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6, metalness: 0.1 });
+  const console_ = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 0.3), consoleMat);
+  console_.position.set(0, 0.2, 0.65);
+  hull.add(console_);
+
+  // Seats (two bucket seats)
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0xF5F5F0, roughness: 0.8, metalness: 0.0 });
+  for (const x of [-0.35, 0.35]) {
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.4), seatMat);
+    base.position.set(x, 0.17, 0);
+    hull.add(base);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.08), seatMat);
+    back.position.set(x, 0.42, -0.18);
+    back.rotation.x = 0.15;
+    hull.add(back);
+  }
+
+  // Outboard motor housing at stern
+  const motorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.3 });
+  const motorHousing = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.6), motorMat);
+  motorHousing.position.set(0, -0.1, -2.5);
+  hull.add(motorHousing);
+
+  // Propeller shaft
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.6, 6), steelMat);
+  shaft.position.set(0, -0.45, -2.5);
+  hull.add(shaft);
+
+  // Rudder
+  const rudderPivot = new THREE.Group();
+  rudderPivot.position.set(0, -0.35, -2.7);
+  hull.add(rudderPivot);
+  const rudderMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5, metalness: 0.3 });
+  rudderPivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.3), rudderMat));
+
+  return { group, sailPivot: null, rudderPivot };
+}
+
 // ─── Entity spawner ─────────────────────────────────────────
 
 export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefinition): EntityId {
@@ -372,7 +617,13 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
   }
 
   // Choose mesh based on boat type
-  const parts = definition.enginePower > 0 ? createTugboatMesh() : createSailboatMesh();
+  const meshCreators: Record<string, () => BoatParts> = {
+    sailboat: createSailboatMesh,
+    tugboat: createTugboatMesh,
+    cruiseship: createCruiseShipMesh,
+    speedboat: createSpeedboatMesh,
+  };
+  const parts = (meshCreators[definition.meshType] || createTugboatMesh)();
   scene.add(parts.group);
   world.addComponent(entity, 'MeshRenderable', createMeshRenderable(parts.group));
   world.addComponent(entity, 'BoatVisuals', {
