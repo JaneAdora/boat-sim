@@ -13,7 +13,13 @@ npm run preview  # Preview production build
 
 ## Deployment
 
-Deployed to **Netlify**. Push to `main` to trigger auto-deploy. See `netlify.toml` for config.
+Deployed to **Netlify** at [tugboat-bliss.netlify.app](https://tugboat-bliss.netlify.app).
+
+```bash
+npx netlify deploy --prod   # Build and deploy to production
+```
+
+The site does **not** auto-deploy on git push. Deploy manually with the command above. See `netlify.toml` for build config.
 
 ## Available Boats
 
