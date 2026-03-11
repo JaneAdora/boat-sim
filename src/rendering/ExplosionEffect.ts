@@ -5,31 +5,31 @@ import * as THREE from 'three';
  * Shared across all active explosions (torpedoes & missiles).
  */
 
-const MAX_PARTICLES = 800;
+const MAX_PARTICLES = 2000;
 const MAX_EXPLOSIONS = 5;
 const GRAVITY = -3.0;
 const EMBER_BUOYANCY = 1.5;
 const VELOCITY_DAMPING = 0.97;
 
 // Burst config (base values — scaled by explosion scale parameter)
-const BURST_COUNT_MIN = 30;
-const BURST_COUNT_MAX = 50;
-const BURST_SPEED_MIN = 5;
-const BURST_SPEED_MAX = 12;
-const BURST_LIFE_MIN = 0.5;
-const BURST_LIFE_MAX = 1.2;
-const BURST_SIZE_MIN = 1.0;
-const BURST_SIZE_MAX = 3.0;
+const BURST_COUNT_MIN = 120;
+const BURST_COUNT_MAX = 180;
+const BURST_SPEED_MIN = 10;
+const BURST_SPEED_MAX = 30;
+const BURST_LIFE_MIN = 1.0;
+const BURST_LIFE_MAX = 2.5;
+const BURST_SIZE_MIN = 5.0;
+const BURST_SIZE_MAX = 15.0;
 
 // Fire ember config (base values)
-const FIRE_DURATION = 2.0;
-const FIRE_EMBERS_PER_FRAME = 4;
-const EMBER_SPEED_MIN = 1;
-const EMBER_SPEED_MAX = 3;
-const EMBER_LIFE_MIN = 1.0;
-const EMBER_LIFE_MAX = 2.5;
-const EMBER_SIZE_MIN = 0.5;
-const EMBER_SIZE_MAX = 1.5;
+const FIRE_DURATION = 4.0;
+const FIRE_EMBERS_PER_FRAME = 12;
+const EMBER_SPEED_MIN = 2;
+const EMBER_SPEED_MAX = 6;
+const EMBER_LIFE_MIN = 2.0;
+const EMBER_LIFE_MAX = 5.0;
+const EMBER_SIZE_MIN = 3.0;
+const EMBER_SIZE_MAX = 8.0;
 
 interface Particle {
   alive: boolean;
