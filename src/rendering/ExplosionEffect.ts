@@ -161,13 +161,10 @@ export class ExplosionEffect {
     scene.add(this.points);
   }
 
-  spawnExplosion(x: number, y: number, z: number, scale = 1.0): void {
+  spawnExplosion(x: number, y: number, z: number): void {
     if (this.explosions.length >= MAX_EXPLOSIONS) return;
 
-    // Speed scales gently (sqrt), size/count/spread scale fully
-    const spdScale = Math.sqrt(scale);
-
-    const count = Math.floor((BURST_COUNT_MIN + Math.random() * (BURST_COUNT_MAX - BURST_COUNT_MIN)) * scale);
+    const count = BURST_COUNT_MIN + Math.floor(Math.random() * (BURST_COUNT_MAX - BURST_COUNT_MIN));
     for (let i = 0; i < count; i++) {
       const slot = this.findDeadSlot();
       if (slot === -1) break;
@@ -175,55 +172,52 @@ export class ExplosionEffect {
       const p = this.particles[slot];
       p.alive = true;
       p.life = 0;
-      p.maxLife = (BURST_LIFE_MIN + Math.random() * (BURST_LIFE_MAX - BURST_LIFE_MIN)) * spdScale;
-      p.size = (BURST_SIZE_MIN + Math.random() * (BURST_SIZE_MAX - BURST_SIZE_MIN)) * scale;
+      p.maxLife = BURST_LIFE_MIN + Math.random() * (BURST_LIFE_MAX - BURST_LIFE_MIN);
+      p.size = BURST_SIZE_MIN + Math.random() * (BURST_SIZE_MAX - BURST_SIZE_MIN);
       p.type = 0;
-      p.px = x + (Math.random() - 0.5) * 5.0 * scale;
-      p.py = y + Math.random() * 3.0 * spdScale;
-      p.pz = z + (Math.random() - 0.5) * 5.0 * scale;
+      p.px = x + (Math.random() - 0.5) * 5.0;
+      p.py = y + Math.random() * 3.0;
+      p.pz = z + (Math.random() - 0.5) * 5.0;
 
-      const speed = (BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN)) * spdScale;
+      const speed = BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN);
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.random() * Math.PI * 0.6;
       p.vx = Math.sin(phi) * Math.cos(theta) * speed;
-      p.vy = Math.cos(phi) * speed + 8.0 * spdScale;
+      p.vy = Math.cos(phi) * speed + 8.0;
       p.vz = Math.sin(phi) * Math.sin(theta) * speed;
 
       this.writeSlot(slot);
     }
 
-    this.explosions.push({ x, y, z, age: 0, done: false, scale });
+    this.explosions.push({ x, y, z, age: 0, done: false, scale: 1 });
   }
 
   update(dt: number): void {
     // Emit fire embers from active explosions
     for (const exp of this.explosions) {
       exp.age += dt;
-      if (exp.age > FIRE_DURATION * Math.sqrt(exp.scale)) {
+      if (exp.age > FIRE_DURATION) {
         exp.done = true;
         continue;
       }
 
-      const s = exp.scale;
-      const ss = Math.sqrt(s);
-      const emberCount = Math.floor(FIRE_EMBERS_PER_FRAME * s);
-      for (let i = 0; i < emberCount; i++) {
+      for (let i = 0; i < FIRE_EMBERS_PER_FRAME; i++) {
         const slot = this.findDeadSlot();
         if (slot === -1) break;
 
         const p = this.particles[slot];
         p.alive = true;
         p.life = 0;
-        p.maxLife = (EMBER_LIFE_MIN + Math.random() * (EMBER_LIFE_MAX - EMBER_LIFE_MIN)) * ss;
-        p.size = (EMBER_SIZE_MIN + Math.random() * (EMBER_SIZE_MAX - EMBER_SIZE_MIN)) * s;
+        p.maxLife = EMBER_LIFE_MIN + Math.random() * (EMBER_LIFE_MAX - EMBER_LIFE_MIN);
+        p.size = EMBER_SIZE_MIN + Math.random() * (EMBER_SIZE_MAX - EMBER_SIZE_MIN);
         p.type = 1;
-        p.px = exp.x + (Math.random() - 0.5) * 10.0 * s;
-        p.py = exp.y + Math.random() * 5.0 * ss;
-        p.pz = exp.z + (Math.random() - 0.5) * 10.0 * s;
+        p.px = exp.x + (Math.random() - 0.5) * 10.0;
+        p.py = exp.y + Math.random() * 5.0;
+        p.pz = exp.z + (Math.random() - 0.5) * 10.0;
 
-        const speed = (EMBER_SPEED_MIN + Math.random() * (EMBER_SPEED_MAX - EMBER_SPEED_MIN)) * ss;
+        const speed = EMBER_SPEED_MIN + Math.random() * (EMBER_SPEED_MAX - EMBER_SPEED_MIN);
         p.vx = (Math.random() - 0.5) * speed;
-        p.vy = Math.random() * speed + 0.5 * ss;
+        p.vy = Math.random() * speed + 0.5;
         p.vz = (Math.random() - 0.5) * speed;
 
         this.writeSlot(slot);
