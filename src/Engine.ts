@@ -25,6 +25,7 @@ import { HUD } from './ui/HUD';
 import { Minimap } from './ui/Minimap';
 import { TouchControls } from './ui/TouchControls';
 import { AmbientSoundscape } from './audio/AmbientSoundscape';
+import { SoundEffects } from './audio/SoundEffects';
 import { PostProcessing } from './rendering/PostProcessing';
 import { WakeTrail } from './rendering/WakeTrail';
 import { BowSpray } from './rendering/BowSpray';
@@ -32,6 +33,7 @@ import { Bioluminescence } from './rendering/Bioluminescence';
 import { Moon } from './rendering/Moon';
 import { WeatherSystem } from './rendering/WeatherSystem';
 import { BoatLights } from './rendering/BoatLights';
+import { KillTracker } from './state/KillTracker';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
@@ -50,6 +52,7 @@ export class Engine {
   private hud: HUD;
   private minimap: Minimap;
   private soundscape: AmbientSoundscape;
+  private soundEffects: SoundEffects;
   private postProcessing: PostProcessing;
   private wakeTrail: WakeTrail;
   private bowSpray: BowSpray;
@@ -59,14 +62,19 @@ export class Engine {
   private boatLights: BoatLights;
   private wildlifeSystem: WildlifeSystem;
   private weaponsSystem: WeaponsSystem;
+  private killTracker: KillTracker;
   private boatEntity: number;
   private elapsedTime = 0;
+  private keydownHandler: (e: KeyboardEvent) => void;
 
   constructor(boatDef: BoatDefinition) {
     // Core
     this.world = new World();
     this.input = new InputManager();
     this.sceneManager = new SceneManager();
+
+    // Kill tracking
+    this.killTracker = new KillTracker();
 
     // Rendering
     this.ocean = new Ocean();
@@ -139,10 +147,14 @@ export class Engine {
     );
     this.world.addSystem(towingSystem);
 
+    // Sound effects (weapon SFX)
+    this.soundEffects = new SoundEffects();
+
     // Weapons (torpedoes & missiles)
     this.weaponsSystem = new WeaponsSystem(
       this.sceneManager.scene, this.ocean, this.boatEntity,
       this.wildlifeSystem, this.chunkManager,
+      this.killTracker, this.soundEffects,
     );
     this.world.addSystem(this.weaponsSystem);
 
@@ -151,11 +163,11 @@ export class Engine {
     this.world.addSystem(seagullSystem);
 
     // UI
-    this.hud = new HUD(this.input);
+    this.hud = new HUD(this.input, this.killTracker);
     this.minimap = new Minimap(this.chunkManager);
 
     // Audio
-    this.soundscape = new AmbientSoundscape();
+    this.soundscape = new AmbientSoundscape(boatDef.meshType);
     this.soundscape.start();
 
     // Post-processing (subtle bloom for sun reflections)
@@ -178,15 +190,20 @@ export class Engine {
     // Weather (rain, fog, lightning)
     this.weather = new WeatherSystem(this.sceneManager.scene);
 
-    // Keyboard toggles
-    window.addEventListener('keydown', (e) => {
+    // Keyboard toggles (stored for cleanup)
+    this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyM') {
         this.soundscape.toggleMute();
+        this.soundEffects.toggleMute();
       }
       if (e.code === 'KeyN') {
         this.minimap.toggle();
       }
-    });
+      if (e.key === '/' || e.key === '?') {
+        this.hud.showControls(5);
+      }
+    };
+    window.addEventListener('keydown', this.keydownHandler);
 
     // Game loop
     this.gameLoop = new GameLoop((dt) => this.update(dt));
@@ -288,5 +305,49 @@ export class Engine {
       }, 800);
     }
     this.gameLoop.start();
+  }
+
+  pause(): void {
+    this.gameLoop.pause();
+  }
+
+  resume(): void {
+    this.gameLoop.resume();
+  }
+
+  dispose(): void {
+    // Stop game loop
+    this.gameLoop.stop();
+
+    // Remove keyboard handler
+    window.removeEventListener('keydown', this.keydownHandler);
+
+    // Stop audio
+    this.soundscape.stop();
+    this.soundEffects.stop();
+
+    // Dispose Three.js scene
+    this.sceneManager.scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
+        obj.geometry.dispose();
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach((m: THREE.Material) => m.dispose());
+        } else if (obj.material) {
+          (obj.material as THREE.Material).dispose();
+        }
+      }
+    });
+
+    // Remove dynamically created DOM elements
+    document.getElementById('torpedo-button')?.remove();
+    document.getElementById('missile-button')?.remove();
+    document.getElementById('tow-button')?.remove();
+
+    // Remove the renderer's canvas
+    const canvas = this.sceneManager.renderer.domElement;
+    canvas.parentElement?.removeChild(canvas);
+
+    // Dispose renderer
+    this.sceneManager.renderer.dispose();
   }
 }

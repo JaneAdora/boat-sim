@@ -194,6 +194,44 @@ export class ChunkManager {
     return this.islandPositions;
   }
 
+  /** Find the lighthouse group for an island at the given center position. */
+  findLighthouseNearIsland(islandX: number, islandZ: number): THREE.Group | null {
+    for (const chunk of this.chunks.values()) {
+      if (!chunk.island || !chunk.lighthouse) continue;
+      const dx = chunk.island.centerX - islandX;
+      const dz = chunk.island.centerZ - islandZ;
+      if (Math.abs(dx) < 1 && Math.abs(dz) < 1) {
+        return chunk.lighthouse;
+      }
+    }
+    return null;
+  }
+
+  /** Remove and dispose a lighthouse from the island at the given center position. */
+  removeLighthouse(islandX: number, islandZ: number): boolean {
+    for (const chunk of this.chunks.values()) {
+      if (!chunk.island || !chunk.lighthouse) continue;
+      const dx = chunk.island.centerX - islandX;
+      const dz = chunk.island.centerZ - islandZ;
+      if (Math.abs(dx) < 1 && Math.abs(dz) < 1) {
+        this.scene.remove(chunk.lighthouse);
+        chunk.lighthouse.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            obj.geometry.dispose();
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach(m => m.dispose());
+            } else {
+              (obj.material as THREE.Material).dispose();
+            }
+          }
+        });
+        chunk.lighthouse = null;
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Sample terrain height at a world position. Returns 0 if open ocean. */
   getTerrainHeight(worldX: number, worldZ: number): number {
     for (const chunk of this.chunks.values()) {

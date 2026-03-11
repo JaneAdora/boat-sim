@@ -23,6 +23,7 @@ const WILDLIFE_COLORS: Record<string, string> = {
   whale: '#4a7a9a',
   fishing_boat: '#e8d06a',
   cargo_ship: '#e87a5a',
+  battleship: '#ff4444',
 };
 
 export class Minimap {
@@ -138,7 +139,7 @@ export class Minimap {
       if (dist > MAP_RADIUS) continue;
 
       const [mx, mz] = toMap(w.x, w.z);
-      const dotSize = (w.type === 'cargo_ship') ? 4 : (w.type === 'fishing_boat') ? 3 : 2;
+      const dotSize = (w.type === 'battleship') ? 6 : (w.type === 'cargo_ship') ? 4 : (w.type === 'fishing_boat') ? 3 : 2;
 
       ctx.fillStyle = WILDLIFE_COLORS[w.type] || '#aaaaaa';
       ctx.globalAlpha = 0.8;

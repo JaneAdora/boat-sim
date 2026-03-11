@@ -6,6 +6,11 @@ import { clamp, lerp } from '../utils/math';
  *
  * Since we don't have audio files yet, this creates synthetic
  * white-noise-based ocean sounds using the Web Audio API as a fallback.
+ *
+ * Engine sound is selected based on meshType:
+ *   - tugboat / cruiseship / default: diesel rumble (sawtooth oscillators)
+ *   - speedboat: higher-pitched triangle wave engine
+ *   - vikingship: wind-based noise (no mechanical engine)
  */
 export class AmbientSoundscape {
   private audioCtx: AudioContext | null = null;
@@ -26,7 +31,15 @@ export class AmbientSoundscape {
   private currentEngineVolume = 0;
   private currentRainVolume = 0;
 
-  constructor() {}
+  private meshType: string;
+  private engineBaseFreq1 = 58;
+  private engineBaseFreq2 = 63;
+  private engineThrottleRange = 20;
+  private vikingWindFilter: BiquadFilterNode | null = null;
+
+  constructor(meshType: string = 'tugboat') {
+    this.meshType = meshType;
+  }
 
   /**
    * Initialize Web Audio synthesis as a fallback when no audio files are present.
@@ -59,44 +72,22 @@ export class AmbientSoundscape {
     oceanFilter.connect(this.oceanGain);
     oceanSource.start();
 
-    // Engine: detuned sawtooth oscillators + noise for diesel rumble
+    // Engine: dispatch based on meshType
     this.engineGain = this.audioCtx.createGain();
     this.engineGain.gain.value = 0;
     this.engineGain.connect(this.masterGain);
 
-    const engineFilter = this.audioCtx.createBiquadFilter();
-    engineFilter.type = 'lowpass';
-    engineFilter.frequency.value = 120;
-    engineFilter.Q.value = 2;
-    engineFilter.connect(this.engineGain);
-
-    this.engineOsc = this.audioCtx.createOscillator();
-    this.engineOsc.type = 'sawtooth';
-    this.engineOsc.frequency.value = 58;
-    this.engineOsc.connect(engineFilter);
-    this.engineOsc.start();
-
-    this.engineOsc2 = this.audioCtx.createOscillator();
-    this.engineOsc2.type = 'sawtooth';
-    this.engineOsc2.frequency.value = 63;
-    this.engineOsc2.connect(engineFilter);
-    this.engineOsc2.start();
-
-    // Exhaust noise layer
-    const exhaustBuffer = this.createBrownNoise(this.audioCtx, 2);
-    const exhaustSource = this.audioCtx.createBufferSource();
-    exhaustSource.buffer = exhaustBuffer;
-    exhaustSource.loop = true;
-    const exhaustFilter = this.audioCtx.createBiquadFilter();
-    exhaustFilter.type = 'lowpass';
-    exhaustFilter.frequency.value = 200;
-    exhaustFilter.Q.value = 0.5;
-    exhaustSource.connect(exhaustFilter);
-    const exhaustGain = this.audioCtx.createGain();
-    exhaustGain.gain.value = 0.3;
-    exhaustFilter.connect(exhaustGain);
-    exhaustGain.connect(this.engineGain);
-    exhaustSource.start();
+    switch (this.meshType) {
+      case 'speedboat':
+        this.initSpeedboatEngine();
+        break;
+      case 'vikingship':
+        this.initVikingWindEngine();
+        break;
+      default:
+        this.initDieselEngine();
+        break;
+    }
 
     // Wind: filtered white noise with higher frequency
     this.windGain = this.audioCtx.createGain();
@@ -143,6 +134,151 @@ export class AmbientSoundscape {
     rainSource.start();
 
     this.started = true;
+  }
+
+  /**
+   * Diesel engine: detuned sawtooth oscillators + exhaust noise.
+   * Used for tugboat, cruiseship, and any other default boat.
+   */
+  private initDieselEngine(): void {
+    const ctx = this.audioCtx!;
+
+    this.engineBaseFreq1 = 58;
+    this.engineBaseFreq2 = 63;
+    this.engineThrottleRange = 20;
+
+    const engineFilter = ctx.createBiquadFilter();
+    engineFilter.type = 'lowpass';
+    engineFilter.frequency.value = 120;
+    engineFilter.Q.value = 2;
+    engineFilter.connect(this.engineGain!);
+
+    this.engineOsc = ctx.createOscillator();
+    this.engineOsc.type = 'sawtooth';
+    this.engineOsc.frequency.value = this.engineBaseFreq1;
+    this.engineOsc.connect(engineFilter);
+    this.engineOsc.start();
+
+    this.engineOsc2 = ctx.createOscillator();
+    this.engineOsc2.type = 'sawtooth';
+    this.engineOsc2.frequency.value = this.engineBaseFreq2;
+    this.engineOsc2.connect(engineFilter);
+    this.engineOsc2.start();
+
+    // Exhaust noise layer
+    const exhaustBuffer = this.createBrownNoise(ctx, 2);
+    const exhaustSource = ctx.createBufferSource();
+    exhaustSource.buffer = exhaustBuffer;
+    exhaustSource.loop = true;
+    const exhaustFilter = ctx.createBiquadFilter();
+    exhaustFilter.type = 'lowpass';
+    exhaustFilter.frequency.value = 200;
+    exhaustFilter.Q.value = 0.5;
+    exhaustSource.connect(exhaustFilter);
+    const exhaustGain = ctx.createGain();
+    exhaustGain.gain.value = 0.3;
+    exhaustFilter.connect(exhaustGain);
+    exhaustGain.connect(this.engineGain!);
+    exhaustSource.start();
+  }
+
+  /**
+   * Speedboat engine: higher-pitched triangle wave oscillators
+   * with a lowpass filter and brown noise exhaust.
+   */
+  private initSpeedboatEngine(): void {
+    const ctx = this.audioCtx!;
+
+    this.engineBaseFreq1 = 160;
+    this.engineBaseFreq2 = 175;
+    this.engineThrottleRange = 80;
+
+    const engineFilter = ctx.createBiquadFilter();
+    engineFilter.type = 'lowpass';
+    engineFilter.frequency.value = 600;
+    engineFilter.Q.value = 2;
+    engineFilter.connect(this.engineGain!);
+
+    this.engineOsc = ctx.createOscillator();
+    this.engineOsc.type = 'triangle';
+    this.engineOsc.frequency.value = this.engineBaseFreq1;
+    this.engineOsc.connect(engineFilter);
+    this.engineOsc.start();
+
+    this.engineOsc2 = ctx.createOscillator();
+    this.engineOsc2.type = 'triangle';
+    this.engineOsc2.frequency.value = this.engineBaseFreq2;
+    this.engineOsc2.connect(engineFilter);
+    this.engineOsc2.start();
+
+    // Brown noise exhaust layer through bandpass 400Hz
+    const exhaustBuffer = this.createBrownNoise(ctx, 2);
+    const exhaustSource = ctx.createBufferSource();
+    exhaustSource.buffer = exhaustBuffer;
+    exhaustSource.loop = true;
+    const exhaustFilter = ctx.createBiquadFilter();
+    exhaustFilter.type = 'bandpass';
+    exhaustFilter.frequency.value = 400;
+    exhaustFilter.Q.value = 1;
+    exhaustSource.connect(exhaustFilter);
+    const exhaustGain = ctx.createGain();
+    exhaustGain.gain.value = 0.25;
+    exhaustFilter.connect(exhaustGain);
+    exhaustGain.connect(this.engineGain!);
+    exhaustSource.start();
+  }
+
+  /**
+   * Viking ship "engine": wind-based noise only, no mechanical oscillators.
+   * Bandpass-filtered brown noise simulates wind in the sails.
+   */
+  private initVikingWindEngine(): void {
+    const ctx = this.audioCtx!;
+
+    // No oscillators for the viking ship
+    this.engineOsc = null;
+    this.engineOsc2 = null;
+    this.engineBaseFreq1 = 0;
+    this.engineBaseFreq2 = 0;
+    this.engineThrottleRange = 0;
+
+    // Main wind noise through bandpass ~300 Hz
+    const windBuffer = this.createBrownNoise(ctx, 3);
+    const windSource = ctx.createBufferSource();
+    windSource.buffer = windBuffer;
+    windSource.loop = true;
+
+    this.vikingWindFilter = ctx.createBiquadFilter();
+    this.vikingWindFilter.type = 'bandpass';
+    this.vikingWindFilter.frequency.value = 300;
+    this.vikingWindFilter.Q.value = 1.0;
+
+    const windGain = ctx.createGain();
+    windGain.gain.value = 0.4;
+
+    windSource.connect(this.vikingWindFilter);
+    this.vikingWindFilter.connect(windGain);
+    windGain.connect(this.engineGain!);
+    windSource.start();
+
+    // Second noise source at 600 Hz for higher whistling wind
+    const whistleBuffer = this.createBrownNoise(ctx, 3);
+    const whistleSource = ctx.createBufferSource();
+    whistleSource.buffer = whistleBuffer;
+    whistleSource.loop = true;
+
+    const whistleFilter = ctx.createBiquadFilter();
+    whistleFilter.type = 'bandpass';
+    whistleFilter.frequency.value = 600;
+    whistleFilter.Q.value = 1.5;
+
+    const whistleGain = ctx.createGain();
+    whistleGain.gain.value = 0.2;
+
+    whistleSource.connect(whistleFilter);
+    whistleFilter.connect(whistleGain);
+    whistleGain.connect(this.engineGain!);
+    whistleSource.start();
   }
 
   private createBrownNoise(ctx: AudioContext, durationSec: number): AudioBuffer {
@@ -208,12 +344,19 @@ export class AmbientSoundscape {
     if (this.engineGain) {
       this.engineGain.gain.value = this.currentEngineVolume;
     }
-    // Pitch rises slightly with throttle
+
+    // Pitch rises slightly with throttle (oscillator-based engines)
     if (this.engineOsc) {
-      this.engineOsc.frequency.value = 58 + absThrottle * 20;
+      this.engineOsc.frequency.value = this.engineBaseFreq1 + absThrottle * this.engineThrottleRange;
     }
     if (this.engineOsc2) {
-      this.engineOsc2.frequency.value = 63 + absThrottle * 20;
+      this.engineOsc2.frequency.value = this.engineBaseFreq2 + absThrottle * this.engineThrottleRange;
+    }
+
+    // Viking ship: modulate wind filter center frequency with gust effect
+    if (this.vikingWindFilter) {
+      const gustEffect = Math.sin(Date.now() * 0.001 * 0.5) * 100;
+      this.vikingWindFilter.frequency.value = 300 + absThrottle * 200 + gustEffect;
     }
   }
 
@@ -223,5 +366,21 @@ export class AmbientSoundscape {
       this.masterGain.gain.value = this.muted ? 0 : 0.5;
     }
     return this.muted;
+  }
+
+  stop(): void {
+    if (this.audioCtx) {
+      this.audioCtx.close();
+      this.audioCtx = null;
+      this.masterGain = null;
+      this.oceanGain = null;
+      this.windGain = null;
+      this.engineGain = null;
+      this.engineOsc = null;
+      this.engineOsc2 = null;
+      this.rainGain = null;
+      this.vikingWindFilter = null;
+      this.started = false;
+    }
   }
 }

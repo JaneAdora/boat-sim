@@ -8,6 +8,8 @@ import { ChunkManager } from '../world/ChunkManager';
 import { ExplosionEffect } from '../rendering/ExplosionEffect';
 import { TorpedoWake } from '../rendering/TorpedoWake';
 import { createTorpedoMesh, createMissileMesh } from '../rendering/ProjectileMesh';
+import { KillTracker } from '../state/KillTracker';
+import { SoundEffects } from '../audio/SoundEffects';
 
 // Torpedo constants
 const TORPEDO_SPEED = 25;
@@ -42,6 +44,8 @@ interface Missile {
   p1: THREE.Vector3; // forward+up from boat
   p2: THREE.Vector3; // above island
   p3: THREE.Vector3; // island surface
+  targetIslandX: number; // island center for lighthouse lookup
+  targetIslandZ: number;
   flightTime: number;
   elapsed: number;
   trail: THREE.Line;
@@ -55,6 +59,8 @@ export class WeaponsSystem extends System {
   private boatEntity: number;
   private wildlifeSystem: WildlifeSystem;
   private chunkManager: ChunkManager;
+  private killTracker: KillTracker;
+  private soundEffects: SoundEffects;
 
   private torpedoes: Torpedo[] = [];
   private missiles: Missile[] = [];
@@ -73,6 +79,8 @@ export class WeaponsSystem extends System {
     boatEntity: number,
     wildlifeSystem: WildlifeSystem,
     chunkManager: ChunkManager,
+    killTracker: KillTracker,
+    soundEffects: SoundEffects,
   ) {
     super(68);
     this.scene = scene;
@@ -80,6 +88,8 @@ export class WeaponsSystem extends System {
     this.boatEntity = boatEntity;
     this.wildlifeSystem = wildlifeSystem;
     this.chunkManager = chunkManager;
+    this.killTracker = killTracker;
+    this.soundEffects = soundEffects;
 
     this.explosions = new ExplosionEffect(scene);
 
@@ -175,7 +185,7 @@ export class WeaponsSystem extends System {
     }
 
     // Update torpedoes
-    this.updateTorpedoes(transform, dt);
+    this.updateTorpedoes(dt);
 
     // Update missiles
     this.updateMissiles(dt);
@@ -191,7 +201,7 @@ export class WeaponsSystem extends System {
     this.explosions.update(dt);
   }
 
-  private updateTorpedoes(boatTransform: Transform, dt: number): void {
+  private updateTorpedoes(dt: number): void {
     for (let i = this.torpedoes.length - 1; i >= 0; i--) {
       const t = this.torpedoes[i];
       t.age += dt;
@@ -201,14 +211,14 @@ export class WeaponsSystem extends System {
         continue;
       }
 
-      // Home toward nearest vessel
-      const target = this.wildlifeSystem.findNearestVessel(
+      // Home toward nearest vessel or battleship strike zone
+      const target = this.wildlifeSystem.findNearestVesselOrZone(
         t.position.x, t.position.z, TORPEDO_SEEK_RANGE,
       );
 
       if (target) {
-        const dx = target.mesh.position.x - t.position.x;
-        const dz = target.mesh.position.z - t.position.z;
+        const dx = target.targetX - t.position.x;
+        const dz = target.targetZ - t.position.z;
         const targetAngle = Math.atan2(dx, dz);
 
         let angleDiff = targetAngle - t.heading;
@@ -238,25 +248,68 @@ export class WeaponsSystem extends System {
       const hit = this.checkTorpedoHit(t);
       if (hit) {
         this.explosions.spawnExplosion(t.position.x, t.position.y, t.position.z);
-        this.wildlifeSystem.removeEntity(hit);
+        this.soundEffects.playExplosion();
+
+        if (hit.entity.type === 'battleship' && hit.entity.strikeZones && hit.zoneIndex >= 0) {
+          // Mark zone as hit
+          hit.entity.strikeZones.hit[hit.zoneIndex] = true;
+
+          // Check if all zones destroyed
+          const allHit = hit.entity.strikeZones.hit.every(h => h);
+          if (allHit) {
+            // Battleship sinks — extra explosions at each zone
+            for (const offset of hit.entity.strikeZones.offsets) {
+              const wx = hit.entity.mesh.position.x + Math.sin(hit.entity.heading) * offset;
+              const wz = hit.entity.mesh.position.z + Math.cos(hit.entity.heading) * offset;
+              this.explosions.spawnExplosion(wx, hit.entity.mesh.position.y, wz);
+            }
+            this.wildlifeSystem.removeEntity(hit.entity);
+            this.killTracker.recordBoatKill();
+          }
+        } else {
+          // Regular vessel — instant destroy
+          this.wildlifeSystem.removeEntity(hit.entity);
+          this.killTracker.recordBoatKill();
+        }
+
         this.destroyTorpedo(i);
       }
     }
   }
 
-  private checkTorpedoHit(torpedo: Torpedo): import('./WildlifeSystem').WildlifeEntity | null {
-    // Check against all vessels
-    const vessel = this.wildlifeSystem.findNearestVessel(
+  private checkTorpedoHit(torpedo: Torpedo): { entity: import('./WildlifeSystem').WildlifeEntity; zoneIndex: number } | null {
+    const result = this.wildlifeSystem.findNearestVesselOrZone(
       torpedo.position.x, torpedo.position.z, 20,
     );
-    if (!vessel) return null;
+    if (!result) return null;
 
-    const dx = vessel.mesh.position.x - torpedo.position.x;
-    const dz = vessel.mesh.position.z - torpedo.position.z;
+    const dx = result.targetX - torpedo.position.x;
+    const dz = result.targetZ - torpedo.position.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
 
-    const hitRadius = vessel.type === 'cargo_ship' ? 4 : 2;
-    return dist < hitRadius ? vessel : null;
+    const hitRadius = result.entity.type === 'battleship' ? 5
+      : result.entity.type === 'cargo_ship' ? 4 : 2;
+
+    if (dist >= hitRadius) return null;
+
+    // Determine which zone was hit for battleships
+    if (result.entity.type === 'battleship' && result.entity.strikeZones) {
+      for (let i = 0; i < result.entity.strikeZones.offsets.length; i++) {
+        if (result.entity.strikeZones.hit[i]) continue;
+        const zoneZ = result.entity.strikeZones.offsets[i];
+        const worldX = result.entity.mesh.position.x + Math.sin(result.entity.heading) * zoneZ;
+        const worldZ = result.entity.mesh.position.z + Math.cos(result.entity.heading) * zoneZ;
+        const zdx = worldX - torpedo.position.x;
+        const zdz = worldZ - torpedo.position.z;
+        if (Math.sqrt(zdx * zdx + zdz * zdz) < hitRadius) {
+          return { entity: result.entity, zoneIndex: i };
+        }
+      }
+      // All zones hit already (shouldn't reach here due to findNearestVesselOrZone filtering)
+      return null;
+    }
+
+    return { entity: result.entity, zoneIndex: -1 };
   }
 
   private cubicBezier(p0: THREE.Vector3, p1: THREE.Vector3, p2: THREE.Vector3, p3: THREE.Vector3, t: number, out: THREE.Vector3): THREE.Vector3 {
@@ -305,14 +358,36 @@ export class WeaponsSystem extends System {
 
       // Impact
       if (t >= 1.0) {
-        // Multiple overlapping explosions for massive missile impact
-        for (let e = 0; e < 5; e++) {
-          this.explosions.spawnExplosion(
-            m.p3.x + (Math.random() - 0.5) * 20,
-            m.p3.y + Math.random() * 5,
-            m.p3.z + (Math.random() - 0.5) * 20,
-          );
+        // Check if island has a lighthouse
+        const lighthouse = this.chunkManager.findLighthouseNearIsland(m.targetIslandX, m.targetIslandZ);
+
+        if (lighthouse) {
+          // Shift explosion to lighthouse position
+          const lhPos = new THREE.Vector3();
+          lighthouse.getWorldPosition(lhPos);
+
+          for (let e = 0; e < 5; e++) {
+            this.explosions.spawnExplosion(
+              lhPos.x + (Math.random() - 0.5) * 20,
+              lhPos.y + Math.random() * 5,
+              lhPos.z + (Math.random() - 0.5) * 20,
+            );
+          }
+
+          this.chunkManager.removeLighthouse(m.targetIslandX, m.targetIslandZ);
+          this.killTracker.recordLighthouseKill();
+        } else {
+          // No lighthouse — normal island explosion, no kill
+          for (let e = 0; e < 5; e++) {
+            this.explosions.spawnExplosion(
+              m.p3.x + (Math.random() - 0.5) * 20,
+              m.p3.y + Math.random() * 5,
+              m.p3.z + (Math.random() - 0.5) * 20,
+            );
+          }
         }
+
+        this.soundEffects.playExplosion();
         this.destroyMissile(i);
       }
     }
@@ -341,6 +416,7 @@ export class WeaponsSystem extends System {
     });
 
     this.torpedoCooldown = TORPEDO_COOLDOWN;
+    this.soundEffects.playTorpedoLaunch();
   }
 
   private fireMissile(boatTransform: Transform): void {
@@ -403,6 +479,8 @@ export class WeaponsSystem extends System {
       p1,
       p2,
       p3,
+      targetIslandX: target.x,
+      targetIslandZ: target.z,
       flightTime: Math.max(flightTime, 1.5),
       elapsed: 0,
       trail,
@@ -411,6 +489,7 @@ export class WeaponsSystem extends System {
     });
 
     this.missileCooldown = MISSILE_COOLDOWN;
+    this.soundEffects.playMissileLaunch();
   }
 
   private findNearestIsland(

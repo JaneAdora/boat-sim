@@ -42,13 +42,24 @@ const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
   { def: VIKING_SHIP, desc: 'Ancient & humble', iconKey: 'vikingship' },
 ];
 
-// Build boat selector UI inside the loading screen
+// Shared DOM refs
+const loadingScreen = document.getElementById('loading-screen')!;
 const loadingText = document.getElementById('loading-text')!;
 const loadingBar = document.getElementById('loading-bar')!;
+const escMenu = document.getElementById('esc-menu')!;
+const escConfirm = document.getElementById('esc-confirm')!;
+const escCancel = document.getElementById('esc-cancel')!;
+const escButton = document.getElementById('esc-button');
+
+let activeEngine: Engine | null = null;
+let escKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
 function showSelector(): void {
   loadingBar.style.width = '100%';
   loadingText.textContent = 'Choose your vessel';
+
+  // Remove previous selector if it exists (re-entry case)
+  document.getElementById('boat-selector')?.remove();
 
   const selector = document.createElement('div');
   selector.id = 'boat-selector';
@@ -59,7 +70,6 @@ function showSelector(): void {
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'boat-icon';
-    // Parse hardcoded SVG safely via DOMParser
     const svgDoc = new DOMParser().parseFromString(BOAT_ICONS[boat.iconKey], 'image/svg+xml');
     iconSpan.appendChild(svgDoc.documentElement);
 
@@ -86,10 +96,66 @@ function showSelector(): void {
   loadingText.parentElement!.appendChild(selector);
 }
 
+function showEscMenu(): void {
+  if (!activeEngine) return;
+  activeEngine.pause();
+  escMenu.classList.add('visible');
+}
+
+function hideEscMenu(): void {
+  escMenu.classList.remove('visible');
+  if (activeEngine) activeEngine.resume();
+}
+
+function returnToSelector(): void {
+  escMenu.classList.remove('visible');
+
+  // Dispose the running engine
+  if (activeEngine) {
+    activeEngine.dispose();
+    activeEngine = null;
+  }
+
+  // Remove ESC key handler
+  if (escKeyHandler) {
+    window.removeEventListener('keydown', escKeyHandler);
+    escKeyHandler = null;
+  }
+
+  // Re-show loading screen as the selector backdrop
+  loadingScreen.style.display = '';
+  loadingScreen.classList.remove('hidden');
+
+  showSelector();
+}
+
 function startGame(def: BoatDefinition): void {
   const engine = new Engine(def);
+  activeEngine = engine;
   (window as any).__engine = engine;
+
+  // ESC key handler (only active during gameplay)
+  escKeyHandler = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (escMenu.classList.contains('visible')) {
+        hideEscMenu();
+      } else {
+        showEscMenu();
+      }
+    }
+  };
+  window.addEventListener('keydown', escKeyHandler);
+
   engine.start();
+}
+
+// Wire ESC menu buttons
+escConfirm.addEventListener('click', returnToSelector);
+escCancel.addEventListener('click', hideEscMenu);
+
+// Mobile escape button
+if (escButton) {
+  escButton.addEventListener('click', showEscMenu);
 }
 
 // Show selector once page is ready

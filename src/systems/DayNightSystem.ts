@@ -37,7 +37,11 @@ export class DayNightSystem extends System {
     const absElev = Math.abs(elevation);
     // Near horizon (absElev~0): 0.06x speed (~100 min to cross).
     // At peak (absElev~1): 5x speed (~72s to cross noon/midnight).
-    const speedMultiplier = 0.06 + absElev * absElev * 5.0;
+    const baseSpeed = 0.06 + absElev * absElev * 5.0;
+    // Daytime slowdown: 3x slower when sun is up, smooth transition at horizon
+    const daySlowdown = THREE.MathUtils.smoothstep(elevation, -0.1, 0.1);
+    const dayFactor = THREE.MathUtils.lerp(1.0, 1.0 / 3.0, daySlowdown);
+    const speedMultiplier = baseSpeed * dayFactor;
     this.timeOfDay = (this.timeOfDay + dt / this.cycleDuration * speedMultiplier) % 1;
 
     // Update sky

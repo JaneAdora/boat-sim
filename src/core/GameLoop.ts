@@ -17,6 +17,17 @@ export class GameLoop {
     this.running = false;
   }
 
+  pause(): void {
+    this.running = false;
+  }
+
+  resume(): void {
+    if (this.running) return;
+    this.running = true;
+    this.lastTime = performance.now();
+    this.tick(this.lastTime);
+  }
+
   private tick = (now: number): void => {
     if (!this.running) return;
     requestAnimationFrame(this.tick);

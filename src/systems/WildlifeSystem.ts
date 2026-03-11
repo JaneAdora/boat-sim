@@ -143,10 +143,66 @@ function createCargoShipMesh(): THREE.Group {
   return group;
 }
 
+function createBattleshipMesh(): THREE.Group {
+  const group = new THREE.Group();
+  // Hull — dark gray, massive
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.3 });
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(8, 3, 30), hullMat);
+  hull.position.y = 0.8;
+  group.add(hull);
+  // Deck
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.7, metalness: 0.1 });
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.1, 29), deckMat);
+  deck.position.y = 2.35;
+  group.add(deck);
+  // Bridge/superstructure
+  const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 0.4, metalness: 0.2 });
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(5, 4, 6), bridgeMat);
+  bridge.position.set(0, 4.5, -2);
+  group.add(bridge);
+  // Forward turret
+  const turretMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.4, metalness: 0.4 });
+  const fwdTurret = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 1.2, 8), turretMat);
+  fwdTurret.position.set(0, 2.9, 10);
+  group.add(fwdTurret);
+  const fwdBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 4, 6), turretMat);
+  fwdBarrel.rotation.x = Math.PI / 2;
+  fwdBarrel.position.set(0, 3.2, 12.5);
+  group.add(fwdBarrel);
+  // Rear turret
+  const rearTurret = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 1.2, 8), turretMat);
+  rearTurret.position.set(0, 2.9, -10);
+  group.add(rearTurret);
+  const rearBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 4, 6), turretMat);
+  rearBarrel.rotation.x = Math.PI / 2;
+  rearBarrel.position.set(0, 3.2, -12.5);
+  group.add(rearBarrel);
+  // Smokestack
+  const stack = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.6, 0.7, 3, 8),
+    new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4, metalness: 0.3 })
+  );
+  stack.position.set(0, 5, 2);
+  group.add(stack);
+  // Mast/antenna
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 5, 4),
+    new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.4, metalness: 0.5 })
+  );
+  pole.position.set(0, 8.5, -2);
+  group.add(pole);
+  return group;
+}
+
 // ─── Wildlife entity types ───────────────────────────────────
 
+export interface StrikeZones {
+  offsets: number[];   // Z offsets from mesh center (local space)
+  hit: boolean[];      // which zones have been hit
+}
+
 export interface WildlifeEntity {
-  type: 'dolphin' | 'whale' | 'fishing_boat' | 'cargo_ship';
+  type: 'dolphin' | 'whale' | 'fishing_boat' | 'cargo_ship' | 'battleship';
   mesh: THREE.Group;
   origin: THREE.Vector3;   // spawn world position
   heading: number;         // radians
@@ -155,6 +211,7 @@ export interface WildlifeEntity {
   age: number;             // seconds alive
   maxAge: number;          // despawn after this
   towed: boolean;          // true when attached to tugboat
+  strikeZones?: StrikeZones;  // battleship-only: multi-hit zones
 }
 
 // ─── System ──────────────────────────────────────────────────
@@ -171,6 +228,7 @@ export class WildlifeSystem extends System {
   private static readonly MAX_WHALES = 2;
   private static readonly MAX_FISHING = 3;
   private static readonly MAX_CARGO = 2;
+  private static readonly MAX_BATTLESHIPS = 1;
 
   private static readonly SPAWN_RADIUS_MIN = 40;
   private static readonly SPAWN_RADIUS_MAX = 200;
@@ -220,9 +278,9 @@ export class WildlifeSystem extends System {
     const boatRb = world.getComponent<RigidBody>(this.boatEntity, 'RigidBody');
     if (boatRb) {
       for (const e of this.entities) {
-        if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship') continue;
+        if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship') continue;
         if (e.towed) continue;
-        const collisionRadius = e.type === 'cargo_ship' ? 12 : 4;
+        const collisionRadius = e.type === 'battleship' ? 16 : e.type === 'cargo_ship' ? 12 : 4;
         const dx = boatTransform.position.x - e.mesh.position.x;
         const dz = boatTransform.position.z - e.mesh.position.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
@@ -255,6 +313,7 @@ export class WildlifeSystem extends System {
     if (this.countType('whale') < WildlifeSystem.MAX_WHALES) candidates.push('whale');
     if (this.countType('fishing_boat') < WildlifeSystem.MAX_FISHING) candidates.push('fishing_boat');
     if (this.countType('cargo_ship') < WildlifeSystem.MAX_CARGO) candidates.push('cargo_ship');
+    if (this.countType('battleship') < WildlifeSystem.MAX_BATTLESHIPS) candidates.push('battleship');
     if (candidates.length === 0) return;
 
     const type = candidates[Math.floor(Math.random() * candidates.length)];
@@ -291,6 +350,11 @@ export class WildlifeSystem extends System {
         speed = 3 + Math.random() * 2;
         maxAge = 90 + Math.random() * 60;
         break;
+      case 'battleship':
+        mesh = createBattleshipMesh();
+        speed = 2 + Math.random() * 1.5;
+        maxAge = 120 + Math.random() * 60;
+        break;
     }
 
     const heading = Math.random() * Math.PI * 2;
@@ -298,7 +362,7 @@ export class WildlifeSystem extends System {
     mesh.rotation.y = heading;
     this.scene.add(mesh);
 
-    this.entities.push({
+    const entity: WildlifeEntity = {
       type,
       mesh,
       origin: new THREE.Vector3(sx, 0, sz),
@@ -308,7 +372,16 @@ export class WildlifeSystem extends System {
       age: 0,
       maxAge,
       towed: false,
-    });
+    };
+
+    if (type === 'battleship') {
+      entity.strikeZones = {
+        offsets: [-10, 0, 10],  // rear, middle, forward
+        hit: [false, false, false],
+      };
+    }
+
+    this.entities.push(entity);
   }
 
   /** Find the nearest towable vessel (fishing boat or cargo ship) within maxRadius */
@@ -343,12 +416,12 @@ export class WildlifeSystem extends System {
     return this.entities.includes(entity);
   }
 
-  /** Find the nearest fishing boat or cargo ship within maxRadius */
+  /** Find the nearest fishing boat, cargo ship, or battleship within maxRadius */
   findNearestVessel(x: number, z: number, maxRadius: number): WildlifeEntity | null {
     let best: WildlifeEntity | null = null;
     let bestDist = maxRadius;
     for (const e of this.entities) {
-      if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship') continue;
+      if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship') continue;
       if (e.towed) continue;
       const dx = e.mesh.position.x - x;
       const dz = e.mesh.position.z - z;
@@ -358,6 +431,46 @@ export class WildlifeSystem extends System {
         best = e;
       }
     }
+    return best;
+  }
+
+  /** Find nearest vessel or battleship strike zone, returning the target world position */
+  findNearestVesselOrZone(
+    x: number, z: number, maxRadius: number,
+  ): { entity: WildlifeEntity; targetX: number; targetZ: number } | null {
+    let best: { entity: WildlifeEntity; targetX: number; targetZ: number } | null = null;
+    let bestDist = maxRadius;
+
+    for (const e of this.entities) {
+      if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship') continue;
+      if (e.towed) continue;
+
+      if (e.type === 'battleship' && e.strikeZones) {
+        // Target the nearest unhit strike zone
+        for (let i = 0; i < e.strikeZones.offsets.length; i++) {
+          if (e.strikeZones.hit[i]) continue;
+          const zoneZ = e.strikeZones.offsets[i];
+          const worldX = e.mesh.position.x + Math.sin(e.heading) * zoneZ;
+          const worldZ = e.mesh.position.z + Math.cos(e.heading) * zoneZ;
+          const dx = worldX - x;
+          const dz = worldZ - z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = { entity: e, targetX: worldX, targetZ: worldZ };
+          }
+        }
+      } else {
+        const dx = e.mesh.position.x - x;
+        const dz = e.mesh.position.z - z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = { entity: e, targetX: e.mesh.position.x, targetZ: e.mesh.position.z };
+        }
+      }
+    }
+
     return best;
   }
 
@@ -444,6 +557,15 @@ export class WildlifeSystem extends System {
         e.mesh.position.y = waveY + 0.8;
         e.mesh.rotation.x = Math.sin(t * 0.6 + e.phase) * 0.02;
         e.mesh.rotation.z = Math.sin(t * 0.4 + e.phase) * 0.03;
+        e.mesh.rotation.y = e.heading;
+        break;
+      }
+      case 'battleship': {
+        // Battleships: heavy, steady, slow heading drift
+        e.mesh.position.y = waveY + 1.2;
+        e.mesh.rotation.x = Math.sin(t * 0.5 + e.phase) * 0.01;
+        e.mesh.rotation.z = Math.sin(t * 0.3 + e.phase) * 0.02;
+        e.heading += Math.sin(t * 0.1 + e.phase) * 0.05 * dt;
         e.mesh.rotation.y = e.heading;
         break;
       }
