@@ -26,7 +26,7 @@ export class TowingSystem extends System {
   // UI
   private towButton: HTMLButtonElement;
 
-  private static readonly TOW_RANGE = 50;
+  private static readonly TOW_RANGE = 80;
   private static readonly ROPE_SEGMENTS = 8;
   private static readonly FISHING_TOW_DISTANCE = 8;
   private static readonly CARGO_TOW_DISTANCE = 18;
@@ -108,9 +108,7 @@ export class TowingSystem extends System {
         this.towButton.classList.add('visible');
         this.towButton.classList.remove('towing');
       } else {
-        this.towButton.textContent = 'No boats nearby';
-        this.towButton.classList.add('visible');
-        this.towButton.classList.remove('towing');
+        this.towButton.classList.remove('visible', 'towing');
       }
     }
   }
