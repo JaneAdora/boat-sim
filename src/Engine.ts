@@ -16,6 +16,7 @@ import { RenderSystem } from './systems/RenderSystem';
 import { DayNightSystem } from './systems/DayNightSystem';
 import { SailAnimationSystem } from './systems/SailAnimationSystem';
 import { WildlifeSystem } from './systems/WildlifeSystem';
+import { TowingSystem } from './systems/TowingSystem';
 import { SeagullSystem } from './systems/SeagullSystem';
 import { spawnBoat } from './boats/BoatFactory';
 import { BoatDefinition } from './boats/BoatDefinition';
@@ -128,6 +129,13 @@ export class Engine {
     // Wildlife & ambient vessels
     this.wildlifeSystem = new WildlifeSystem(this.sceneManager.scene, this.ocean, this.boatEntity);
     this.world.addSystem(this.wildlifeSystem);
+
+    // Towing (tugboat only)
+    const towingSystem = new TowingSystem(
+      this.sceneManager.scene, this.ocean, this.boatEntity,
+      this.wildlifeSystem, boatDef.meshType,
+    );
+    this.world.addSystem(towingSystem);
 
     // Seagulls near islands
     const seagullSystem = new SeagullSystem(this.sceneManager.scene, this.chunkManager, this.boatEntity);

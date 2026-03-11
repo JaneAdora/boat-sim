@@ -145,7 +145,7 @@ function createCargoShipMesh(): THREE.Group {
 
 // ─── Wildlife entity types ───────────────────────────────────
 
-interface WildlifeEntity {
+export interface WildlifeEntity {
   type: 'dolphin' | 'whale' | 'fishing_boat' | 'cargo_ship';
   mesh: THREE.Group;
   origin: THREE.Vector3;   // spawn world position
@@ -154,6 +154,7 @@ interface WildlifeEntity {
   phase: number;           // animation phase offset
   age: number;             // seconds alive
   maxAge: number;          // despawn after this
+  towed: boolean;          // true when attached to tugboat
 }
 
 // ─── System ──────────────────────────────────────────────────
@@ -206,13 +207,13 @@ export class WildlifeSystem extends System {
       const dx = e.mesh.position.x - bx;
       const dz = e.mesh.position.z - bz;
       const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist > WildlifeSystem.DESPAWN_RADIUS || e.age > e.maxAge) {
+      if ((dist > WildlifeSystem.DESPAWN_RADIUS || e.age > e.maxAge) && !e.towed) {
         this.scene.remove(e.mesh);
         this.entities.splice(i, 1);
         continue;
       }
 
-      this.updateEntity(e, dt);
+      if (!e.towed) this.updateEntity(e, dt);
     }
 
     // Vessel collision — push player boat away from fishing boats and cargo ships
@@ -220,6 +221,7 @@ export class WildlifeSystem extends System {
     if (boatRb) {
       for (const e of this.entities) {
         if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship') continue;
+        if (e.towed) continue;
         const collisionRadius = e.type === 'cargo_ship' ? 12 : 4;
         const dx = boatTransform.position.x - e.mesh.position.x;
         const dz = boatTransform.position.z - e.mesh.position.z;
@@ -305,7 +307,41 @@ export class WildlifeSystem extends System {
       phase: Math.random() * Math.PI * 2,
       age: 0,
       maxAge,
+      towed: false,
     });
+  }
+
+  /** Find the nearest towable vessel (fishing boat or cargo ship) within maxRadius */
+  findNearestTowable(x: number, z: number, maxRadius: number): WildlifeEntity | null {
+    let best: WildlifeEntity | null = null;
+    let bestDist = maxRadius;
+    for (const e of this.entities) {
+      if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship') continue;
+      if (e.towed) continue;
+      const dx = e.mesh.position.x - x;
+      const dz = e.mesh.position.z - z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /** Mark a wildlife entity as towed or released */
+  setEntityTowed(entity: WildlifeEntity, towed: boolean): void {
+    entity.towed = towed;
+    if (!towed) {
+      // Reset age so it doesn't immediately despawn
+      entity.age = 0;
+      entity.origin.copy(entity.mesh.position);
+    }
+  }
+
+  /** Check if a wildlife entity still exists in the active list */
+  isEntityAlive(entity: WildlifeEntity): boolean {
+    return this.entities.includes(entity);
   }
 
   /** Get positions of all active wildlife for minimap rendering */

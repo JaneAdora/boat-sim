@@ -243,6 +243,35 @@
       text-align: center;
     }
 
+    #tow-button {
+      position: fixed;
+      left: 50%;
+      top: 60%;
+      transform: translate(-50%, -50%);
+      padding: 12px 24px;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 24px;
+      color: #e0e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      z-index: 15;
+      pointer-events: none;
+      transition: opacity 0.3s ease, background 0.2s;
+      opacity: 0;
+    }
+    #tow-button.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #tow-button.towing {
+      background: rgba(200, 80, 50, 0.5);
+      border-color: rgba(200, 80, 50, 0.6);
+    }
+
     /* Mobile: move HUD above touch controls, hide keyboard help */
     @media (pointer: coarse) {
       #hud {
@@ -329,6 +358,7 @@
       <tr><td>M</td><td>Mute audio</td></tr>
       <tr><td>H</td><td>Toggle HUD</td></tr>
       <tr><td>N</td><td>Toggle map</td></tr>
+      <tr><td>T</td><td>Tow / Release</td></tr>
     </table>
   </div>
 
