@@ -245,57 +245,50 @@ export class TouchControls {
   }
 
   // ──── Camera gesture handlers (canvas) ────
+  // Single finger: orbit camera. Two fingers: pinch to zoom.
 
   private onCanvasTouchStart = (e: TouchEvent) => {
+    e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
       this.cameraTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
     }
-    // Only prevent default when two fingers are down (camera mode)
-    if (this.cameraTouches.size >= 2) {
-      e.preventDefault();
-    }
   };
 
   private onCanvasTouchMove = (e: TouchEvent) => {
-    if (this.cameraTouches.size < 2) {
-      // Update positions for when a second finger arrives
+    e.preventDefault();
+
+    if (this.cameraTouches.size === 1) {
+      // Single finger: orbit
+      const t = e.changedTouches[0];
+      const prev = this.cameraTouches.get(t.identifier);
+      if (prev) {
+        this.cameraOrbitDelta += (t.clientX - prev.x) * 0.005;
+        this.cameraTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+    } else if (this.cameraTouches.size >= 2) {
+      // Two fingers: pinch to zoom + orbit from midpoint
+      const ids = Array.from(this.cameraTouches.keys()).slice(0, 2);
+      const prev0 = this.cameraTouches.get(ids[0])!;
+      const prev1 = this.cameraTouches.get(ids[1])!;
+      const prevMidX = (prev0.x + prev1.x) / 2;
+      const prevDist = Math.hypot(prev1.x - prev0.x, prev1.y - prev0.y);
+
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         if (this.cameraTouches.has(t.identifier)) {
           this.cameraTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
         }
       }
-      return;
+
+      const cur0 = this.cameraTouches.get(ids[0])!;
+      const cur1 = this.cameraTouches.get(ids[1])!;
+      const curMidX = (cur0.x + cur1.x) / 2;
+      const curDist = Math.hypot(cur1.x - cur0.x, cur1.y - cur0.y);
+
+      this.cameraOrbitDelta += (curMidX - prevMidX) * 0.005;
+      this.cameraZoomDelta += (prevDist - curDist) * 0.05;
     }
-
-    e.preventDefault();
-
-    // Snapshot previous positions
-    const ids = Array.from(this.cameraTouches.keys()).slice(0, 2);
-    const prev0 = this.cameraTouches.get(ids[0])!;
-    const prev1 = this.cameraTouches.get(ids[1])!;
-    const prevMidX = (prev0.x + prev1.x) / 2;
-    const prevDist = Math.hypot(prev1.x - prev0.x, prev1.y - prev0.y);
-
-    // Update with new positions
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      if (this.cameraTouches.has(t.identifier)) {
-        this.cameraTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
-      }
-    }
-
-    const cur0 = this.cameraTouches.get(ids[0])!;
-    const cur1 = this.cameraTouches.get(ids[1])!;
-    const curMidX = (cur0.x + cur1.x) / 2;
-    const curDist = Math.hypot(cur1.x - cur0.x, cur1.y - cur0.y);
-
-    // Orbit from horizontal midpoint movement
-    this.cameraOrbitDelta += (curMidX - prevMidX) * 0.005;
-
-    // Zoom from pinch distance change
-    this.cameraZoomDelta += (prevDist - curDist) * 0.05;
   };
 
   private onCanvasTouchEnd = (e: TouchEvent) => {

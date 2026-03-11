@@ -10,6 +10,7 @@ export class SceneManager {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.domElement.style.touchAction = 'none';
     document.body.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
