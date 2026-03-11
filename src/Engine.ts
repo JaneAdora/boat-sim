@@ -21,6 +21,7 @@ import { Clouds } from './rendering/Clouds';
 import { spawnBoat } from './boats/BoatFactory';
 import { BoatDefinition } from './boats/BoatDefinition';
 import { HUD } from './ui/HUD';
+import { Minimap } from './ui/Minimap';
 import { TouchControls } from './ui/TouchControls';
 import { AmbientSoundscape } from './audio/AmbientSoundscape';
 import { PostProcessing } from './rendering/PostProcessing';
@@ -46,6 +47,7 @@ export class Engine {
   private dayNightSystem: DayNightSystem;
   private cameraSystem: CameraSystem;
   private hud: HUD;
+  private minimap: Minimap;
   private soundscape: AmbientSoundscape;
   private postProcessing: PostProcessing;
   private wakeTrail: WakeTrail;
@@ -55,6 +57,7 @@ export class Engine {
   private weather: WeatherSystem;
   private boatLights: BoatLights;
   private clouds: Clouds;
+  private wildlifeSystem: WildlifeSystem;
   private boatEntity: number;
   private elapsedTime = 0;
 
@@ -125,8 +128,8 @@ export class Engine {
     this.boatLights = new BoatLights(boatMesh!.object3D as THREE.Group, boatDef.meshType);
 
     // Wildlife & ambient vessels
-    const wildlifeSystem = new WildlifeSystem(this.sceneManager.scene, this.ocean, this.boatEntity);
-    this.world.addSystem(wildlifeSystem);
+    this.wildlifeSystem = new WildlifeSystem(this.sceneManager.scene, this.ocean, this.boatEntity);
+    this.world.addSystem(this.wildlifeSystem);
 
     // Seagulls near islands
     const seagullSystem = new SeagullSystem(this.sceneManager.scene, this.chunkManager, this.boatEntity);
@@ -137,6 +140,7 @@ export class Engine {
 
     // UI
     this.hud = new HUD(this.input);
+    this.minimap = new Minimap(this.chunkManager);
 
     // Audio
     this.soundscape = new AmbientSoundscape();
@@ -162,10 +166,13 @@ export class Engine {
     // Weather (rain, fog, lightning)
     this.weather = new WeatherSystem(this.sceneManager.scene);
 
-    // Mute toggle
+    // Keyboard toggles
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyM') {
         this.soundscape.toggleMute();
+      }
+      if (e.code === 'KeyN') {
+        this.minimap.toggle();
       }
     });
 
@@ -238,6 +245,16 @@ export class Engine {
 
     // Update HUD
     this.hud.update(this.world, this.boatEntity, this.windSystem, dt);
+
+    // Update minimap
+    if (boatTransform) {
+      this.minimap.update(
+        boatTransform.position.x,
+        boatTransform.position.z,
+        boatTransform.rotation.y,
+        this.wildlifeSystem.getWildlifePositions(),
+      );
+    }
 
     // Update ambient audio
     this.soundscape.update(this.windSystem.strength, false, dt, this.weather.getRainIntensity());

@@ -69,7 +69,7 @@ export class CameraSystem extends System {
       this.lastOrbitInputWasMouse = true;
     }
     if (mouseDeltas.scrollDelta !== 0) {
-      this.distance = Math.max(10, Math.min(60, this.distance + mouseDeltas.scrollDelta * 0.5));
+      this.distance = Math.max(10, Math.min(60, this.distance + mouseDeltas.scrollDelta * 0.02));
     }
 
     // Touch camera gestures

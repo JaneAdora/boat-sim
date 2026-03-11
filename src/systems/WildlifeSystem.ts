@@ -14,11 +14,17 @@ function createDolphinMesh(): THREE.Group {
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), mat);
   body.scale.set(1, 0.6, 2.5);
   group.add(body);
-  // Snout
-  const snout = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 6), mat);
-  snout.rotation.x = -Math.PI / 2;
-  snout.position.z = 1.1;
+  // Snout — tapered elongated sphere (no more spoonbill cone)
+  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 4), mat);
+  snout.scale.set(0.6, 0.5, 1.8);
+  snout.position.z = 1.05;
   group.add(snout);
+  // Belly — lighter underside for visual interest
+  const bellyMat = new THREE.MeshStandardMaterial({ color: 0x9aabb8, roughness: 0.4, metalness: 0.05 });
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 6), bellyMat);
+  belly.scale.set(0.85, 0.3, 2.2);
+  belly.position.y = -0.08;
+  group.add(belly);
   // Dorsal fin
   const finMat = new THREE.MeshStandardMaterial({ color: 0x506070, roughness: 0.5, metalness: 0.1 });
   const dorsal = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.4, 4), finMat);
@@ -44,12 +50,29 @@ function createWhaleMesh(): THREE.Group {
   head.position.set(0, 0.2, 3.2);
   head.scale.set(1, 0.7, 1);
   group.add(head);
-  // Tail flukes
-  const flukeMat = new THREE.MeshStandardMaterial({ color: 0x2a3a4a, roughness: 0.5, metalness: 0.1 });
-  const fluke = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.1, 1.0), flukeMat);
-  fluke.position.set(0, 0.3, -4.0);
-  fluke.rotation.x = 0.2;
-  group.add(fluke);
+  // Tail flukes — two tapered flat shapes angled outward like real whale flukes
+  const flukeMat = new THREE.MeshStandardMaterial({ color: 0x2a3a4a, roughness: 0.5, metalness: 0.1, side: THREE.DoubleSide });
+  // Left fluke
+  const leftFlukeShape = new THREE.Shape();
+  leftFlukeShape.moveTo(0, 0);
+  leftFlukeShape.quadraticCurveTo(-0.6, 0.1, -1.2, 0);
+  leftFlukeShape.quadraticCurveTo(-0.8, -0.05, 0, -0.08);
+  leftFlukeShape.closePath();
+  const flukeExtrudeSettings = { depth: 0.06, bevelEnabled: false };
+  const leftFluke = new THREE.Mesh(new THREE.ExtrudeGeometry(leftFlukeShape, flukeExtrudeSettings), flukeMat);
+  leftFluke.position.set(0, 0.3, -4.0);
+  leftFluke.rotation.set(0.2, 0, -0.5); // tilt outward
+  group.add(leftFluke);
+  // Right fluke
+  const rightFlukeShape = new THREE.Shape();
+  rightFlukeShape.moveTo(0, 0);
+  rightFlukeShape.quadraticCurveTo(0.6, 0.1, 1.2, 0);
+  rightFlukeShape.quadraticCurveTo(0.8, -0.05, 0, -0.08);
+  rightFlukeShape.closePath();
+  const rightFluke = new THREE.Mesh(new THREE.ExtrudeGeometry(rightFlukeShape, flukeExtrudeSettings), flukeMat);
+  rightFluke.position.set(0, 0.3, -4.0);
+  rightFluke.rotation.set(0.2, 0, 0.5); // tilt outward
+  group.add(rightFluke);
   // Dorsal (small for humpback-ish)
   const dorsal = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.5, 4), flukeMat);
   dorsal.position.set(0, 1.1, -1.0);
@@ -285,6 +308,15 @@ export class WildlifeSystem extends System {
     });
   }
 
+  /** Get positions of all active wildlife for minimap rendering */
+  getWildlifePositions(): { x: number; z: number; type: string }[] {
+    return this.entities.map(e => ({
+      x: e.mesh.position.x,
+      z: e.mesh.position.z,
+      type: e.type,
+    }));
+  }
+
   private updateEntity(e: WildlifeEntity, dt: number): void {
     const t = this.time;
 
@@ -299,15 +331,17 @@ export class WildlifeSystem extends System {
       case 'dolphin': {
         // Dolphins: sinusoidal jumping arc, slight heading weave
         const jumpCycle = Math.sin(t * 2.5 + e.phase);
+        // Derivative of jump cycle for pitch — positive = rising, negative = falling
+        const jumpDerivative = Math.cos(t * 2.5 + e.phase);
         const jumpHeight = Math.max(0, jumpCycle) * 1.8; // only above water
         e.mesh.position.y = waveY + jumpHeight;
-        // Pitch follows jump arc
-        e.mesh.rotation.x = jumpCycle * 0.4;
-        // Gentle heading weave
-        e.heading += Math.sin(t * 0.5 + e.phase) * 0.3 * dt;
+        // Pitch follows the derivative: nose up when rising, nose down when falling
+        e.mesh.rotation.x = jumpDerivative * 0.35;
+        // Gentle heading weave — reduced amplitude to prevent zigzag appearance
+        e.heading += Math.sin(t * 0.5 + e.phase) * 0.12 * dt;
         e.mesh.rotation.y = e.heading;
-        // Hide when "underwater" (below wave surface)
-        e.mesh.visible = e.mesh.position.y > waveY - 0.2;
+        // Only show during rising/airborne part of jump (hide early on descent to avoid backward look)
+        e.mesh.visible = jumpCycle > -0.1 && e.mesh.position.y > waveY - 0.15;
         break;
       }
       case 'whale': {

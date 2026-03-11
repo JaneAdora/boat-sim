@@ -17,26 +17,26 @@ export class BoatLights {
     // Scale offsets based on boat type
     const offsets = this.getOffsets(meshType);
 
-    // Port (red) navigation light
-    const portLight = new THREE.PointLight(0xff2020, 0, 15, 2);
+    // Port (red) navigation light — extended range for camera visibility
+    const portLight = new THREE.PointLight(0xff2020, 0, 50, 1.5);
     portLight.position.copy(offsets.port);
     this.group.add(portLight);
     this.lights.push(portLight);
 
     // Starboard (green) navigation light
-    const stbdLight = new THREE.PointLight(0x20ff40, 0, 15, 2);
+    const stbdLight = new THREE.PointLight(0x20ff40, 0, 50, 1.5);
     stbdLight.position.copy(offsets.starboard);
     this.group.add(stbdLight);
     this.lights.push(stbdLight);
 
     // Stern white light
-    const sternLight = new THREE.PointLight(0xffeedd, 0, 20, 2);
+    const sternLight = new THREE.PointLight(0xffeedd, 0, 60, 1.5);
     sternLight.position.copy(offsets.stern);
     this.group.add(sternLight);
     this.lights.push(sternLight);
 
     // Cabin warm glow (interior light effect)
-    const cabinLight = new THREE.PointLight(0xffcc66, 0, 12, 2);
+    const cabinLight = new THREE.PointLight(0xffcc66, 0, 40, 1.5);
     cabinLight.position.copy(offsets.cabin);
     this.group.add(cabinLight);
     this.lights.push(cabinLight);
@@ -101,7 +101,7 @@ export class BoatLights {
     this.currentIntensity += (target - this.currentIntensity) * 0.05;
 
     for (const light of this.lights) {
-      light.intensity = this.currentIntensity * 1.5;
+      light.intensity = this.currentIntensity * 3.0;
     }
 
     this.group.visible = this.currentIntensity > 0.01;

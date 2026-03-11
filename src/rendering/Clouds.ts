@@ -6,8 +6,8 @@ import * as THREE from 'three';
  * instead of a single flattened disc.
  */
 
-const CLOUD_COUNT = 50;       // number of cloud clusters
-const MAX_PUFFS_PER_CLOUD = 6;
+const CLOUD_COUNT = 35;       // number of cloud clusters
+const MAX_PUFFS_PER_CLOUD = 5;
 const TOTAL_PUFFS = CLOUD_COUNT * MAX_PUFFS_PER_CLOUD;
 
 interface CloudCluster {
@@ -27,8 +27,8 @@ export class Clouds {
   private radius = 2000;
 
   constructor(scene: THREE.Scene) {
-    // Soft sphere geometry for each puff
-    const geometry = new THREE.SphereGeometry(1, 8, 6);
+    // Smooth sphere geometry for each puff
+    const geometry = new THREE.SphereGeometry(1, 12, 8);
 
     const material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
@@ -55,7 +55,7 @@ export class Clouds {
         baseY: 100 + Math.random() * 100,
         baseZ: Math.sin(angle) * dist,
         speed: 1.5 + Math.random() * 3,
-        puffCount: 3 + Math.floor(Math.random() * 4), // 3-6 puffs
+        puffCount: 3 + Math.floor(Math.random() * 3), // 3-5 puffs
         puffOffsets: [],
       };
 
@@ -63,24 +63,24 @@ export class Clouds {
       const baseScale = 20 + Math.random() * 40;
       for (let p = 0; p < cluster.puffCount; p++) {
         if (p === 0) {
-          // Main body — widest, flattest
+          // Main body — wide and rounded (not pancake-flat)
           cluster.puffOffsets.push({
             x: 0, y: 0, z: 0,
             sx: baseScale * (1.0 + Math.random() * 0.3),
-            sy: baseScale * (0.35 + Math.random() * 0.15),
+            sy: baseScale * (0.5 + Math.random() * 0.2),
             sz: baseScale * (0.7 + Math.random() * 0.3),
           });
         } else {
-          // Satellite puffs — offset from center, smaller, some taller
+          // Satellite puffs — offset from center, rounder shapes
           const angle2 = Math.random() * Math.PI * 2;
           const dist2 = baseScale * (0.3 + Math.random() * 0.5);
           const puffScale = baseScale * (0.4 + Math.random() * 0.5);
           cluster.puffOffsets.push({
             x: Math.cos(angle2) * dist2,
-            y: (Math.random() - 0.3) * baseScale * 0.3, // mostly on top
+            y: (Math.random() - 0.2) * baseScale * 0.4, // some on top, some on sides
             z: Math.sin(angle2) * dist2 * 0.7,
             sx: puffScale * (0.8 + Math.random() * 0.4),
-            sy: puffScale * (0.5 + Math.random() * 0.4),
+            sy: puffScale * (0.6 + Math.random() * 0.5),
             sz: puffScale * (0.6 + Math.random() * 0.4),
           });
         }

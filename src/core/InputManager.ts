@@ -25,16 +25,18 @@ export class InputManager {
       this.dragging = false;
     });
 
-    // Mouse drag tracking (right-click or middle-click)
+    // Mouse drag tracking — any button works for camera orbit
+    // (left, right, or middle click all start a drag)
     window.addEventListener('mousedown', (e) => {
-      if (e.button === 2 || e.button === 1) {
+      // Only start drag on the canvas, not on UI elements
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'CANVAS' || tag === 'BODY') {
         this.dragging = true;
+        e.preventDefault();
       }
     });
-    window.addEventListener('mouseup', (e) => {
-      if (e.button === 2 || e.button === 1) {
-        this.dragging = false;
-      }
+    window.addEventListener('mouseup', () => {
+      this.dragging = false;
     });
     window.addEventListener('mousemove', (e) => {
       if (this.dragging) {
@@ -45,12 +47,16 @@ export class InputManager {
 
     // Scroll wheel for zoom
     window.addEventListener('wheel', (e) => {
-      this.mouseScrollDelta += e.deltaY;
+      // Normalize deltaY — different browsers use different scales
+      const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      this.mouseScrollDelta += delta;
     }, { passive: true });
 
-    // Prevent right-click context menu
+    // Prevent right-click context menu on canvas
     window.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
+      if ((e.target as HTMLElement).tagName === 'CANVAS') {
+        e.preventDefault();
+      }
     });
   }
 

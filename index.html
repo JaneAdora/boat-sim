@@ -203,6 +203,46 @@
       text-align: center;
     }
 
+    /* Minimap */
+    #minimap-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.15);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    #minimap-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    #map-toggle {
+      display: none;
+      position: fixed;
+      top: 16px;
+      right: 56px;
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.6);
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 20;
+      padding: 0;
+      line-height: 36px;
+      text-align: center;
+    }
+
     /* Mobile: move HUD above touch controls, hide keyboard help */
     @media (pointer: coarse) {
       #hud {
@@ -218,6 +258,17 @@
         display: none !important;
       }
       #hud-toggle {
+        display: block;
+      }
+      #minimap-container {
+        bottom: auto;
+        top: 60px;
+        right: 16px;
+        width: 100px;
+        height: 100px;
+        display: none;
+      }
+      #map-toggle {
         display: block;
       }
     }
@@ -277,8 +328,14 @@
       <tr><td>Scroll</td><td>Zoom</td></tr>
       <tr><td>M</td><td>Mute audio</td></tr>
       <tr><td>H</td><td>Toggle HUD</td></tr>
+      <tr><td>N</td><td>Toggle map</td></tr>
     </table>
   </div>
+
+  <div id="minimap-container">
+    <canvas id="minimap-canvas" width="280" height="280"></canvas>
+  </div>
+  <button id="map-toggle" aria-label="Toggle map"></button>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

@@ -32,24 +32,31 @@ export class SkyRenderer {
 
     // Adjust atmospheric parameters based on sun elevation
     if (elevation > 0.1) {
-      // Day
+      // Day — clear blue sky
       uniforms['turbidity'].value = 2;
       uniforms['rayleigh'].value = 1;
       uniforms['mieCoefficient'].value = 0.005;
       uniforms['mieDirectionalG'].value = 0.8;
+    } else if (elevation > 0) {
+      // Sunset/sunrise — warm, dramatic sky
+      const t = elevation / 0.1;
+      uniforms['turbidity'].value = THREE.MathUtils.lerp(8, 2, t);
+      uniforms['rayleigh'].value = THREE.MathUtils.lerp(2, 1, t);
+      uniforms['mieCoefficient'].value = THREE.MathUtils.lerp(0.01, 0.005, t);
+      uniforms['mieDirectionalG'].value = THREE.MathUtils.lerp(0.9, 0.8, t);
     } else if (elevation > -0.05) {
-      // Dawn/dusk
-      const t = (elevation + 0.05) / 0.15;
-      uniforms['turbidity'].value = THREE.MathUtils.lerp(10, 2, t);
-      uniforms['rayleigh'].value = THREE.MathUtils.lerp(3, 1, t);
-      uniforms['mieCoefficient'].value = THREE.MathUtils.lerp(0.02, 0.005, t);
-      uniforms['mieDirectionalG'].value = THREE.MathUtils.lerp(0.95, 0.8, t);
+      // Twilight — transitioning to dark
+      const t = (elevation + 0.05) / 0.05;
+      uniforms['turbidity'].value = THREE.MathUtils.lerp(0.5, 8, t);
+      uniforms['rayleigh'].value = THREE.MathUtils.lerp(0.1, 2, t);
+      uniforms['mieCoefficient'].value = THREE.MathUtils.lerp(0.001, 0.01, t);
+      uniforms['mieDirectionalG'].value = THREE.MathUtils.lerp(0.2, 0.9, t);
     } else {
-      // Night
-      uniforms['turbidity'].value = 10;
-      uniforms['rayleigh'].value = 3;
-      uniforms['mieCoefficient'].value = 0.02;
-      uniforms['mieDirectionalG'].value = 0.95;
+      // Night — very low scattering so sky goes properly dark
+      uniforms['turbidity'].value = 0.5;
+      uniforms['rayleigh'].value = 0.1;
+      uniforms['mieCoefficient'].value = 0.001;
+      uniforms['mieDirectionalG'].value = 0.2;
     }
   }
 

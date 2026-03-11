@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CHUNK_SIZE, CHUNK_LOAD_RADIUS } from './WorldSeed';
-import { generateIsland, IslandData } from './IslandGenerator';
+import { generateIsland, IslandData, Biome } from './IslandGenerator';
 import { createTerrainMesh, createTreeInstances, createShoreRocks, createLighthouse } from './TerrainGenerator';
 
 interface LoadedChunk {
@@ -18,7 +18,7 @@ interface LoadedChunk {
 export class ChunkManager {
   private chunks = new Map<string, LoadedChunk>();
   private scene: THREE.Scene;
-  private islandPositions: { x: number; z: number; radius: number }[] = [];
+  private islandPositions: { x: number; z: number; radius: number; biome: Biome }[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -88,6 +88,7 @@ export class ChunkManager {
         x: island.centerX,
         z: island.centerZ,
         radius: island.radius,
+        biome: island.biome,
       });
     }
 
@@ -189,7 +190,7 @@ export class ChunkManager {
     }
   }
 
-  getIslandPositions(): { x: number; z: number; radius: number }[] {
+  getIslandPositions(): { x: number; z: number; radius: number; biome: Biome }[] {
     return this.islandPositions;
   }
 

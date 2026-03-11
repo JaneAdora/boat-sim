@@ -225,12 +225,12 @@ export class WeatherSystem {
    * in quickly.
    */
   private updateWeatherState(): void {
-    // Slow-moving noise (~3-5 min cycle)
-    // Time scale: 0.005 gives roughly one full noise oscillation per ~200s
-    const slowNoise = this.noise2D(this.elapsed * 0.005, 0.0);
+    // Noise-driven weather cycle (~1-2 min between transitions)
+    // Time scale: 0.015 gives roughly one full noise oscillation per ~70s
+    const slowNoise = this.noise2D(this.elapsed * 0.015, 0.0);
 
     // Secondary noise at different frequency for variety
-    const fastNoise = this.noise2D(this.elapsed * 0.012, 100.0);
+    const fastNoise = this.noise2D(this.elapsed * 0.035, 100.0);
 
     // Combined value in roughly [-1, 1] range
     const combined = slowNoise * 0.7 + fastNoise * 0.3;
