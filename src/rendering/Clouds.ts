@@ -1,108 +1,150 @@
 import * as THREE from 'three';
 
 /**
- * Drifting cloud layer using instanced soft billboards.
- * Clouds spawn in a large disc around the camera and drift with the wind.
+ * Volumetric-looking clouds built from clusters of overlapping soft spheres.
+ * Each "cloud" is 3-6 puffs grouped together, giving a natural puffy shape
+ * instead of a single flattened disc.
  */
+
+const CLOUD_COUNT = 50;       // number of cloud clusters
+const MAX_PUFFS_PER_CLOUD = 6;
+const TOTAL_PUFFS = CLOUD_COUNT * MAX_PUFFS_PER_CLOUD;
+
+interface CloudCluster {
+  baseX: number;
+  baseY: number;
+  baseZ: number;
+  speed: number;
+  puffCount: number;
+  // Per-puff local offsets and scales (relative to base)
+  puffOffsets: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[];
+}
+
 export class Clouds {
   private mesh: THREE.InstancedMesh;
-  private count: number;
-  private positions: Float32Array;
-  private scales: Float32Array;
-  private speeds: Float32Array;
+  private clusters: CloudCluster[];
   private dummy = new THREE.Object3D();
   private radius = 2000;
 
-  constructor(scene: THREE.Scene, count = 80) {
-    this.count = count;
-
-    // Soft cloud shape — flattened sphere
-    const geometry = new THREE.SphereGeometry(1, 8, 5);
-    geometry.scale(1, 0.3, 1);
+  constructor(scene: THREE.Scene) {
+    // Soft sphere geometry for each puff
+    const geometry = new THREE.SphereGeometry(1, 8, 6);
 
     const material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       roughness: 1.0,
       metalness: 0.0,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.45,
       depthWrite: false,
     });
 
-    this.mesh = new THREE.InstancedMesh(geometry, material, count);
+    this.mesh = new THREE.InstancedMesh(geometry, material, TOTAL_PUFFS);
     this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 50;
     scene.add(this.mesh);
 
-    // Initialize cloud positions
-    this.positions = new Float32Array(count * 3);
-    this.scales = new Float32Array(count * 3);
-    this.speeds = new Float32Array(count);
-
-    for (let i = 0; i < count; i++) {
+    // Generate cloud clusters
+    this.clusters = [];
+    for (let i = 0; i < CLOUD_COUNT; i++) {
       const angle = Math.random() * Math.PI * 2;
       const dist = 200 + Math.random() * this.radius;
-      this.positions[i * 3] = Math.cos(angle) * dist;
-      this.positions[i * 3 + 1] = 80 + Math.random() * 120; // altitude 80-200
-      this.positions[i * 3 + 2] = Math.sin(angle) * dist;
 
-      // Vary cloud size — some wispy, some puffy
-      const baseScale = 30 + Math.random() * 80;
-      this.scales[i * 3] = baseScale * (0.8 + Math.random() * 0.4);
-      this.scales[i * 3 + 1] = baseScale * (0.3 + Math.random() * 0.3);
-      this.scales[i * 3 + 2] = baseScale * (0.6 + Math.random() * 0.4);
+      const cluster: CloudCluster = {
+        baseX: Math.cos(angle) * dist,
+        baseY: 100 + Math.random() * 100,
+        baseZ: Math.sin(angle) * dist,
+        speed: 1.5 + Math.random() * 3,
+        puffCount: 3 + Math.floor(Math.random() * 4), // 3-6 puffs
+        puffOffsets: [],
+      };
 
-      this.speeds[i] = 2 + Math.random() * 4; // drift speed
+      // Generate puff arrangement — a main body with smaller puffs on top and sides
+      const baseScale = 20 + Math.random() * 40;
+      for (let p = 0; p < cluster.puffCount; p++) {
+        if (p === 0) {
+          // Main body — widest, flattest
+          cluster.puffOffsets.push({
+            x: 0, y: 0, z: 0,
+            sx: baseScale * (1.0 + Math.random() * 0.3),
+            sy: baseScale * (0.35 + Math.random() * 0.15),
+            sz: baseScale * (0.7 + Math.random() * 0.3),
+          });
+        } else {
+          // Satellite puffs — offset from center, smaller, some taller
+          const angle2 = Math.random() * Math.PI * 2;
+          const dist2 = baseScale * (0.3 + Math.random() * 0.5);
+          const puffScale = baseScale * (0.4 + Math.random() * 0.5);
+          cluster.puffOffsets.push({
+            x: Math.cos(angle2) * dist2,
+            y: (Math.random() - 0.3) * baseScale * 0.3, // mostly on top
+            z: Math.sin(angle2) * dist2 * 0.7,
+            sx: puffScale * (0.8 + Math.random() * 0.4),
+            sy: puffScale * (0.5 + Math.random() * 0.4),
+            sz: puffScale * (0.6 + Math.random() * 0.4),
+          });
+        }
+      }
+
+      // Pad unused puff slots
+      while (cluster.puffOffsets.length < MAX_PUFFS_PER_CLOUD) {
+        cluster.puffOffsets.push({ x: 0, y: -10000, z: 0, sx: 0, sy: 0, sz: 0 });
+      }
+
+      this.clusters.push(cluster);
     }
 
     this.updateMatrices(new THREE.Vector3());
   }
 
   private updateMatrices(cameraPos: THREE.Vector3): void {
-    for (let i = 0; i < this.count; i++) {
-      this.dummy.position.set(
-        this.positions[i * 3] + cameraPos.x,
-        this.positions[i * 3 + 1],
-        this.positions[i * 3 + 2] + cameraPos.z
-      );
-      this.dummy.scale.set(
-        this.scales[i * 3],
-        this.scales[i * 3 + 1],
-        this.scales[i * 3 + 2]
-      );
-      this.dummy.rotation.y = i * 1.3; // slight rotation variety
-      this.dummy.updateMatrix();
-      this.mesh.setMatrixAt(i, this.dummy.matrix);
+    let instanceIdx = 0;
+
+    for (const cluster of this.clusters) {
+      for (let p = 0; p < MAX_PUFFS_PER_CLOUD; p++) {
+        const puff = cluster.puffOffsets[p];
+        this.dummy.position.set(
+          cluster.baseX + puff.x + cameraPos.x,
+          cluster.baseY + puff.y,
+          cluster.baseZ + puff.z + cameraPos.z
+        );
+        this.dummy.scale.set(puff.sx, puff.sy, puff.sz);
+        this.dummy.rotation.set(0, 0, 0);
+        this.dummy.updateMatrix();
+        this.mesh.setMatrixAt(instanceIdx, this.dummy.matrix);
+        instanceIdx++;
+      }
     }
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
   update(dt: number, cameraPos: THREE.Vector3, sunElevation: number): void {
     // Drift clouds
-    for (let i = 0; i < this.count; i++) {
-      this.positions[i * 3] += this.speeds[i] * dt;
+    for (const cluster of this.clusters) {
+      cluster.baseX += cluster.speed * dt;
 
-      // Wrap around when too far from origin
-      if (this.positions[i * 3] > this.radius) {
-        this.positions[i * 3] = -this.radius;
+      // Wrap around
+      if (cluster.baseX > this.radius) {
+        cluster.baseX = -this.radius;
       }
     }
 
     this.updateMatrices(cameraPos);
 
-    // Tint clouds based on time of day
+    // Tint based on time of day
     const mat = this.mesh.material as THREE.MeshStandardMaterial;
     if (sunElevation > 0.1) {
       mat.color.setRGB(1, 1, 1);
-      mat.opacity = 0.55;
+      mat.opacity = 0.4;
     } else if (sunElevation > 0) {
-      // Sunset — warm golden/pink tint
+      // Sunset — warm golden/pink underlit clouds
       const t = sunElevation / 0.1;
-      mat.color.setRGB(1, THREE.MathUtils.lerp(0.7, 1, t), THREE.MathUtils.lerp(0.5, 1, t));
-      mat.opacity = 0.6;
+      mat.color.setRGB(1, THREE.MathUtils.lerp(0.65, 1, t), THREE.MathUtils.lerp(0.45, 1, t));
+      mat.opacity = 0.5;
     } else {
-      // Night — dark grey, subtle
-      mat.color.setRGB(0.15, 0.15, 0.2);
-      mat.opacity = 0.3;
+      // Night — dark silhouettes
+      mat.color.setRGB(0.12, 0.12, 0.18);
+      mat.opacity = 0.25;
     }
   }
 }

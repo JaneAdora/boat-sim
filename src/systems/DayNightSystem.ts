@@ -31,7 +31,13 @@ export class DayNightSystem extends System {
   }
 
   update(_world: World, dt: number): void {
-    this.timeOfDay = (this.timeOfDay + dt / this.cycleDuration) % 1;
+    // Non-linear time: slow near horizon (sunset/sunrise), fast at noon/midnight.
+    // This gives golden hour much more screen time.
+    const elevation = Math.sin(this.timeOfDay * Math.PI * 2 - Math.PI / 2);
+    const absElev = Math.abs(elevation);
+    // Near horizon (absElev~0): 0.25x speed. At peak (absElev~1): 2.5x speed.
+    const speedMultiplier = 0.25 + absElev * 2.25;
+    this.timeOfDay = (this.timeOfDay + dt / this.cycleDuration * speedMultiplier) % 1;
 
     // Update sky
     this.sky.updateSunPosition(this.timeOfDay);
