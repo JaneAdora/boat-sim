@@ -108,7 +108,9 @@ export class TowingSystem extends System {
         this.towButton.classList.add('visible');
         this.towButton.classList.remove('towing');
       } else {
-        this.towButton.classList.remove('visible', 'towing');
+        this.towButton.textContent = 'No boats nearby';
+        this.towButton.classList.add('visible');
+        this.towButton.classList.remove('towing');
       }
     }
   }
