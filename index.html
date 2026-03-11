@@ -246,22 +246,25 @@
     #tow-button {
       position: fixed;
       left: 50%;
-      top: 60%;
+      top: 50%;
       transform: translate(-50%, -50%);
-      padding: 12px 24px;
-      background: rgba(0, 0, 0, 0.5);
+      padding: 14px 28px;
+      background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.3);
       border-radius: 24px;
       color: #e0e8f0;
       font-family: 'Segoe UI', system-ui, sans-serif;
-      font-size: 13px;
+      font-size: 15px;
       letter-spacing: 0.5px;
       cursor: pointer;
-      z-index: 15;
+      z-index: 60;
       pointer-events: none;
       transition: opacity 0.3s ease, background 0.2s;
       opacity: 0;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
     }
     #tow-button.visible {
       opacity: 1;

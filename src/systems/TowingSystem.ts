@@ -26,7 +26,7 @@ export class TowingSystem extends System {
   // UI
   private towButton: HTMLButtonElement;
 
-  private static readonly TOW_RANGE = 20;
+  private static readonly TOW_RANGE = 50;
   private static readonly ROPE_SEGMENTS = 8;
   private static readonly FISHING_TOW_DISTANCE = 8;
   private static readonly CARGO_TOW_DISTANCE = 18;
@@ -55,8 +55,12 @@ export class TowingSystem extends System {
     document.body.appendChild(this.towButton);
 
     if (this.isTugboat) {
-      this.towButton.addEventListener('pointerup', (e) => {
+      // Use both touchend and click for reliable mobile support
+      this.towButton.addEventListener('touchend', (e) => {
         e.preventDefault();
+        this.toggleTow();
+      });
+      this.towButton.addEventListener('click', () => {
         this.toggleTow();
       });
 
