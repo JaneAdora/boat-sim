@@ -37,11 +37,11 @@ interface Torpedo {
 
 interface Missile {
   mesh: THREE.Group;
-  startPos: THREE.Vector3;
-  endPos: THREE.Vector3;
-  startY: number;
-  endY: number;
-  peakHeight: number;
+  // Cubic bezier control points
+  p0: THREE.Vector3; // start (bow)
+  p1: THREE.Vector3; // forward+up from boat
+  p2: THREE.Vector3; // above island
+  p3: THREE.Vector3; // island surface
   flightTime: number;
   elapsed: number;
   trail: THREE.Line;
@@ -259,47 +259,53 @@ export class WeaponsSystem extends System {
     return dist < hitRadius ? vessel : null;
   }
 
+  private cubicBezier(p0: THREE.Vector3, p1: THREE.Vector3, p2: THREE.Vector3, p3: THREE.Vector3, t: number, out: THREE.Vector3): THREE.Vector3 {
+    const u = 1 - t;
+    const uu = u * u;
+    const uuu = uu * u;
+    const tt = t * t;
+    const ttt = tt * t;
+    out.set(
+      uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+      uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y,
+      uuu * p0.z + 3 * uu * t * p1.z + 3 * u * tt * p2.z + ttt * p3.z,
+    );
+    return out;
+  }
+
   private updateMissiles(dt: number): void {
+    const pos = _tempVec;
+    const nextPos = new THREE.Vector3();
+
     for (let i = this.missiles.length - 1; i >= 0; i--) {
       const m = this.missiles[i];
       m.elapsed += dt;
 
       const t = Math.min(m.elapsed / m.flightTime, 1.0);
 
-      // Position along parabolic arc
-      const x = THREE.MathUtils.lerp(m.startPos.x, m.endPos.x, t);
-      const z = THREE.MathUtils.lerp(m.startPos.z, m.endPos.z, t);
-      const baseY = THREE.MathUtils.lerp(m.startY, m.endY, t);
-      const arcY = m.peakHeight * 4 * t * (1 - t);
-      const y = baseY + arcY;
-
-      m.mesh.position.set(x, y, z);
+      // Position along cubic bezier
+      this.cubicBezier(m.p0, m.p1, m.p2, m.p3, t, pos);
+      m.mesh.position.copy(pos);
 
       // Update smoke trail
       const ti = m.trailIndex;
       if (ti < 100) {
-        m.trailPositions[ti * 3] = x;
-        m.trailPositions[ti * 3 + 1] = y;
-        m.trailPositions[ti * 3 + 2] = z;
+        m.trailPositions[ti * 3] = pos.x;
+        m.trailPositions[ti * 3 + 1] = pos.y;
+        m.trailPositions[ti * 3 + 2] = pos.z;
         m.trailIndex = ti + 1;
         m.trail.geometry.setDrawRange(0, m.trailIndex);
         (m.trail.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
       }
 
-      // Orient mesh along velocity direction
+      // Orient mesh along velocity (bezier tangent)
       const nextT = Math.min(t + 0.01, 1.0);
-      const nx = THREE.MathUtils.lerp(m.startPos.x, m.endPos.x, nextT);
-      const nz = THREE.MathUtils.lerp(m.startPos.z, m.endPos.z, nextT);
-      const nBaseY = THREE.MathUtils.lerp(m.startY, m.endY, nextT);
-      const nArcY = m.peakHeight * 4 * nextT * (1 - nextT);
-      const ny = nBaseY + nArcY;
-
-      _tempVec.set(nx - x, ny - y, nz - z).normalize();
-      m.mesh.lookAt(m.mesh.position.x + _tempVec.x, m.mesh.position.y + _tempVec.y, m.mesh.position.z + _tempVec.z);
+      this.cubicBezier(m.p0, m.p1, m.p2, m.p3, nextT, nextPos);
+      m.mesh.lookAt(nextPos);
 
       // Impact
       if (t >= 1.0) {
-        this.explosions.spawnExplosion(m.endPos.x, m.endY, m.endPos.z);
+        this.explosions.spawnExplosion(m.p3.x, m.p3.y, m.p3.z);
         this.destroyMissile(i);
       }
     }
@@ -335,29 +341,47 @@ export class WeaponsSystem extends System {
     const target = this.findNearestIsland(boatTransform, islands);
     if (!target) return;
 
-    const startPos = new THREE.Vector3(
-      boatTransform.position.x,
-      boatTransform.position.y + 2.0,
-      boatTransform.position.z,
-    );
-    const endPos = new THREE.Vector3(target.x, 0, target.z);
-    const endY = 5; // slightly above ground for visual impact
+    // Launch from bow
+    _tempVec.copy(_bowLocal).applyQuaternion(boatTransform.quaternion);
+    const p0 = new THREE.Vector3().copy(boatTransform.position).add(_tempVec);
+    p0.y = boatTransform.position.y + 2.0;
 
-    const dx = endPos.x - startPos.x;
-    const dz = endPos.z - startPos.z;
+    // Target on island surface
+    const p3 = new THREE.Vector3(target.x, 5, target.z);
+
+    const dx = p3.x - p0.x;
+    const dz = p3.z - p0.z;
     const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+    const peakHeight = Math.max(40, horizontalDist * 0.35);
     const flightTime = horizontalDist / MISSILE_H_SPEED;
-    const peakHeight = Math.max(30, horizontalDist * 0.3);
+
+    // Boat forward direction
+    _forward.set(0, 0, 1).applyQuaternion(boatTransform.quaternion);
+
+    // P1: forward and up from bow (missile launches forward first)
+    const launchDist = Math.min(horizontalDist * 0.35, 80);
+    const p1 = new THREE.Vector3(
+      p0.x + _forward.x * launchDist,
+      p0.y + peakHeight * 0.8,
+      p0.z + _forward.z * launchDist,
+    );
+
+    // P2: above island (approach from high)
+    const p2 = new THREE.Vector3(
+      p3.x,
+      p3.y + peakHeight * 0.5,
+      p3.z,
+    );
 
     const mesh = createMissileMesh();
-    mesh.position.copy(startPos);
+    mesh.position.copy(p0);
     this.scene.add(mesh);
 
     // Smoke trail line
     const trailPositions = new Float32Array(100 * 3);
-    trailPositions[0] = startPos.x;
-    trailPositions[1] = startPos.y;
-    trailPositions[2] = startPos.z;
+    trailPositions[0] = p0.x;
+    trailPositions[1] = p0.y;
+    trailPositions[2] = p0.z;
     const trailGeom = new THREE.BufferGeometry();
     trailGeom.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
     trailGeom.setDrawRange(0, 1);
@@ -368,12 +392,11 @@ export class WeaponsSystem extends System {
 
     this.missiles.push({
       mesh,
-      startPos: startPos.clone(),
-      endPos: endPos.clone(),
-      startY: startPos.y,
-      endY,
-      peakHeight,
-      flightTime,
+      p0: p0.clone(),
+      p1,
+      p2,
+      p3,
+      flightTime: Math.max(flightTime, 1.5),
       elapsed: 0,
       trail,
       trailPositions,
