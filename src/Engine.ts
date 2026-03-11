@@ -133,7 +133,7 @@ export class Engine {
     // Towing (tugboat only)
     const towingSystem = new TowingSystem(
       this.sceneManager.scene, this.ocean, this.boatEntity,
-      this.wildlifeSystem, boatDef.meshType,
+      this.wildlifeSystem,
     );
     this.world.addSystem(towingSystem);
 

@@ -14,8 +14,6 @@ export class TowingSystem extends System {
   private ocean: Ocean;
   private boatEntity: number;
   private wildlifeSystem: WildlifeSystem;
-  private isTugboat: boolean;
-
   // Tow state
   private towedEntity: WildlifeEntity | null = null;
   private nearestTowable: WildlifeEntity | null = null;
@@ -36,14 +34,12 @@ export class TowingSystem extends System {
     ocean: Ocean,
     boatEntity: number,
     wildlifeSystem: WildlifeSystem,
-    boatMeshType: string,
   ) {
     super(67); // after WildlifeSystem (65), before SeagullSystem (70)
     this.scene = scene;
     this.ocean = ocean;
     this.boatEntity = boatEntity;
     this.wildlifeSystem = wildlifeSystem;
-    this.isTugboat = boatMeshType === 'tugboat';
 
     // Pre-allocate rope vertex buffer
     this.towLinePositions = new Float32Array((TowingSystem.ROPE_SEGMENTS + 1) * 3);
@@ -54,26 +50,23 @@ export class TowingSystem extends System {
     this.towButton.textContent = 'Tow';
     document.body.appendChild(this.towButton);
 
-    if (this.isTugboat) {
-      // Use both touchend and click for reliable mobile support
-      this.towButton.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        this.toggleTow();
-      });
-      this.towButton.addEventListener('click', () => {
-        this.toggleTow();
-      });
+    // Use both touchend and click for reliable mobile support
+    this.towButton.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      this.toggleTow();
+    });
+    this.towButton.addEventListener('click', () => {
+      this.toggleTow();
+    });
 
-      window.addEventListener('keydown', (e) => {
-        if (e.code === 'KeyT' && !e.repeat) {
-          this.toggleTow();
-        }
-      });
-    }
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyT' && !e.repeat) {
+        this.toggleTow();
+      }
+    });
   }
 
   update(world: World, dt: number): void {
-    if (!this.isTugboat) return;
 
     this.time += dt;
 
