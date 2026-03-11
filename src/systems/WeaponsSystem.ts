@@ -305,7 +305,7 @@ export class WeaponsSystem extends System {
 
       // Impact
       if (t >= 1.0) {
-        this.explosions.spawnExplosion(m.p3.x, m.p3.y, m.p3.z);
+        this.explosions.spawnExplosion(m.p3.x, m.p3.y, m.p3.z, 10);
         this.destroyMissile(i);
       }
     }

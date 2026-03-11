@@ -11,25 +11,25 @@ const GRAVITY = -3.0;
 const EMBER_BUOYANCY = 1.5;
 const VELOCITY_DAMPING = 0.97;
 
-// Burst config
-const BURST_COUNT_MIN = 120;
-const BURST_COUNT_MAX = 180;
-const BURST_SPEED_MIN = 10;
-const BURST_SPEED_MAX = 30;
-const BURST_LIFE_MIN = 1.0;
-const BURST_LIFE_MAX = 2.5;
-const BURST_SIZE_MIN = 5.0;
-const BURST_SIZE_MAX = 15.0;
+// Burst config (base values — scaled by explosion scale parameter)
+const BURST_COUNT_MIN = 30;
+const BURST_COUNT_MAX = 50;
+const BURST_SPEED_MIN = 5;
+const BURST_SPEED_MAX = 12;
+const BURST_LIFE_MIN = 0.5;
+const BURST_LIFE_MAX = 1.2;
+const BURST_SIZE_MIN = 1.0;
+const BURST_SIZE_MAX = 3.0;
 
-// Fire ember config
-const FIRE_DURATION = 4.0;        // seconds of ember emission
-const FIRE_EMBERS_PER_FRAME = 12;
-const EMBER_SPEED_MIN = 2;
-const EMBER_SPEED_MAX = 6;
-const EMBER_LIFE_MIN = 2.0;
-const EMBER_LIFE_MAX = 5.0;
-const EMBER_SIZE_MIN = 3.0;
-const EMBER_SIZE_MAX = 8.0;
+// Fire ember config (base values)
+const FIRE_DURATION = 2.0;
+const FIRE_EMBERS_PER_FRAME = 4;
+const EMBER_SPEED_MIN = 1;
+const EMBER_SPEED_MAX = 3;
+const EMBER_LIFE_MIN = 1.0;
+const EMBER_LIFE_MAX = 2.5;
+const EMBER_SIZE_MIN = 0.5;
+const EMBER_SIZE_MAX = 1.5;
 
 interface Particle {
   alive: boolean;
@@ -45,6 +45,7 @@ interface ActiveExplosion {
   x: number; y: number; z: number;
   age: number;
   done: boolean;
+  scale: number;
 }
 
 const vertexShader = /* glsl */ `
@@ -160,64 +161,66 @@ export class ExplosionEffect {
     scene.add(this.points);
   }
 
-  spawnExplosion(x: number, y: number, z: number): void {
+  spawnExplosion(x: number, y: number, z: number, scale = 1.0): void {
     if (this.explosions.length >= MAX_EXPLOSIONS) return;
 
-    // Initial burst
-    const burstCount = BURST_COUNT_MIN + Math.floor(Math.random() * (BURST_COUNT_MAX - BURST_COUNT_MIN));
-    for (let i = 0; i < burstCount; i++) {
+    // Initial burst — count and size scale with explosion size
+    const count = Math.floor((BURST_COUNT_MIN + Math.random() * (BURST_COUNT_MAX - BURST_COUNT_MIN)) * scale);
+    for (let i = 0; i < count; i++) {
       const slot = this.findDeadSlot();
       if (slot === -1) break;
 
       const p = this.particles[slot];
       p.alive = true;
       p.life = 0;
-      p.maxLife = BURST_LIFE_MIN + Math.random() * (BURST_LIFE_MAX - BURST_LIFE_MIN);
-      p.size = BURST_SIZE_MIN + Math.random() * (BURST_SIZE_MAX - BURST_SIZE_MIN);
+      p.maxLife = (BURST_LIFE_MIN + Math.random() * (BURST_LIFE_MAX - BURST_LIFE_MIN)) * scale;
+      p.size = (BURST_SIZE_MIN + Math.random() * (BURST_SIZE_MAX - BURST_SIZE_MIN)) * scale;
       p.type = 0;
-      p.px = x + (Math.random() - 0.5) * 5.0;
-      p.py = y + Math.random() * 3.0;
-      p.pz = z + (Math.random() - 0.5) * 5.0;
+      p.px = x + (Math.random() - 0.5) * 5.0 * scale;
+      p.py = y + Math.random() * 3.0 * scale;
+      p.pz = z + (Math.random() - 0.5) * 5.0 * scale;
 
-      const speed = BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN);
+      const speed = (BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN)) * scale;
       const theta = Math.random() * Math.PI * 2;
-      const phi = Math.random() * Math.PI * 0.6; // biased upward
+      const phi = Math.random() * Math.PI * 0.6;
       p.vx = Math.sin(phi) * Math.cos(theta) * speed;
-      p.vy = Math.cos(phi) * speed + 8.0; // upward bias
+      p.vy = Math.cos(phi) * speed + 8.0 * scale;
       p.vz = Math.sin(phi) * Math.sin(theta) * speed;
 
       this.writeSlot(slot);
     }
 
-    this.explosions.push({ x, y, z, age: 0, done: false });
+    this.explosions.push({ x, y, z, age: 0, done: false, scale });
   }
 
   update(dt: number): void {
     // Emit fire embers from active explosions
     for (const exp of this.explosions) {
       exp.age += dt;
-      if (exp.age > FIRE_DURATION) {
+      if (exp.age > FIRE_DURATION * exp.scale) {
         exp.done = true;
         continue;
       }
 
-      for (let i = 0; i < FIRE_EMBERS_PER_FRAME; i++) {
+      const s = exp.scale;
+      const emberCount = Math.floor(FIRE_EMBERS_PER_FRAME * s);
+      for (let i = 0; i < emberCount; i++) {
         const slot = this.findDeadSlot();
         if (slot === -1) break;
 
         const p = this.particles[slot];
         p.alive = true;
         p.life = 0;
-        p.maxLife = EMBER_LIFE_MIN + Math.random() * (EMBER_LIFE_MAX - EMBER_LIFE_MIN);
-        p.size = EMBER_SIZE_MIN + Math.random() * (EMBER_SIZE_MAX - EMBER_SIZE_MIN);
+        p.maxLife = (EMBER_LIFE_MIN + Math.random() * (EMBER_LIFE_MAX - EMBER_LIFE_MIN)) * s;
+        p.size = (EMBER_SIZE_MIN + Math.random() * (EMBER_SIZE_MAX - EMBER_SIZE_MIN)) * s;
         p.type = 1;
-        p.px = exp.x + (Math.random() - 0.5) * 10.0;
-        p.py = exp.y + Math.random() * 5.0;
-        p.pz = exp.z + (Math.random() - 0.5) * 10.0;
+        p.px = exp.x + (Math.random() - 0.5) * 10.0 * s;
+        p.py = exp.y + Math.random() * 5.0 * s;
+        p.pz = exp.z + (Math.random() - 0.5) * 10.0 * s;
 
-        const speed = EMBER_SPEED_MIN + Math.random() * (EMBER_SPEED_MAX - EMBER_SPEED_MIN);
+        const speed = (EMBER_SPEED_MIN + Math.random() * (EMBER_SPEED_MAX - EMBER_SPEED_MIN)) * s;
         p.vx = (Math.random() - 0.5) * speed;
-        p.vy = Math.random() * speed + 0.5;
+        p.vy = Math.random() * speed + 0.5 * s;
         p.vz = (Math.random() - 0.5) * speed;
 
         this.writeSlot(slot);
