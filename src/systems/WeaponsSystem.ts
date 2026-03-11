@@ -20,7 +20,7 @@ const TORPEDO_SEEK_RANGE = 300;
 // Missile constants
 const MISSILE_H_SPEED = 40;
 const MISSILE_COOLDOWN = 3;
-const MISSILE_MAX_RANGE = 500;
+const MISSILE_MAX_RANGE = 1000;
 const MAX_MISSILES = 2;
 
 const _bowLocal = new THREE.Vector3(0, 0.1, 3.5);
@@ -44,6 +44,9 @@ interface Missile {
   peakHeight: number;
   flightTime: number;
   elapsed: number;
+  trail: THREE.Line;
+  trailPositions: Float32Array;
+  trailIndex: number;
 }
 
 export class WeaponsSystem extends System {
@@ -83,7 +86,7 @@ export class WeaponsSystem extends System {
     // Create torpedo button
     this.torpedoButton = document.createElement('button');
     this.torpedoButton.id = 'torpedo-button';
-    this.torpedoButton.textContent = 'Torpedo';
+    this.torpedoButton.textContent = 'T';
     document.body.appendChild(this.torpedoButton);
 
     this.torpedoButton.addEventListener('touchend', (e) => {
@@ -97,7 +100,7 @@ export class WeaponsSystem extends System {
     // Create missile button
     this.missileButton = document.createElement('button');
     this.missileButton.id = 'missile-button';
-    this.missileButton.textContent = 'Missile';
+    this.missileButton.textContent = 'M';
     document.body.appendChild(this.missileButton);
 
     this.missileButton.addEventListener('touchend', (e) => {
@@ -140,13 +143,13 @@ export class WeaponsSystem extends System {
 
     // Update torpedo button state
     if (this.torpedoCooldown > 0) {
-      this.torpedoButton.textContent = `Torpedo (${Math.ceil(this.torpedoCooldown)}s)`;
+      this.torpedoButton.textContent = `T ${Math.ceil(this.torpedoCooldown)}`;
       this.torpedoButton.classList.add('on-cooldown');
     } else if (this.torpedoes.length >= MAX_TORPEDOES) {
-      this.torpedoButton.textContent = 'Torpedo (max)';
+      this.torpedoButton.textContent = 'T';
       this.torpedoButton.classList.add('on-cooldown');
     } else {
-      this.torpedoButton.textContent = 'Torpedo';
+      this.torpedoButton.textContent = 'T';
       this.torpedoButton.classList.remove('on-cooldown');
     }
 
@@ -155,19 +158,19 @@ export class WeaponsSystem extends System {
     const hasIslandTarget = this.findNearestIsland(transform, islands) !== null;
 
     if (this.missileCooldown > 0) {
-      this.missileButton.textContent = `Missile (${Math.ceil(this.missileCooldown)}s)`;
+      this.missileButton.textContent = `M ${Math.ceil(this.missileCooldown)}`;
       this.missileButton.classList.add('on-cooldown');
       this.missileButton.classList.remove('no-target');
     } else if (!hasIslandTarget) {
-      this.missileButton.textContent = 'Missile (---)';
+      this.missileButton.textContent = 'M';
       this.missileButton.classList.remove('on-cooldown');
       this.missileButton.classList.add('no-target');
     } else if (this.missiles.length >= MAX_MISSILES) {
-      this.missileButton.textContent = 'Missile (max)';
+      this.missileButton.textContent = 'M';
       this.missileButton.classList.add('on-cooldown');
       this.missileButton.classList.remove('no-target');
     } else {
-      this.missileButton.textContent = 'Missile';
+      this.missileButton.textContent = 'M';
       this.missileButton.classList.remove('on-cooldown', 'no-target');
     }
 
@@ -272,6 +275,17 @@ export class WeaponsSystem extends System {
 
       m.mesh.position.set(x, y, z);
 
+      // Update smoke trail
+      const ti = m.trailIndex;
+      if (ti < 100) {
+        m.trailPositions[ti * 3] = x;
+        m.trailPositions[ti * 3 + 1] = y;
+        m.trailPositions[ti * 3 + 2] = z;
+        m.trailIndex = ti + 1;
+        m.trail.geometry.setDrawRange(0, m.trailIndex);
+        (m.trail.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+      }
+
       // Orient mesh along velocity direction
       const nextT = Math.min(t + 0.01, 1.0);
       const nx = THREE.MathUtils.lerp(m.startPos.x, m.endPos.x, nextT);
@@ -339,6 +353,19 @@ export class WeaponsSystem extends System {
     mesh.position.copy(startPos);
     this.scene.add(mesh);
 
+    // Smoke trail line
+    const trailPositions = new Float32Array(100 * 3);
+    trailPositions[0] = startPos.x;
+    trailPositions[1] = startPos.y;
+    trailPositions[2] = startPos.z;
+    const trailGeom = new THREE.BufferGeometry();
+    trailGeom.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+    trailGeom.setDrawRange(0, 1);
+    const trailMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.5 });
+    const trail = new THREE.Line(trailGeom, trailMat);
+    trail.frustumCulled = false;
+    this.scene.add(trail);
+
     this.missiles.push({
       mesh,
       startPos: startPos.clone(),
@@ -348,6 +375,9 @@ export class WeaponsSystem extends System {
       peakHeight,
       flightTime,
       elapsed: 0,
+      trail,
+      trailPositions,
+      trailIndex: 1,
     });
 
     this.missileCooldown = MISSILE_COOLDOWN;
@@ -393,6 +423,9 @@ export class WeaponsSystem extends System {
         (child.material as THREE.Material).dispose();
       }
     });
+    this.scene.remove(m.trail);
+    m.trail.geometry.dispose();
+    (m.trail.material as THREE.Material).dispose();
     this.missiles.splice(index, 1);
   }
 }

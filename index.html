@@ -246,16 +246,15 @@
     #torpedo-button,
     #missile-button {
       position: fixed;
-      left: 120px;
-      transform: translateX(-50%);
-      padding: 10px 20px;
+      bottom: 25px;
+      padding: 8px 14px;
       background: rgba(0, 0, 0, 0.25);
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 20px;
+      border-radius: 16px;
       color: #e0e8f0;
       font-family: 'Segoe UI', system-ui, sans-serif;
-      font-size: 13px;
+      font-size: 12px;
       letter-spacing: 0.5px;
       cursor: pointer;
       z-index: 100;
@@ -266,8 +265,8 @@
       -webkit-tap-highlight-color: transparent;
       user-select: none;
     }
-    #torpedo-button { bottom: 70px; }
-    #missile-button { bottom: 25px; }
+    #torpedo-button { left: 80px; }
+    #missile-button { left: 130px; }
     #torpedo-button:hover,
     #missile-button:hover {
       background: rgba(200, 80, 50, 0.3);
@@ -344,13 +343,13 @@
       }
       #torpedo-button,
       #missile-button {
-        left: 70px;
-        font-size: 12px;
-        padding: 8px 16px;
+        bottom: 20px;
+        font-size: 11px;
+        padding: 7px 12px;
         z-index: 100;
       }
-      #torpedo-button { bottom: 130px; }
-      #missile-button { bottom: 90px; }
+      #torpedo-button { left: 16px; }
+      #missile-button { left: 60px; }
     }
   </style>
 </head>
