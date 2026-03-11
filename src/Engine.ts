@@ -17,7 +17,6 @@ import { DayNightSystem } from './systems/DayNightSystem';
 import { SailAnimationSystem } from './systems/SailAnimationSystem';
 import { WildlifeSystem } from './systems/WildlifeSystem';
 import { SeagullSystem } from './systems/SeagullSystem';
-import { Clouds } from './rendering/Clouds';
 import { spawnBoat } from './boats/BoatFactory';
 import { BoatDefinition } from './boats/BoatDefinition';
 import { HUD } from './ui/HUD';
@@ -56,7 +55,6 @@ export class Engine {
   private moon: Moon;
   private weather: WeatherSystem;
   private boatLights: BoatLights;
-  private clouds: Clouds;
   private wildlifeSystem: WildlifeSystem;
   private boatEntity: number;
   private elapsedTime = 0;
@@ -134,9 +132,6 @@ export class Engine {
     // Seagulls near islands
     const seagullSystem = new SeagullSystem(this.sceneManager.scene, this.chunkManager, this.boatEntity);
     this.world.addSystem(seagullSystem);
-
-    // Clouds
-    this.clouds = new Clouds(this.sceneManager.scene);
 
     // UI
     this.hud = new HUD(this.input);
@@ -218,9 +213,6 @@ export class Engine {
         fog.color.setRGB(0.05 + flash * 0.15, 0.05 + flash * 0.15, 0.1 + flash * 0.1);
       }
     }
-
-    // Update clouds
-    this.clouds.update(dt, this.sceneManager.camera.position, sunDir.y);
 
     // Update chunk loading and wake based on boat position
     const boatTransform = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
