@@ -258,7 +258,9 @@
       font-size: 13px;
       letter-spacing: 0.5px;
       cursor: pointer;
-      z-index: 60;
+      z-index: 100;
+      opacity: 1;
+      pointer-events: auto;
       transition: opacity 0.3s ease, background 0.2s;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
@@ -342,12 +344,13 @@
       }
       #torpedo-button,
       #missile-button {
-        left: 80px;
+        left: 70px;
         font-size: 12px;
         padding: 8px 16px;
+        z-index: 100;
       }
-      #torpedo-button { bottom: 160px; }
-      #missile-button { bottom: 120px; }
+      #torpedo-button { bottom: 130px; }
+      #missile-button { bottom: 90px; }
     }
   </style>
 </head>
