@@ -164,7 +164,9 @@ export class ExplosionEffect {
   spawnExplosion(x: number, y: number, z: number, scale = 1.0): void {
     if (this.explosions.length >= MAX_EXPLOSIONS) return;
 
-    // Initial burst — count and size scale with explosion size
+    // Speed scales gently (sqrt), size/count/spread scale fully
+    const spdScale = Math.sqrt(scale);
+
     const count = Math.floor((BURST_COUNT_MIN + Math.random() * (BURST_COUNT_MAX - BURST_COUNT_MIN)) * scale);
     for (let i = 0; i < count; i++) {
       const slot = this.findDeadSlot();
@@ -173,18 +175,18 @@ export class ExplosionEffect {
       const p = this.particles[slot];
       p.alive = true;
       p.life = 0;
-      p.maxLife = (BURST_LIFE_MIN + Math.random() * (BURST_LIFE_MAX - BURST_LIFE_MIN)) * scale;
+      p.maxLife = (BURST_LIFE_MIN + Math.random() * (BURST_LIFE_MAX - BURST_LIFE_MIN)) * spdScale;
       p.size = (BURST_SIZE_MIN + Math.random() * (BURST_SIZE_MAX - BURST_SIZE_MIN)) * scale;
       p.type = 0;
       p.px = x + (Math.random() - 0.5) * 5.0 * scale;
-      p.py = y + Math.random() * 3.0 * scale;
+      p.py = y + Math.random() * 3.0 * spdScale;
       p.pz = z + (Math.random() - 0.5) * 5.0 * scale;
 
-      const speed = (BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN)) * scale;
+      const speed = (BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN)) * spdScale;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.random() * Math.PI * 0.6;
       p.vx = Math.sin(phi) * Math.cos(theta) * speed;
-      p.vy = Math.cos(phi) * speed + 8.0 * scale;
+      p.vy = Math.cos(phi) * speed + 8.0 * spdScale;
       p.vz = Math.sin(phi) * Math.sin(theta) * speed;
 
       this.writeSlot(slot);
@@ -197,12 +199,13 @@ export class ExplosionEffect {
     // Emit fire embers from active explosions
     for (const exp of this.explosions) {
       exp.age += dt;
-      if (exp.age > FIRE_DURATION * exp.scale) {
+      if (exp.age > FIRE_DURATION * Math.sqrt(exp.scale)) {
         exp.done = true;
         continue;
       }
 
       const s = exp.scale;
+      const ss = Math.sqrt(s);
       const emberCount = Math.floor(FIRE_EMBERS_PER_FRAME * s);
       for (let i = 0; i < emberCount; i++) {
         const slot = this.findDeadSlot();
@@ -211,16 +214,16 @@ export class ExplosionEffect {
         const p = this.particles[slot];
         p.alive = true;
         p.life = 0;
-        p.maxLife = (EMBER_LIFE_MIN + Math.random() * (EMBER_LIFE_MAX - EMBER_LIFE_MIN)) * s;
+        p.maxLife = (EMBER_LIFE_MIN + Math.random() * (EMBER_LIFE_MAX - EMBER_LIFE_MIN)) * ss;
         p.size = (EMBER_SIZE_MIN + Math.random() * (EMBER_SIZE_MAX - EMBER_SIZE_MIN)) * s;
         p.type = 1;
         p.px = exp.x + (Math.random() - 0.5) * 10.0 * s;
-        p.py = exp.y + Math.random() * 5.0 * s;
+        p.py = exp.y + Math.random() * 5.0 * ss;
         p.pz = exp.z + (Math.random() - 0.5) * 10.0 * s;
 
-        const speed = (EMBER_SPEED_MIN + Math.random() * (EMBER_SPEED_MAX - EMBER_SPEED_MIN)) * s;
+        const speed = (EMBER_SPEED_MIN + Math.random() * (EMBER_SPEED_MAX - EMBER_SPEED_MIN)) * ss;
         p.vx = (Math.random() - 0.5) * speed;
-        p.vy = Math.random() * speed + 0.5 * s;
+        p.vy = Math.random() * speed + 0.5 * ss;
         p.vz = (Math.random() - 0.5) * speed;
 
         this.writeSlot(slot);
