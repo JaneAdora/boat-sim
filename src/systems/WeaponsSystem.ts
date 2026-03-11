@@ -305,7 +305,14 @@ export class WeaponsSystem extends System {
 
       // Impact
       if (t >= 1.0) {
-        this.explosions.spawnExplosion(m.p3.x, m.p3.y, m.p3.z);
+        // Multiple overlapping explosions for massive missile impact
+        for (let e = 0; e < 5; e++) {
+          this.explosions.spawnExplosion(
+            m.p3.x + (Math.random() - 0.5) * 20,
+            m.p3.y + Math.random() * 5,
+            m.p3.z + (Math.random() - 0.5) * 20,
+          );
+        }
         this.destroyMissile(i);
       }
     }
