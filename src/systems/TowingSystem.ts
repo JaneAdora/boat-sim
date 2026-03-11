@@ -96,7 +96,11 @@ export class TowingSystem extends System {
       );
 
       if (this.nearestTowable) {
-        const label = this.nearestTowable.type === 'cargo_ship' ? 'Cargo Ship' : 'Fishing Boat';
+        const labels: Record<string, string> = {
+          cargo_ship: 'Cargo Ship', fishing_boat: 'Fishing Boat',
+          dolphin: 'Dolphin', whale: 'Whale',
+        };
+        const label = labels[this.nearestTowable.type] || this.nearestTowable.type;
         this.towButton.textContent = `Tow ${label}`;
         this.towButton.classList.add('visible');
         this.towButton.classList.remove('towing');
@@ -156,19 +160,25 @@ export class TowingSystem extends System {
     // Backward direction from tug
     _backward.set(0, 0, -1).applyQuaternion(boatTransform.quaternion);
 
-    // Distance depends on vessel type
-    const towDist = e.type === 'cargo_ship'
-      ? TowingSystem.CARGO_TOW_DISTANCE
-      : TowingSystem.FISHING_TOW_DISTANCE;
+    // Distance and Y offset depend on entity type
+    const towDists: Record<string, number> = {
+      cargo_ship: 18, fishing_boat: 8, whale: 6, dolphin: 4,
+    };
+    const yOffsets: Record<string, number> = {
+      cargo_ship: 0.8, fishing_boat: 0.3, whale: 0.0, dolphin: 0.0,
+    };
+    const towDist = towDists[e.type] ?? 6;
 
-    // Place towed vessel behind stern
+    // Place towed entity behind stern
     const tx = _sternWorld.x + _backward.x * towDist;
     const tz = _sternWorld.z + _backward.z * towDist;
 
-    // Wave height so the vessel sits on water
+    // Wave height so the entity sits on water
     const waveY = this.ocean.getWaveHeight(tx, tz, this.time);
-    const yOffset = e.type === 'cargo_ship' ? 0.8 : 0.3;
-    e.mesh.position.set(tx, waveY + yOffset, tz);
+    e.mesh.position.set(tx, waveY + (yOffsets[e.type] ?? 0), tz);
+
+    // Keep visible (dolphins/whales can hide underwater normally)
+    e.mesh.visible = true;
 
     // Smooth heading follow
     const targetHeading = boatTransform.rotation.y;
@@ -179,15 +189,10 @@ export class TowingSystem extends System {
     e.heading += headingDiff * 2.0 * dt;
     e.mesh.rotation.y = e.heading;
 
-    // Gentle wave rocking (same as WildlifeSystem)
+    // Gentle rocking
     const t = this.time;
-    if (e.type === 'fishing_boat') {
-      e.mesh.rotation.x = Math.sin(t * 1.2 + e.phase) * 0.05;
-      e.mesh.rotation.z = Math.sin(t * 0.8 + e.phase * 1.3) * 0.06;
-    } else {
-      e.mesh.rotation.x = Math.sin(t * 0.6 + e.phase) * 0.02;
-      e.mesh.rotation.z = Math.sin(t * 0.4 + e.phase) * 0.03;
-    }
+    e.mesh.rotation.x = Math.sin(t * 1.2 + e.phase) * 0.05;
+    e.mesh.rotation.z = Math.sin(t * 0.8 + e.phase * 1.3) * 0.04;
   }
 
   private updateRopeLine(boatTransform: Transform): void {
@@ -202,7 +207,10 @@ export class TowingSystem extends System {
     const sz = _sternWorld.z;
 
     // Towed vessel bow point (front of vessel in local space)
-    const bowOffset = e.type === 'cargo_ship' ? 8.0 : 1.75;
+    const bowOffsets: Record<string, number> = {
+      cargo_ship: 8.0, fishing_boat: 1.75, whale: 3.2, dolphin: 1.0,
+    };
+    const bowOffset = bowOffsets[e.type] ?? 1.0;
     const bowDir = new THREE.Vector3(0, 0, bowOffset);
     bowDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), e.heading);
     const bx = e.mesh.position.x + bowDir.x;

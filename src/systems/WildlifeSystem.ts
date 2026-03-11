@@ -316,8 +316,7 @@ export class WildlifeSystem extends System {
     let best: WildlifeEntity | null = null;
     let bestDist = maxRadius;
     for (const e of this.entities) {
-      if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship') continue;
-      if (e.towed) continue;
+      if (e.towed) continue; // don't collide with towed vessel
       const dx = e.mesh.position.x - x;
       const dz = e.mesh.position.z - z;
       const dist = Math.sqrt(dx * dx + dz * dz);
