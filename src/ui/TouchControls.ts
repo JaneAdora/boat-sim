@@ -17,6 +17,7 @@ export class TouchControls {
   private tillerKnob: HTMLElement;
   private throttleTrack: HTMLElement;
   private throttleKnob: HTMLElement;
+  private rendererCanvas: HTMLCanvasElement | null = null;
 
   // Active touch IDs
   private tillerTouchId: number | null = null;
@@ -27,7 +28,8 @@ export class TouchControls {
   private tillerRect: DOMRect | null = null;
   private throttleRect: DOMRect | null = null;
 
-  constructor() {
+  constructor(rendererCanvas?: HTMLCanvasElement) {
+    if (rendererCanvas) this.rendererCanvas = rendererCanvas;
     this.container = document.createElement('div');
     this.container.id = 'touch-controls';
     this.container.style.cssText = `
@@ -127,8 +129,8 @@ export class TouchControls {
     this.throttleTrack.addEventListener('touchend', this.onThrottleEnd);
     this.throttleTrack.addEventListener('touchcancel', this.onThrottleEnd);
 
-    // Camera gestures on canvas
-    const canvas = document.querySelector('canvas');
+    // Camera gestures on the renderer canvas
+    const canvas = this.rendererCanvas;
     if (canvas) {
       canvas.addEventListener('touchstart', this.onCanvasTouchStart, { passive: false });
       canvas.addEventListener('touchmove', this.onCanvasTouchMove, { passive: false });

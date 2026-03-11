@@ -87,7 +87,7 @@ export class Engine {
 
     // Touch controls (mobile only)
     const isTouchDevice = 'ontouchstart' in window;
-    const touchControls = isTouchDevice ? new TouchControls() : null;
+    const touchControls = isTouchDevice ? new TouchControls(this.sceneManager.renderer.domElement) : null;
 
     // Systems (added in priority order)
     const boatControlSystem = new BoatControlSystem(this.input);
