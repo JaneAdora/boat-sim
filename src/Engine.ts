@@ -17,6 +17,7 @@ import { DayNightSystem } from './systems/DayNightSystem';
 import { SailAnimationSystem } from './systems/SailAnimationSystem';
 import { WildlifeSystem } from './systems/WildlifeSystem';
 import { TowingSystem } from './systems/TowingSystem';
+import { WeaponsSystem } from './systems/WeaponsSystem';
 import { SeagullSystem } from './systems/SeagullSystem';
 import { spawnBoat } from './boats/BoatFactory';
 import { BoatDefinition } from './boats/BoatDefinition';
@@ -57,6 +58,7 @@ export class Engine {
   private weather: WeatherSystem;
   private boatLights: BoatLights;
   private wildlifeSystem: WildlifeSystem;
+  private weaponsSystem: WeaponsSystem;
   private boatEntity: number;
   private elapsedTime = 0;
 
@@ -136,6 +138,13 @@ export class Engine {
       this.wildlifeSystem,
     );
     this.world.addSystem(towingSystem);
+
+    // Weapons (torpedoes & missiles)
+    this.weaponsSystem = new WeaponsSystem(
+      this.sceneManager.scene, this.ocean, this.boatEntity,
+      this.wildlifeSystem, this.chunkManager,
+    );
+    this.world.addSystem(this.weaponsSystem);
 
     // Seagulls near islands
     const seagullSystem = new SeagullSystem(this.sceneManager.scene, this.chunkManager, this.boatEntity);
@@ -237,6 +246,9 @@ export class Engine {
         this.bowSpray.update(dt, boatTransform.position, boatTransform.quaternion, speed);
         this.bioluminescence.update(dt, boatTransform.position, boatTransform.quaternion, speed, sunDir.y);
       }
+
+      // Update weapon effects (torpedo wakes, explosions)
+      this.weaponsSystem.updateEffects(dt);
     }
 
     // Update moon and boat lights

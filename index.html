@@ -243,6 +243,43 @@
       text-align: center;
     }
 
+    #torpedo-button,
+    #missile-button {
+      position: fixed;
+      left: 120px;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      background: rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      color: #e0e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      z-index: 60;
+      transition: opacity 0.3s ease, background 0.2s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    #torpedo-button { bottom: 70px; }
+    #missile-button { bottom: 25px; }
+    #torpedo-button:hover,
+    #missile-button:hover {
+      background: rgba(200, 80, 50, 0.3);
+    }
+    #torpedo-button.on-cooldown,
+    #missile-button.on-cooldown {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    #missile-button.no-target {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
     #tow-button {
       position: fixed;
       left: 120px;
@@ -303,6 +340,14 @@
       #map-toggle {
         display: block;
       }
+      #torpedo-button,
+      #missile-button {
+        left: 80px;
+        font-size: 12px;
+        padding: 8px 16px;
+      }
+      #torpedo-button { bottom: 160px; }
+      #missile-button { bottom: 120px; }
     }
   </style>
 </head>
@@ -362,6 +407,8 @@
       <tr><td>H</td><td>Toggle HUD</td></tr>
       <tr><td>N</td><td>Toggle map</td></tr>
       <tr><td>T</td><td>Tow / Release</td></tr>
+      <tr><td>Y</td><td>Fire Torpedo</td></tr>
+      <tr><td>U</td><td>Fire Missile</td></tr>
     </table>
   </div>
 

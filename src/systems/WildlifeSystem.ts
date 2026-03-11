@@ -343,6 +343,42 @@ export class WildlifeSystem extends System {
     return this.entities.includes(entity);
   }
 
+  /** Find the nearest fishing boat or cargo ship within maxRadius */
+  findNearestVessel(x: number, z: number, maxRadius: number): WildlifeEntity | null {
+    let best: WildlifeEntity | null = null;
+    let bestDist = maxRadius;
+    for (const e of this.entities) {
+      if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship') continue;
+      if (e.towed) continue;
+      const dx = e.mesh.position.x - x;
+      const dz = e.mesh.position.z - z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /** Remove a wildlife entity from the scene and internal list */
+  removeEntity(entity: WildlifeEntity): void {
+    const idx = this.entities.indexOf(entity);
+    if (idx === -1) return;
+    this.scene.remove(entity.mesh);
+    entity.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+    this.entities.splice(idx, 1);
+  }
+
   /** Get positions of all active wildlife for minimap rendering */
   getWildlifePositions(): { x: number; z: number; type: string }[] {
     return this.entities.map(e => ({
