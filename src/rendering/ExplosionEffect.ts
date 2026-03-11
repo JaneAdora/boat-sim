@@ -5,31 +5,31 @@ import * as THREE from 'three';
  * Shared across all active explosions (torpedoes & missiles).
  */
 
-const MAX_PARTICLES = 300;
+const MAX_PARTICLES = 800;
 const MAX_EXPLOSIONS = 5;
 const GRAVITY = -3.0;
 const EMBER_BUOYANCY = 1.5;
 const VELOCITY_DAMPING = 0.97;
 
 // Burst config
-const BURST_COUNT_MIN = 40;
-const BURST_COUNT_MAX = 60;
-const BURST_SPEED_MIN = 3;
-const BURST_SPEED_MAX = 8;
-const BURST_LIFE_MIN = 0.5;
-const BURST_LIFE_MAX = 1.2;
-const BURST_SIZE_MIN = 1.0;
-const BURST_SIZE_MAX = 3.0;
+const BURST_COUNT_MIN = 120;
+const BURST_COUNT_MAX = 180;
+const BURST_SPEED_MIN = 10;
+const BURST_SPEED_MAX = 30;
+const BURST_LIFE_MIN = 1.0;
+const BURST_LIFE_MAX = 2.5;
+const BURST_SIZE_MIN = 5.0;
+const BURST_SIZE_MAX = 15.0;
 
 // Fire ember config
-const FIRE_DURATION = 2.0;       // seconds of ember emission
-const FIRE_EMBERS_PER_FRAME = 6;
-const EMBER_SPEED_MIN = 0.5;
-const EMBER_SPEED_MAX = 1.5;
-const EMBER_LIFE_MIN = 1.0;
-const EMBER_LIFE_MAX = 3.0;
-const EMBER_SIZE_MIN = 0.5;
-const EMBER_SIZE_MAX = 1.5;
+const FIRE_DURATION = 4.0;        // seconds of ember emission
+const FIRE_EMBERS_PER_FRAME = 12;
+const EMBER_SPEED_MIN = 2;
+const EMBER_SPEED_MAX = 6;
+const EMBER_LIFE_MIN = 2.0;
+const EMBER_LIFE_MAX = 5.0;
+const EMBER_SIZE_MIN = 3.0;
+const EMBER_SIZE_MAX = 8.0;
 
 interface Particle {
   alive: boolean;
@@ -67,7 +67,7 @@ const vertexShader = /* glsl */ `
     float lifeFade = fadeIn * fadeOut;
 
     gl_PointSize = aSize * lifeFade * (300.0 / -mvPosition.z);
-    gl_PointSize = clamp(gl_PointSize, 1.0, 80.0);
+    gl_PointSize = clamp(gl_PointSize, 1.0, 200.0);
 
     gl_Position = projectionMatrix * mvPosition;
   }
@@ -175,15 +175,15 @@ export class ExplosionEffect {
       p.maxLife = BURST_LIFE_MIN + Math.random() * (BURST_LIFE_MAX - BURST_LIFE_MIN);
       p.size = BURST_SIZE_MIN + Math.random() * (BURST_SIZE_MAX - BURST_SIZE_MIN);
       p.type = 0;
-      p.px = x + (Math.random() - 0.5) * 1.0;
-      p.py = y + Math.random() * 0.5;
-      p.pz = z + (Math.random() - 0.5) * 1.0;
+      p.px = x + (Math.random() - 0.5) * 5.0;
+      p.py = y + Math.random() * 3.0;
+      p.pz = z + (Math.random() - 0.5) * 5.0;
 
       const speed = BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN);
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.random() * Math.PI * 0.6; // biased upward
       p.vx = Math.sin(phi) * Math.cos(theta) * speed;
-      p.vy = Math.cos(phi) * speed + 2.0; // upward bias
+      p.vy = Math.cos(phi) * speed + 8.0; // upward bias
       p.vz = Math.sin(phi) * Math.sin(theta) * speed;
 
       this.writeSlot(slot);
@@ -211,9 +211,9 @@ export class ExplosionEffect {
         p.maxLife = EMBER_LIFE_MIN + Math.random() * (EMBER_LIFE_MAX - EMBER_LIFE_MIN);
         p.size = EMBER_SIZE_MIN + Math.random() * (EMBER_SIZE_MAX - EMBER_SIZE_MIN);
         p.type = 1;
-        p.px = exp.x + (Math.random() - 0.5) * 2.0;
-        p.py = exp.y + Math.random() * 1.0;
-        p.pz = exp.z + (Math.random() - 0.5) * 2.0;
+        p.px = exp.x + (Math.random() - 0.5) * 10.0;
+        p.py = exp.y + Math.random() * 5.0;
+        p.pz = exp.z + (Math.random() - 0.5) * 10.0;
 
         const speed = EMBER_SPEED_MIN + Math.random() * (EMBER_SPEED_MAX - EMBER_SPEED_MIN);
         p.vx = (Math.random() - 0.5) * speed;
