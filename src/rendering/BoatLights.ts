@@ -77,6 +77,13 @@ export class BoatLights {
           stern: new THREE.Vector3(0, 0.5, -2.5),
           cabin: new THREE.Vector3(0, 0.6, 0.3),
         };
+      case 'vikingship':
+        return {
+          port: new THREE.Vector3(-0.9, 0.8, 3.0),
+          starboard: new THREE.Vector3(0.9, 0.8, 3.0),
+          stern: new THREE.Vector3(0, 0.8, -3.5),
+          cabin: new THREE.Vector3(0, 0.5, 0),
+        };
       case 'tugboat':
       default:
         return {

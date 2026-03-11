@@ -3,6 +3,7 @@ import { BoatDefinition } from './boats/BoatDefinition';
 import { TUGBOAT } from './boats/Tugboat';
 import { CRUISE_SHIP } from './boats/CruiseShip';
 import { SPEEDBOAT } from './boats/Speedboat';
+import { VIKING_SHIP } from './boats/VikingShip';
 
 // SVG boat silhouette icons (no emojis)
 const BOAT_ICONS: Record<string, string> = {
@@ -22,12 +23,23 @@ const BOAT_ICONS: Record<string, string> = {
     <rect x="22" y="13" width="18" height="5" rx="1" fill="rgba(255,255,255,0.3)"/>
     <line x1="32" y1="13" x2="32" y2="6" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
   </svg>`,
+  vikingship: `<svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="30">
+    <path d="M6 28 Q2 28 4 32 L12 36 H52 L60 32 Q62 28 56 28 H8Z" fill="rgba(255,255,255,0.7)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+    <path d="M8 28 Q6 20 4 14" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" fill="none"/>
+    <circle cx="4" cy="12" r="2" fill="rgba(255,255,255,0.4)"/>
+    <path d="M56 28 Q58 22 60 18" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" fill="none"/>
+    <line x1="32" y1="28" x2="32" y2="10" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+    <rect x="22" y="12" width="20" height="14" fill="rgba(255,255,255,0.3)" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+    <line x1="22" y1="17" x2="42" y2="17" stroke="rgba(255,200,150,0.3)" stroke-width="1"/>
+    <line x1="22" y1="22" x2="42" y2="22" stroke="rgba(255,200,150,0.3)" stroke-width="1"/>
+  </svg>`,
 };
 
 const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
   { def: TUGBOAT, desc: 'Steady & sturdy', iconKey: 'tugboat' },
   { def: SPEEDBOAT, desc: 'Fast & nimble', iconKey: 'speedboat' },
   { def: CRUISE_SHIP, desc: 'Huge & majestic', iconKey: 'cruiseship' },
+  { def: VIKING_SHIP, desc: 'Ancient & humble', iconKey: 'vikingship' },
 ];
 
 // Build boat selector UI inside the loading screen

@@ -593,6 +593,175 @@ function createSpeedboatMesh(): BoatParts {
   return { group, sailPivot: null, rudderPivot };
 }
 
+// ─── Viking Ship ────────────────────────────────────────────
+
+function createVikingShipMesh(): BoatParts {
+  const group = new THREE.Group();
+
+  const hull = new THREE.Group();
+  hull.position.y = 0.3;
+  group.add(hull);
+
+  // Dark oak wood materials
+  const darkWood = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.8, metalness: 0.0 });
+  const lightWood = new THREE.MeshStandardMaterial({ color: 0x6b4c2a, roughness: 0.7, metalness: 0.0 });
+  const goldMetal = new THREE.MeshStandardMaterial({ color: 0xc8a832, roughness: 0.3, metalness: 0.7 });
+
+  // Hull — long, narrow, shallow-draft longship
+  const hullGeometry = createParametricHull({
+    length: 8,
+    segments: 20,
+    radialSegments: 10,
+    squareness: 0.6,
+    widthProfile: (t) => {
+      if (t < 0.1) return 0.5 + t * 3;        // stern tapers
+      if (t < 0.85) return 0.8;                // long narrow midship
+      return Math.max(0.02, 0.8 * Math.pow((1 - t) / 0.15, 0.5)); // bow tapers sharply
+    },
+    depthProfile: (t) => {
+      if (t > 0.85) return 0.4 * (1 - (t - 0.85) / 0.15 * 0.5);
+      return 0.4; // shallow draft
+    },
+  });
+  hull.add(new THREE.Mesh(hullGeometry, darkWood));
+
+  // Deck planks
+  const deckGeom = new THREE.BoxGeometry(1.4, 0.04, 6.5);
+  const deck = new THREE.Mesh(deckGeom, lightWood);
+  deck.position.set(0, 0.01, -0.2);
+  hull.add(deck);
+
+  // Rowing benches (4 pairs)
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0x5a3e22, roughness: 0.8 });
+  for (let i = 0; i < 4; i++) {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.06, 0.25), benchMat);
+    bench.position.set(0, 0.08, -1.5 + i * 1.2);
+    hull.add(bench);
+  }
+
+  // Shields along the sides (alternating red and yellow)
+  const shieldColors = [0xAA2222, 0xCCAA22];
+  for (let i = 0; i < 6; i++) {
+    const shieldMat = new THREE.MeshStandardMaterial({
+      color: shieldColors[i % 2], roughness: 0.5, metalness: 0.1,
+    });
+    const shield = new THREE.Mesh(new THREE.CircleGeometry(0.25, 8), shieldMat);
+    // Port side
+    shield.position.set(-0.85, 0.15, -2.0 + i * 1.0);
+    shield.rotation.y = Math.PI / 2;
+    hull.add(shield);
+    // Starboard side
+    const shieldR = shield.clone();
+    shieldR.position.x = 0.85;
+    shieldR.rotation.y = -Math.PI / 2;
+    hull.add(shieldR);
+  }
+
+  // Shield boss (gold center dot)
+  for (let i = 0; i < 6; i++) {
+    const boss = new THREE.Mesh(new THREE.CircleGeometry(0.06, 6), goldMetal);
+    boss.position.set(-0.86, 0.15, -2.0 + i * 1.0);
+    boss.rotation.y = Math.PI / 2;
+    hull.add(boss);
+    const bossR = boss.clone();
+    bossR.position.x = 0.86;
+    bossR.rotation.y = -Math.PI / 2;
+    hull.add(bossR);
+  }
+
+  // Bow — curved dragon head rising from bow
+  const bowCurve = new THREE.Group();
+  bowCurve.position.set(0, 0.3, 3.8);
+  hull.add(bowCurve);
+
+  // Neck — curved upward post
+  const neckGeom = new THREE.BoxGeometry(0.12, 2.0, 0.12);
+  const neck = new THREE.Mesh(neckGeom, darkWood);
+  neck.position.set(0, 1.0, 0);
+  neck.rotation.x = -0.25; // lean forward
+  bowCurve.add(neck);
+
+  // Dragon head
+  const headGeom = new THREE.SphereGeometry(0.22, 6, 5);
+  const head = new THREE.Mesh(headGeom, darkWood);
+  head.scale.set(0.8, 0.7, 1.3);
+  head.position.set(0, 2.0, 0.35);
+  bowCurve.add(head);
+
+  // Snout
+  const snout = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.35, 5), darkWood);
+  snout.rotation.x = -Math.PI / 2 + 0.2;
+  snout.position.set(0, 1.85, 0.7);
+  bowCurve.add(snout);
+
+  // Eyes (gold)
+  for (const x of [-0.12, 0.12]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 4), goldMetal);
+    eye.position.set(x, 2.05, 0.5);
+    bowCurve.add(eye);
+  }
+
+  // Stern — curled tail post
+  const sternPost = new THREE.Group();
+  sternPost.position.set(0, 0.3, -3.6);
+  hull.add(sternPost);
+
+  const tailGeom = new THREE.BoxGeometry(0.1, 1.8, 0.1);
+  const tail = new THREE.Mesh(tailGeom, darkWood);
+  tail.position.set(0, 0.9, 0);
+  tail.rotation.x = 0.3; // lean backward
+  sternPost.add(tail);
+
+  // Tail curl (small sphere at top)
+  const curl = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.04, 6, 8, Math.PI), darkWood);
+  curl.position.set(0, 1.75, -0.25);
+  curl.rotation.y = Math.PI / 2;
+  sternPost.add(curl);
+
+  // Mast
+  const mastMat = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.7, metalness: 0.0 });
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 4.0, 6), mastMat);
+  mast.position.set(0, 2.0, 0.3);
+  hull.add(mast);
+
+  // Yard (horizontal crossbeam)
+  const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.8, 6), mastMat);
+  yard.rotation.z = Math.PI / 2;
+  yard.position.set(0, 3.2, 0.3);
+  hull.add(yard);
+
+  // Square sail (decorative — cream colored with red stripes)
+  const sailMat = new THREE.MeshStandardMaterial({
+    color: 0xe8d8b8, roughness: 0.9, metalness: 0.0,
+    side: THREE.DoubleSide,
+  });
+  const sailGeom = new THREE.PlaneGeometry(2.5, 2.0);
+  const sail = new THREE.Mesh(sailGeom, sailMat);
+  sail.position.set(0, 2.2, 0.35);
+  hull.add(sail);
+
+  // Red sail stripes
+  const stripeMat = new THREE.MeshStandardMaterial({
+    color: 0x992222, roughness: 0.9, side: THREE.DoubleSide,
+  });
+  for (let i = 0; i < 3; i++) {
+    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.25), stripeMat);
+    stripe.position.set(0, 1.5 + i * 0.7, 0.36);
+    hull.add(stripe);
+  }
+
+  // Rudder (steering oar at stern)
+  const rudderPivot = new THREE.Group();
+  rudderPivot.position.set(0.5, -0.1, -3.5);
+  hull.add(rudderPivot);
+  const rudderMat = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.7 });
+  const rudderBlade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.8, 0.5), rudderMat);
+  rudderBlade.position.y = -0.3;
+  rudderPivot.add(rudderBlade);
+
+  return { group, sailPivot: null, rudderPivot };
+}
+
 // ─── Entity spawner ─────────────────────────────────────────
 
 export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefinition): EntityId {
@@ -622,6 +791,7 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     tugboat: createTugboatMesh,
     cruiseship: createCruiseShipMesh,
     speedboat: createSpeedboatMesh,
+    vikingship: createVikingShipMesh,
   };
   const parts = (meshCreators[definition.meshType] || createTugboatMesh)();
   scene.add(parts.group);
