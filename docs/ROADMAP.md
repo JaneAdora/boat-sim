@@ -151,6 +151,14 @@ Feature tracking for the boat simulator. See [ARCHITECTURE.md](ARCHITECTURE.md) 
 - [ ] Score / progression tracking
 - [ ] Damage indicator on battleship (visual health bar)
 
+### PWA
+- [x] Web app manifest (fullscreen, any orientation, navy theme)
+- [x] Service worker with cache-first for hashed assets, network-first for HTML
+- [x] App icons: lifesaver ring on navy background (192px, 512px PNG + SVG)
+- [x] Install prompt button on boat selector (dismissable, localStorage persist)
+- [x] Apple PWA meta tags for iOS home screen support
+- [x] Netlify no-cache header for sw.js
+
 ### Technical
 - [ ] Performance profiling and optimization pass
 - [ ] Save game state to localStorage
