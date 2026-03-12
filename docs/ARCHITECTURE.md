@@ -76,6 +76,10 @@ src/
 │   ├── Bioluminescence.ts   # Night-time glowing water particles
 │   ├── BoatLights.ts        # Navigation lights (red/green/white/cabin)
 │   ├── ExplosionEffect.ts   # GPU instanced particle explosion (pool of 2000)
+│   ├── ConfettiEffect.ts    # Rainbow confetti burst (magical mode)
+│   ├── UnicornEffect.ts     # Procedural unicorn fly-away (magical mode)
+│   ├── RainbowTorpedoWake.ts # HSL gradient ribbon wake (magical mode)
+│   ├── RainbowMissileTrail.ts # Per-vertex rainbow line trail (magical mode)
 │   ├── ProjectileMesh.ts    # Torpedo/missile 3D meshes
 │   └── TorpedoWake.ts       # Torpedo trail particles
 │
@@ -96,7 +100,8 @@ src/
 │   └── TouchControls.ts     # Mobile virtual joystick and buttons
 │
 ├── state/                   # Game state
-│   └── KillTracker.ts       # Tracks boats and lighthouses destroyed
+│   ├── KillTracker.ts       # Tracks boats and lighthouses destroyed
+│   └── GameConfig.ts        # GameMode type and config interface
 │
 ├── shaders/                 # GLSL shaders
 │   ├── ocean.vert.glsl      # Gerstner wave vertex displacement
@@ -176,8 +181,9 @@ Each frame (Engine.update):
 - Fog density increases with overcast/storm
 
 ### Combat (WeaponsSystem)
-- **Torpedoes**: Launched forward from boat. Home toward nearest NPC vessel (or nearest unhit battleship strike zone). Turn-rate limited for realistic arcs. Trigger explosion on contact.
+- **Torpedoes**: Launched forward from boat. Home toward nearest NPC vessel (or nearest unhit battleship strike zone). Turn-rate limited for realistic arcs. Trigger explosion on contact. Destroyed on island collision.
 - **Missiles**: Cubic bezier arc toward nearest island. If island has a lighthouse, explosion centers on the lighthouse and destroys it. Otherwise hits island center.
+- **Minimap heading**: Computed via `atan2(fwd.x, fwd.z)` from the boat's forward vector (immune to pitch/roll from waves). Euler decomposition of `rotation.y` is unreliable due to gimbal contamination from wave motion.
 - **Battleships**: 3 strike zones (front/mid/rear). Each must be hit by a separate torpedo. Zones auto-targeted by proximity. Sinks with multi-explosion cascade after all 3 hit.
 - **Explosions**: GPU instanced particles (pool of 2000). Scaling based on missile vs torpedo.
 
@@ -185,6 +191,7 @@ Each frame (Engine.update):
 - Spawns dolphins, whales, fishing boats, cargo ships, battleships around the player
 - Each has spawn limits, speed ranges, max age, and behavior patterns
 - Vessels can be targeted by torpedoes and towed by the tugboat
+- NPC vessels avoid islands (terrain height check, reverse + random turn)
 - Battleships are larger than cruise ships, spawn rarely, require 3 hits to destroy
 
 ### Audio

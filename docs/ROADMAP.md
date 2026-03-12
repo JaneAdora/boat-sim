@@ -76,11 +76,16 @@ Feature tracking for the boat simulator. See [ARCHITECTURE.md](ARCHITECTURE.md) 
 
 ### UI
 - [x] HUD: speed, wind direction, throttle, kill count
-- [x] Circular minimap with compass, island/wildlife dots
-- [x] Controls help overlay (? key, auto-shows on game start)
+- [x] Circular minimap with compass, island/NPC vessel dots
+- [x] Minimap heading from forward vector (stable in rough seas)
+- [x] Controls help overlay (/ key toggle, auto-shows on game start)
 - [x] ESC menu (return to boat selector)
 - [x] Mobile: HUD toggle, map toggle, escape button
 - [x] Day slowed 3x (night unchanged)
+- [x] Scrollable boat selector for small viewports
+- [x] Playfair Display h1 with red "BLISS" accent
+- [x] OG image and favicon (lifesaver ring SVG) for social sharing
+- [x] Open Graph + Twitter Card meta tags
 
 ### Magical Mode (Family-Friendly)
 - [x] Pill toggle on boat selector: "Boatface Killah" (default) vs "Magical Mode"
@@ -93,6 +98,10 @@ Feature tracking for the boat simulator. See [ARCHITECTURE.md](ARCHITECTURE.md) 
 - [x] Weapon buttons: T/M replaced with star/rainbow emojis
 - [x] HUD "Kills" label replaced with unicorn emoji
 - [x] Projectile meshes invisible (only rainbow wakes/trails visible)
+
+### NPC Behavior
+- [x] NPC vessels avoid islands (terrain collision check + reverse/turn)
+- [x] Torpedoes destroyed on island collision (explosion/confetti on impact)
 
 ## Removed Features
 
