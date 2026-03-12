@@ -214,6 +214,74 @@ export class SoundEffects {
     subOsc.stop(now + 0.6);
   }
 
+  /**
+   * Bright sparkle chime for magical mode impacts (~1.2s).
+   * Major chord (C6 + E6 + G6) with shimmer noise.
+   */
+  playMagicChime(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    // Major chord: C6, E6, G6
+    const freqs = [1047, 1319, 1568];
+    for (let i = 0; i < freqs.length; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freqs[i], now);
+      // Gentle upward glide for sparkle feel
+      osc.frequency.exponentialRampToValueAtTime(freqs[i] * 1.02, now + 0.3);
+
+      const gain = ctx.createGain();
+      const delay = i * 0.04; // stagger each note slightly
+      gain.gain.setValueAtTime(0, now + delay);
+      gain.gain.linearRampToValueAtTime(0.25, now + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8 + delay);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now + delay);
+      osc.stop(now + 1.0 + delay);
+    }
+
+    // High sparkle: a second set of quiet high harmonics
+    const sparkleOsc = ctx.createOscillator();
+    sparkleOsc.type = 'sine';
+    sparkleOsc.frequency.setValueAtTime(2637, now); // C7-ish
+    sparkleOsc.frequency.exponentialRampToValueAtTime(3136, now + 0.4); // G7
+
+    const sparkleGain = ctx.createGain();
+    sparkleGain.gain.setValueAtTime(0, now);
+    sparkleGain.gain.linearRampToValueAtTime(0.12, now + 0.01);
+    sparkleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+    sparkleOsc.connect(sparkleGain);
+    sparkleGain.connect(this.masterGain!);
+    sparkleOsc.start(now);
+    sparkleOsc.stop(now + 0.7);
+
+    // Shimmer: white noise burst through very high bandpass
+    const shimmerBuffer = this.createNoiseBuffer(ctx, 0.5, true);
+    const shimmerSource = ctx.createBufferSource();
+    shimmerSource.buffer = shimmerBuffer;
+
+    const shimmerBP = ctx.createBiquadFilter();
+    shimmerBP.type = 'bandpass';
+    shimmerBP.frequency.value = 8000;
+    shimmerBP.Q.value = 4;
+
+    const shimmerGain = ctx.createGain();
+    shimmerGain.gain.setValueAtTime(0, now);
+    shimmerGain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+    shimmerGain.gain.linearRampToValueAtTime(0, now + 0.4);
+
+    shimmerSource.connect(shimmerBP);
+    shimmerBP.connect(shimmerGain);
+    shimmerGain.connect(this.masterGain!);
+    shimmerSource.start(now);
+    shimmerSource.stop(now + 0.5);
+  }
+
   toggleMute(): boolean {
     this.muted = !this.muted;
     if (this.masterGain) {

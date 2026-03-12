@@ -6,10 +6,15 @@ import { Ocean } from '../rendering/Ocean';
 import { WildlifeSystem } from './WildlifeSystem';
 import { ChunkManager } from '../world/ChunkManager';
 import { ExplosionEffect } from '../rendering/ExplosionEffect';
+import { ConfettiEffect } from '../rendering/ConfettiEffect';
+import { UnicornEffect } from '../rendering/UnicornEffect';
 import { TorpedoWake } from '../rendering/TorpedoWake';
+import { RainbowTorpedoWake } from '../rendering/RainbowTorpedoWake';
+import { RainbowMissileTrail } from '../rendering/RainbowMissileTrail';
 import { createTorpedoMesh, createMissileMesh } from '../rendering/ProjectileMesh';
 import { KillTracker } from '../state/KillTracker';
 import { SoundEffects } from '../audio/SoundEffects';
+import { GameConfig } from '../state/GameConfig';
 
 // Torpedo constants
 const TORPEDO_SPEED = 25;
@@ -31,7 +36,7 @@ const _forward = new THREE.Vector3();
 
 interface Torpedo {
   mesh: THREE.Group;
-  wake: TorpedoWake;
+  wake: TorpedoWake | RainbowTorpedoWake;
   position: THREE.Vector3;
   heading: number;
   age: number;
@@ -48,9 +53,10 @@ interface Missile {
   targetIslandZ: number;
   flightTime: number;
   elapsed: number;
-  trail: THREE.Line;
-  trailPositions: Float32Array;
+  trail: THREE.Line | null; // null when using rainbowTrail
+  trailPositions: Float32Array | null;
   trailIndex: number;
+  rainbowTrail: RainbowMissileTrail | null;
 }
 
 export class WeaponsSystem extends System {
@@ -61,10 +67,15 @@ export class WeaponsSystem extends System {
   private chunkManager: ChunkManager;
   private killTracker: KillTracker;
   private soundEffects: SoundEffects;
+  private readonly config: GameConfig;
 
   private torpedoes: Torpedo[] = [];
   private missiles: Missile[] = [];
   private explosions: ExplosionEffect;
+  private confetti: ConfettiEffect | null = null;
+  private unicornEffect: UnicornEffect | null = null;
+  private orphanedWakes: RainbowTorpedoWake[] = [];
+  private orphanedTrails: RainbowMissileTrail[] = [];
 
   private torpedoCooldown = 0;
   private missileCooldown = 0;
@@ -72,6 +83,7 @@ export class WeaponsSystem extends System {
 
   private torpedoButton: HTMLButtonElement;
   private missileButton: HTMLButtonElement;
+  private keydownHandler: (e: KeyboardEvent) => void;
 
   constructor(
     scene: THREE.Scene,
@@ -81,6 +93,7 @@ export class WeaponsSystem extends System {
     chunkManager: ChunkManager,
     killTracker: KillTracker,
     soundEffects: SoundEffects,
+    config: GameConfig = { mode: 'classic' },
   ) {
     super(68);
     this.scene = scene;
@@ -90,13 +103,18 @@ export class WeaponsSystem extends System {
     this.chunkManager = chunkManager;
     this.killTracker = killTracker;
     this.soundEffects = soundEffects;
+    this.config = config;
 
     this.explosions = new ExplosionEffect(scene);
+    if (config.mode === 'magical') {
+      this.confetti = new ConfettiEffect(scene);
+      this.unicornEffect = new UnicornEffect(scene);
+    }
 
     // Create torpedo button
     this.torpedoButton = document.createElement('button');
     this.torpedoButton.id = 'torpedo-button';
-    this.torpedoButton.textContent = 'T';
+    this.torpedoButton.textContent = config.mode === 'magical' ? '\u{1F31F}' : 'T';
     document.body.appendChild(this.torpedoButton);
 
     this.torpedoButton.addEventListener('touchend', (e) => {
@@ -110,7 +128,7 @@ export class WeaponsSystem extends System {
     // Create missile button
     this.missileButton = document.createElement('button');
     this.missileButton.id = 'missile-button';
-    this.missileButton.textContent = 'M';
+    this.missileButton.textContent = config.mode === 'magical' ? '\u{1F308}' : 'M';
     document.body.appendChild(this.missileButton);
 
     this.missileButton.addEventListener('touchend', (e) => {
@@ -122,10 +140,11 @@ export class WeaponsSystem extends System {
     });
 
     // Keyboard shortcuts
-    window.addEventListener('keydown', (e) => {
+    this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyY' && !e.repeat) this.fireTorpedoAction();
       if (e.code === 'KeyU' && !e.repeat) this.fireMissileAction();
-    });
+    };
+    window.addEventListener('keydown', this.keydownHandler);
   }
 
   private lastTransform: Transform | null = null;
@@ -152,35 +171,37 @@ export class WeaponsSystem extends System {
     if (this.missileCooldown > 0) this.missileCooldown = Math.max(0, this.missileCooldown - dt);
 
     // Update torpedo button state
+    const tLabel = this.config.mode === 'magical' ? '\u{1F31F}' : 'T';
     if (this.torpedoCooldown > 0) {
-      this.torpedoButton.textContent = `T ${Math.ceil(this.torpedoCooldown)}`;
+      this.torpedoButton.textContent = `${tLabel} ${Math.ceil(this.torpedoCooldown)}`;
       this.torpedoButton.classList.add('on-cooldown');
     } else if (this.torpedoes.length >= MAX_TORPEDOES) {
-      this.torpedoButton.textContent = 'T';
+      this.torpedoButton.textContent = tLabel;
       this.torpedoButton.classList.add('on-cooldown');
     } else {
-      this.torpedoButton.textContent = 'T';
+      this.torpedoButton.textContent = tLabel;
       this.torpedoButton.classList.remove('on-cooldown');
     }
 
     // Update missile button state
+    const mLabel = this.config.mode === 'magical' ? '\u{1F308}' : 'M';
     const islands = this.chunkManager.getIslandPositions();
     const hasIslandTarget = this.findNearestIsland(transform, islands) !== null;
 
     if (this.missileCooldown > 0) {
-      this.missileButton.textContent = `M ${Math.ceil(this.missileCooldown)}`;
+      this.missileButton.textContent = `${mLabel} ${Math.ceil(this.missileCooldown)}`;
       this.missileButton.classList.add('on-cooldown');
       this.missileButton.classList.remove('no-target');
     } else if (!hasIslandTarget) {
-      this.missileButton.textContent = 'M';
+      this.missileButton.textContent = mLabel;
       this.missileButton.classList.remove('on-cooldown');
       this.missileButton.classList.add('no-target');
     } else if (this.missiles.length >= MAX_MISSILES) {
-      this.missileButton.textContent = 'M';
+      this.missileButton.textContent = mLabel;
       this.missileButton.classList.add('on-cooldown');
       this.missileButton.classList.remove('no-target');
     } else {
-      this.missileButton.textContent = 'M';
+      this.missileButton.textContent = mLabel;
       this.missileButton.classList.remove('on-cooldown', 'no-target');
     }
 
@@ -197,8 +218,26 @@ export class WeaponsSystem extends System {
       t.wake.update(t.position, t.heading, TORPEDO_SPEED, dt);
     }
 
-    // Update explosion particles
+    // Update orphaned rainbow wakes (persist after torpedo impact)
+    for (let i = this.orphanedWakes.length - 1; i >= 0; i--) {
+      if (this.orphanedWakes[i].updateOrphaned(dt)) {
+        this.orphanedWakes[i].dispose(this.scene);
+        this.orphanedWakes.splice(i, 1);
+      }
+    }
+
+    // Update orphaned rainbow missile trails (persist after missile impact)
+    for (let i = this.orphanedTrails.length - 1; i >= 0; i--) {
+      if (this.orphanedTrails[i].updateOrphaned(dt)) {
+        this.orphanedTrails[i].dispose(this.scene);
+        this.orphanedTrails.splice(i, 1);
+      }
+    }
+
+    // Update explosion/confetti particles
     this.explosions.update(dt);
+    this.confetti?.update(dt);
+    this.unicornEffect?.update(dt);
   }
 
   private updateTorpedoes(dt: number): void {
@@ -233,6 +272,18 @@ export class WeaponsSystem extends System {
       t.position.x += Math.sin(t.heading) * TORPEDO_SPEED * dt;
       t.position.z += Math.cos(t.heading) * TORPEDO_SPEED * dt;
 
+      // Island collision — destroy torpedo on land hit
+      const terrainH = this.chunkManager.getTerrainHeight(t.position.x, t.position.z);
+      if (terrainH > 0.3) {
+        if (this.config.mode === 'magical') {
+          this.confetti?.spawnBurst(t.position.x, t.position.y + 1, t.position.z);
+        } else {
+          this.explosions.spawnExplosion(t.position.x, t.position.y + 1, t.position.z);
+        }
+        this.destroyTorpedo(i);
+        continue;
+      }
+
       // Ride ocean surface
       const waveY = this.ocean.getWaveHeight(t.position.x, t.position.z, this.elapsedTime);
       t.position.y = waveY + 0.05;
@@ -247,8 +298,16 @@ export class WeaponsSystem extends System {
       // Hit detection against vessels
       const hit = this.checkTorpedoHit(t);
       if (hit) {
-        this.explosions.spawnExplosion(t.position.x, t.position.y, t.position.z);
-        this.soundEffects.playExplosion();
+        if (this.config.mode === 'magical') {
+          this.confetti?.spawnBurst(t.position.x, t.position.y, t.position.z);
+        } else {
+          this.explosions.spawnExplosion(t.position.x, t.position.y, t.position.z);
+        }
+        if (this.config.mode === 'magical') {
+          this.soundEffects.playMagicChime();
+        } else {
+          this.soundEffects.playExplosion();
+        }
 
         if (hit.entity.type === 'battleship' && hit.entity.strikeZones && hit.zoneIndex >= 0) {
           // Mark zone as hit
@@ -257,17 +316,27 @@ export class WeaponsSystem extends System {
           // Check if all zones destroyed
           const allHit = hit.entity.strikeZones.hit.every(h => h);
           if (allHit) {
-            // Battleship sinks — extra explosions at each zone
+            // Battleship sinks — extra effects at each zone
             for (const offset of hit.entity.strikeZones.offsets) {
               const wx = hit.entity.mesh.position.x + Math.sin(hit.entity.heading) * offset;
               const wz = hit.entity.mesh.position.z + Math.cos(hit.entity.heading) * offset;
-              this.explosions.spawnExplosion(wx, hit.entity.mesh.position.y, wz);
+              if (this.config.mode === 'magical') {
+                this.confetti?.spawnBurst(wx, hit.entity.mesh.position.y, wz);
+              } else {
+                this.explosions.spawnExplosion(wx, hit.entity.mesh.position.y, wz);
+              }
+            }
+            if (this.config.mode === 'magical') {
+              this.unicornEffect?.spawn(hit.entity.mesh.position);
             }
             this.wildlifeSystem.removeEntity(hit.entity);
             this.killTracker.recordBoatKill();
           }
         } else {
           // Regular vessel — instant destroy
+          if (this.config.mode === 'magical') {
+            this.unicornEffect?.spawn(hit.entity.mesh.position);
+          }
           this.wildlifeSystem.removeEntity(hit.entity);
           this.killTracker.recordBoatKill();
         }
@@ -340,15 +409,20 @@ export class WeaponsSystem extends System {
       this.cubicBezier(m.p0, m.p1, m.p2, m.p3, t, pos);
       m.mesh.position.copy(pos);
 
-      // Update smoke trail
-      const ti = m.trailIndex;
-      if (ti < 100) {
-        m.trailPositions[ti * 3] = pos.x;
-        m.trailPositions[ti * 3 + 1] = pos.y;
-        m.trailPositions[ti * 3 + 2] = pos.z;
-        m.trailIndex = ti + 1;
-        m.trail.geometry.setDrawRange(0, m.trailIndex);
-        (m.trail.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+      // Update trail
+      if (m.rainbowTrail) {
+        m.rainbowTrail.addPoint(pos.clone());
+        m.rainbowTrail.updateTime(dt);
+      } else if (m.trail && m.trailPositions) {
+        const ti = m.trailIndex;
+        if (ti < 100) {
+          m.trailPositions[ti * 3] = pos.x;
+          m.trailPositions[ti * 3 + 1] = pos.y;
+          m.trailPositions[ti * 3 + 2] = pos.z;
+          m.trailIndex = ti + 1;
+          m.trail.geometry.setDrawRange(0, m.trailIndex);
+          (m.trail.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+        }
       }
 
       // Orient mesh along velocity (bezier tangent)
@@ -362,32 +436,44 @@ export class WeaponsSystem extends System {
         const lighthouse = this.chunkManager.findLighthouseNearIsland(m.targetIslandX, m.targetIslandZ);
 
         if (lighthouse) {
-          // Shift explosion to lighthouse position
           const lhPos = new THREE.Vector3();
           lighthouse.getWorldPosition(lhPos);
 
           for (let e = 0; e < 5; e++) {
-            this.explosions.spawnExplosion(
-              lhPos.x + (Math.random() - 0.5) * 20,
-              lhPos.y + Math.random() * 5,
-              lhPos.z + (Math.random() - 0.5) * 20,
-            );
+            const ex = lhPos.x + (Math.random() - 0.5) * 20;
+            const ey = lhPos.y + Math.random() * 5;
+            const ez = lhPos.z + (Math.random() - 0.5) * 20;
+            if (this.config.mode === 'magical') {
+              this.confetti?.spawnBurst(ex, ey, ez);
+            } else {
+              this.explosions.spawnExplosion(ex, ey, ez);
+            }
           }
 
+          if (this.config.mode === 'magical') {
+            this.unicornEffect?.spawn(lhPos);
+          }
           this.chunkManager.removeLighthouse(m.targetIslandX, m.targetIslandZ);
           this.killTracker.recordLighthouseKill();
         } else {
-          // No lighthouse — normal island explosion, no kill
+          // No lighthouse — normal island impact, no kill
           for (let e = 0; e < 5; e++) {
-            this.explosions.spawnExplosion(
-              m.p3.x + (Math.random() - 0.5) * 20,
-              m.p3.y + Math.random() * 5,
-              m.p3.z + (Math.random() - 0.5) * 20,
-            );
+            const ex = m.p3.x + (Math.random() - 0.5) * 20;
+            const ey = m.p3.y + Math.random() * 5;
+            const ez = m.p3.z + (Math.random() - 0.5) * 20;
+            if (this.config.mode === 'magical') {
+              this.confetti?.spawnBurst(ex, ey, ez);
+            } else {
+              this.explosions.spawnExplosion(ex, ey, ez);
+            }
           }
         }
 
-        this.soundEffects.playExplosion();
+        if (this.config.mode === 'magical') {
+          this.soundEffects.playMagicChime();
+        } else {
+          this.soundEffects.playExplosion();
+        }
         this.destroyMissile(i);
       }
     }
@@ -403,9 +489,12 @@ export class WeaponsSystem extends System {
     const mesh = createTorpedoMesh();
     mesh.position.copy(spawnPos);
     mesh.rotation.y = boatTransform.rotation.y;
+    if (this.config.mode === 'magical') mesh.visible = false;
     this.scene.add(mesh);
 
-    const wake = new TorpedoWake(this.scene);
+    const wake = this.config.mode === 'magical'
+      ? new RainbowTorpedoWake(this.scene)
+      : new TorpedoWake(this.scene);
 
     this.torpedoes.push({
       mesh,
@@ -458,20 +547,29 @@ export class WeaponsSystem extends System {
 
     const mesh = createMissileMesh();
     mesh.position.copy(p0);
+    if (this.config.mode === 'magical') mesh.visible = false;
     this.scene.add(mesh);
 
-    // Smoke trail line
-    const trailPositions = new Float32Array(100 * 3);
-    trailPositions[0] = p0.x;
-    trailPositions[1] = p0.y;
-    trailPositions[2] = p0.z;
-    const trailGeom = new THREE.BufferGeometry();
-    trailGeom.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
-    trailGeom.setDrawRange(0, 1);
-    const trailMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.5 });
-    const trail = new THREE.Line(trailGeom, trailMat);
-    trail.frustumCulled = false;
-    this.scene.add(trail);
+    let trail: THREE.Line | null = null;
+    let trailPositions: Float32Array | null = null;
+    let rainbowTrail: RainbowMissileTrail | null = null;
+
+    if (this.config.mode === 'magical') {
+      rainbowTrail = new RainbowMissileTrail(this.scene, p0);
+    } else {
+      // Classic smoke trail line
+      trailPositions = new Float32Array(100 * 3);
+      trailPositions[0] = p0.x;
+      trailPositions[1] = p0.y;
+      trailPositions[2] = p0.z;
+      const trailGeom = new THREE.BufferGeometry();
+      trailGeom.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+      trailGeom.setDrawRange(0, 1);
+      const trailMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.5 });
+      trail = new THREE.Line(trailGeom, trailMat);
+      trail.frustumCulled = false;
+      this.scene.add(trail);
+    }
 
     this.missiles.push({
       mesh,
@@ -486,6 +584,7 @@ export class WeaponsSystem extends System {
       trail,
       trailPositions,
       trailIndex: 1,
+      rainbowTrail,
     });
 
     this.missileCooldown = MISSILE_COOLDOWN;
@@ -519,7 +618,13 @@ export class WeaponsSystem extends System {
         (child.material as THREE.Material).dispose();
       }
     });
-    t.wake.dispose(this.scene);
+    // In magical mode, orphan the rainbow wake to persist for 10s
+    if (this.config.mode === 'magical' && t.wake instanceof RainbowTorpedoWake) {
+      t.wake.freeze();
+      this.orphanedWakes.push(t.wake);
+    } else {
+      t.wake.dispose(this.scene);
+    }
     this.torpedoes.splice(index, 1);
   }
 
@@ -532,9 +637,50 @@ export class WeaponsSystem extends System {
         (child.material as THREE.Material).dispose();
       }
     });
-    this.scene.remove(m.trail);
-    m.trail.geometry.dispose();
-    (m.trail.material as THREE.Material).dispose();
+    // Handle trail cleanup
+    if (m.rainbowTrail) {
+      m.rainbowTrail.freeze();
+      this.orphanedTrails.push(m.rainbowTrail);
+    } else if (m.trail) {
+      this.scene.remove(m.trail);
+      m.trail.geometry.dispose();
+      (m.trail.material as THREE.Material).dispose();
+    }
     this.missiles.splice(index, 1);
+  }
+
+  dispose(): void {
+    window.removeEventListener('keydown', this.keydownHandler);
+    this.torpedoButton.remove();
+    this.missileButton.remove();
+
+    // Clean up active torpedoes
+    for (const t of this.torpedoes) {
+      this.scene.remove(t.mesh);
+      t.wake.dispose(this.scene);
+    }
+    this.torpedoes.length = 0;
+
+    // Clean up active missiles
+    for (const m of this.missiles) {
+      this.scene.remove(m.mesh);
+      if (m.rainbowTrail) m.rainbowTrail.dispose(this.scene);
+      if (m.trail) {
+        this.scene.remove(m.trail);
+        m.trail.geometry.dispose();
+        (m.trail.material as THREE.Material).dispose();
+      }
+    }
+    this.missiles.length = 0;
+
+    // Clean up orphaned effects
+    for (const w of this.orphanedWakes) w.dispose(this.scene);
+    this.orphanedWakes.length = 0;
+    for (const t of this.orphanedTrails) t.dispose(this.scene);
+    this.orphanedTrails.length = 0;
+
+    this.explosions.dispose();
+    this.confetti?.dispose();
+    this.unicornEffect?.dispose();
   }
 }

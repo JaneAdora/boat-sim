@@ -4,6 +4,7 @@ import { TUGBOAT } from './boats/Tugboat';
 import { CRUISE_SHIP } from './boats/CruiseShip';
 import { SPEEDBOAT } from './boats/Speedboat';
 import { VIKING_SHIP } from './boats/VikingShip';
+import { GameMode } from './state/GameConfig';
 
 // SVG boat silhouette icons (no emojis)
 const BOAT_ICONS: Record<string, string> = {
@@ -53,13 +54,43 @@ const escButton = document.getElementById('esc-button');
 
 let activeEngine: Engine | null = null;
 let escKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+let selectedMode: GameMode = 'classic';
 
 function showSelector(): void {
   loadingBar.style.width = '100%';
   loadingText.textContent = 'Choose your vessel';
 
-  // Remove previous selector if it exists (re-entry case)
+  // Remove previous UI if it exists (re-entry case)
+  document.getElementById('mode-pill')?.remove();
   document.getElementById('boat-selector')?.remove();
+
+  // Mode toggle pill
+  const modePill = document.createElement('div');
+  modePill.id = 'mode-pill';
+
+  const classicBtn = document.createElement('button');
+  classicBtn.className = `mode-btn${selectedMode === 'classic' ? ' active' : ''}`;
+  classicBtn.textContent = '\u{1F4A3} Boatface Killah';
+
+  const magicalBtn = document.createElement('button');
+  magicalBtn.className = `mode-btn${selectedMode === 'magical' ? ' active' : ''}`;
+  magicalBtn.textContent = '\u2728 Magical Mode';
+
+  classicBtn.addEventListener('click', () => {
+    selectedMode = 'classic';
+    classicBtn.classList.add('active');
+    magicalBtn.classList.remove('active');
+  });
+
+  magicalBtn.addEventListener('click', () => {
+    selectedMode = 'magical';
+    magicalBtn.classList.add('active');
+    classicBtn.classList.remove('active');
+  });
+
+  modePill.appendChild(classicBtn);
+  modePill.appendChild(magicalBtn);
+  loadingText.parentElement!.appendChild(modePill);
 
   const selector = document.createElement('div');
   selector.id = 'boat-selector';
@@ -85,10 +116,10 @@ function showSelector(): void {
     card.appendChild(nameSpan);
     card.appendChild(descSpan);
 
-    card.addEventListener('click', () => startGame(boat.def));
+    card.addEventListener('click', () => startGame(boat.def, selectedMode));
     card.addEventListener('touchend', (e) => {
       e.preventDefault();
-      startGame(boat.def);
+      startGame(boat.def, selectedMode);
     });
     selector.appendChild(card);
   }
@@ -129,8 +160,8 @@ function returnToSelector(): void {
   showSelector();
 }
 
-function startGame(def: BoatDefinition): void {
-  const engine = new Engine(def);
+function startGame(def: BoatDefinition, mode: GameMode): void {
+  const engine = new Engine(def, { mode });
   activeEngine = engine;
   (window as any).__engine = engine;
 

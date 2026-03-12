@@ -4,6 +4,7 @@ import { World } from '../ecs/World';
 import { Transform } from '../components/Transform';
 import { RigidBody } from '../components/RigidBody';
 import { Ocean } from '../rendering/Ocean';
+import { ChunkManager } from '../world/ChunkManager';
 
 // ─── Geometry builders ───────────────────────────────────────
 
@@ -220,6 +221,7 @@ export class WildlifeSystem extends System {
   private scene: THREE.Scene;
   private ocean: Ocean;
   private boatEntity: number;
+  private chunkManager: ChunkManager | null = null;
   private entities: WildlifeEntity[] = [];
   private spawnTimer = 0;
   private time = 0;
@@ -239,6 +241,10 @@ export class WildlifeSystem extends System {
     this.scene = scene;
     this.ocean = ocean;
     this.boatEntity = boatEntity;
+  }
+
+  setChunkManager(cm: ChunkManager): void {
+    this.chunkManager = cm;
   }
 
   update(world: World, dt: number): void {
@@ -507,6 +513,17 @@ export class WildlifeSystem extends System {
     // Move forward
     e.mesh.position.x += Math.sin(e.heading) * e.speed * dt;
     e.mesh.position.z += Math.cos(e.heading) * e.speed * dt;
+
+    // Island collision — reverse out of land and deflect heading
+    if (this.chunkManager && e.type !== 'dolphin' && e.type !== 'whale') {
+      const terrainH = this.chunkManager.getTerrainHeight(e.mesh.position.x, e.mesh.position.z);
+      if (terrainH > 0.1) {
+        // Push back and reverse heading
+        e.mesh.position.x -= Math.sin(e.heading) * e.speed * dt * 2;
+        e.mesh.position.z -= Math.cos(e.heading) * e.speed * dt * 2;
+        e.heading += Math.PI * 0.5 + Math.random() * Math.PI; // turn 90-270 degrees
+      }
+    }
 
     // Get wave height at position
     const waveY = this.ocean.getWaveHeight(e.mesh.position.x, e.mesh.position.z, t);

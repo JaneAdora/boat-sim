@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Boatface Killah</title>
+  <title>Tugboat Bliss | Sail the Infinite Ocean</title>
+  <meta name="description" content="Free-roam 3D boat simulator with procedural oceans, dynamic weather, and combat. Choose your vessel and explore an infinite world — in classic combat or family-friendly Magical Mode.">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1628; }
@@ -102,7 +103,7 @@
 
     #controls-help {
       position: fixed;
-      bottom: 80px;
+      bottom: 40%;
       left: 50%;
       transform: translateX(-50%);
       padding: 16px 24px;
@@ -137,13 +138,50 @@
       opacity: 0.7;
     }
 
+    /* Mode toggle pill */
+    #mode-pill {
+      display: flex;
+      margin-top: 24px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 24px;
+      overflow: hidden;
+    }
+
+    .mode-btn {
+      padding: 10px 20px;
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.25s, color 0.25s;
+      letter-spacing: 0.3px;
+    }
+
+    .mode-btn:hover {
+      color: rgba(255,255,255,0.7);
+    }
+
+    .mode-btn.active {
+      background: rgba(255,255,255,0.12);
+      color: #e0e8f0;
+    }
+
     /* Boat selector */
     #boat-selector {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(2, 160px);
       gap: 16px;
       margin-top: 32px;
-      flex-wrap: wrap;
       justify-content: center;
+    }
+
+    @media (max-width: 400px) {
+      #boat-selector {
+        grid-template-columns: 160px;
+      }
     }
 
     .boat-card {
@@ -159,7 +197,6 @@
       font-family: 'Segoe UI', system-ui, sans-serif;
       cursor: pointer;
       transition: background 0.2s, border-color 0.2s, transform 0.15s;
-      min-width: 120px;
     }
 
     .boat-card:hover, .boat-card:active {

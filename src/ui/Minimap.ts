@@ -90,16 +90,20 @@ export class Minimap {
     ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
     // Helper: transform world coords to minimap coords (boat-heading-up)
+    // Boat forward = (sin(θ), cos(θ)) in XZ where θ = rotation.y
+    // We want forward to map to canvas-up (negative canvas Y)
     const toMap = (wx: number, wz: number): [number, number] => {
-      let dx = (wx - boatX);
-      let dz = (wz - boatZ);
-      // Rotate by -boatHeading for boat-heading-up mode
-      const cos = Math.cos(-boatHeading);
-      const sin = Math.sin(-boatHeading);
-      const rx = dx * cos - dz * sin;
-      const rz = dx * sin + dz * cos;
-      const mx = rx / MAP_RADIUS * HALF + HALF;
-      const mz = rz / MAP_RADIUS * HALF + HALF;
+      const dx = wx - boatX;
+      const dz = wz - boatZ;
+      // Project onto boat's right axis (starboard) and forward axis
+      const sinH = Math.sin(boatHeading);
+      const cosH = Math.cos(boatHeading);
+      // right = (cosH, -sinH), forward = (sinH, cosH)
+      const rightDot = dx * cosH - dz * sinH;   // positive = starboard
+      const fwdDot = dx * sinH + dz * cosH;     // positive = ahead
+      // Map: starboard → canvas right, ahead → canvas up
+      const mx = HALF + rightDot / MAP_RADIUS * HALF;
+      const mz = HALF - fwdDot / MAP_RADIUS * HALF;
       return [mx, mz];
     };
 
@@ -131,8 +135,9 @@ export class Minimap {
       ctx.globalAlpha = 1.0;
     }
 
-    // Draw wildlife
+    // Draw wildlife (skip non-targetable animals)
     for (const w of wildlife) {
+      if (w.type === 'dolphin' || w.type === 'whale') continue;
       const dx = w.x - boatX;
       const dz = w.z - boatZ;
       const dist = Math.sqrt(dx * dx + dz * dz);

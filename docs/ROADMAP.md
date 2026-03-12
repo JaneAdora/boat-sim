@@ -82,6 +82,18 @@ Feature tracking for the boat simulator. See [ARCHITECTURE.md](ARCHITECTURE.md) 
 - [x] Mobile: HUD toggle, map toggle, escape button
 - [x] Day slowed 3x (night unchanged)
 
+### Magical Mode (Family-Friendly)
+- [x] Pill toggle on boat selector: "Boatface Killah" (default) vs "Magical Mode"
+- [x] GameConfig state threaded from selector through Engine to systems
+- [x] Rainbow torpedo wake (HSL gradient ribbon, persists 10s after impact with fade)
+- [x] Rainbow missile trail (full-path 500-point coverage, persists 10s)
+- [x] Confetti particle burst on impact (800-particle rainbow pool, lighter gravity)
+- [x] Unicorn fly-away on destruction (procedural mesh: white body, pink mane, gold horn)
+- [x] Happy major-chord chime on impact (synthesized C6-E6-G6 + shimmer)
+- [x] Weapon buttons: T/M replaced with star/rainbow emojis
+- [x] HUD "Kills" label replaced with unicorn emoji
+- [x] Projectile meshes invisible (only rainbow wakes/trails visible)
+
 ## Removed Features
 
 ### Sailboat

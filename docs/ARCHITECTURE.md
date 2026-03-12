@@ -192,6 +192,24 @@ Each frame (Engine.update):
 - **Engine sounds** vary by boat type: diesel (tugboat/cruise), high-RPM triangle wave (speedboat), bandpass wind noise (viking)
 - **Ambient**: ocean noise, wind (volume tracks wind strength), rain (during storms)
 - **Weapons**: torpedo launch (sine thump + hiss), missile launch (sawtooth sweep + roar), explosion (boom + crackle + sub-bass)
+- **Magical mode chime**: major chord (C6+E6+G6) with staggered attack + high sparkle oscillator + white noise shimmer
+
+### Game Mode System (GameConfig)
+
+The game supports two modes: **Classic** ("Boatface Killah") and **Magical Mode**. The mode is selected via a pill toggle on the boat selector screen.
+
+- **State**: `GameMode` type (`'classic' | 'magical'`) and `GameConfig` interface in `src/state/GameConfig.ts`
+- **Flow**: `main.ts` holds `selectedMode`, passes to `Engine(boatDef, config)`, which forwards to `WeaponsSystem` and `HUD`
+- **Classic mode**: All original behavior — fire explosions, gray trails, "T"/"M" buttons, "Kills" label
+- **Magical mode**: All combat visuals are transformed:
+  - Projectile meshes hidden (`mesh.visible = false`), only wakes/trails visible
+  - `RainbowTorpedoWake` (`src/rendering/RainbowTorpedoWake.ts`) — HSL gradient ribbon with `uTime` cycling
+  - `RainbowMissileTrail` (`src/rendering/RainbowMissileTrail.ts`) — per-vertex rainbow line, 500-point buffer
+  - `ConfettiEffect` (`src/rendering/ConfettiEffect.ts`) — 800-particle rainbow burst replacing fire explosions
+  - `UnicornEffect` (`src/rendering/UnicornEffect.ts`) — procedural unicorn mesh flies upward on entity destruction
+  - Rainbow wakes/trails persist 10s after impact via freeze/orphan lifecycle pattern
+  - Happy chime sound replaces explosion boom
+  - Weapon buttons show emoji (star/rainbow), HUD kill label shows unicorn emoji
 
 ## Extension Guides
 

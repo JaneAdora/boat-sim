@@ -6,6 +6,7 @@ import { BoatControl } from '../components/BoatControl';
 import { WindSystem } from '../systems/WindSystem';
 import { InputManager } from '../core/InputManager';
 import { KillTracker } from '../state/KillTracker';
+import { GameConfig } from '../state/GameConfig';
 
 export class HUD {
   private killDisplay: HTMLElement | null;
@@ -19,7 +20,7 @@ export class HUD {
   private controlsVisible = false;
   private controlsTimer = 0;
 
-  constructor(private input: InputManager, killTracker: KillTracker) {
+  constructor(private input: InputManager, killTracker: KillTracker, config: GameConfig = { mode: 'classic' }) {
     this.killTracker = killTracker;
     this.killDisplay = document.getElementById('kill-count');
     this.speedValue = document.getElementById('speed-value');
@@ -27,6 +28,12 @@ export class HUD {
     this.sailValue = document.getElementById('sail-value');
     this.hudContainer = document.getElementById('hud');
     this.controlsHelp = document.getElementById('controls-help');
+
+    // Patch kill label based on game mode
+    const killLabel = this.killDisplay?.previousElementSibling;
+    if (killLabel) {
+      killLabel.textContent = config.mode === 'magical' ? '\u{1F984}' : 'Kills';
+    }
 
     // Mobile HUD toggle button
     const toggle = document.getElementById('hud-toggle');
@@ -49,6 +56,16 @@ export class HUD {
     this.controlsVisible = true;
     this.controlsTimer = duration;
     this.controlsHelp?.classList.add('visible');
+  }
+
+  toggleControls(): void {
+    if (this.controlsVisible) {
+      this.controlsHelp?.classList.remove('visible');
+      this.controlsVisible = false;
+      this.controlsTimer = 0;
+    } else {
+      this.showControls(5);
+    }
   }
 
   update(world: World, boatEntity: EntityId, windSystem: WindSystem, dt: number): void {

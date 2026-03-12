@@ -38,6 +38,7 @@ import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
 import { BoatControl } from './components/BoatControl';
+import { GameConfig } from './state/GameConfig';
 
 export class Engine {
   private world: World;
@@ -67,7 +68,10 @@ export class Engine {
   private elapsedTime = 0;
   private keydownHandler: (e: KeyboardEvent) => void;
 
-  constructor(boatDef: BoatDefinition) {
+  private readonly config: GameConfig;
+
+  constructor(boatDef: BoatDefinition, config: GameConfig = { mode: 'classic' }) {
+    this.config = config;
     // Core
     this.world = new World();
     this.input = new InputManager();
@@ -138,6 +142,7 @@ export class Engine {
 
     // Wildlife & ambient vessels
     this.wildlifeSystem = new WildlifeSystem(this.sceneManager.scene, this.ocean, this.boatEntity);
+    this.wildlifeSystem.setChunkManager(this.chunkManager);
     this.world.addSystem(this.wildlifeSystem);
 
     // Towing (tugboat only)
@@ -154,7 +159,7 @@ export class Engine {
     this.weaponsSystem = new WeaponsSystem(
       this.sceneManager.scene, this.ocean, this.boatEntity,
       this.wildlifeSystem, this.chunkManager,
-      this.killTracker, this.soundEffects,
+      this.killTracker, this.soundEffects, this.config,
     );
     this.world.addSystem(this.weaponsSystem);
 
@@ -163,7 +168,7 @@ export class Engine {
     this.world.addSystem(seagullSystem);
 
     // UI
-    this.hud = new HUD(this.input, this.killTracker);
+    this.hud = new HUD(this.input, this.killTracker, this.config);
     this.minimap = new Minimap(this.chunkManager);
 
     // Audio
@@ -200,7 +205,7 @@ export class Engine {
         this.minimap.toggle();
       }
       if (e.key === '/' || e.key === '?') {
-        this.hud.showControls(5);
+        this.hud.toggleControls();
       }
     };
     window.addEventListener('keydown', this.keydownHandler);
@@ -275,12 +280,14 @@ export class Engine {
     // Update HUD
     this.hud.update(this.world, this.boatEntity, this.windSystem, dt);
 
-    // Update minimap
+    // Update minimap — compute heading from forward vector (immune to pitch/roll)
     if (boatTransform) {
+      const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(boatTransform.quaternion);
+      const heading = Math.atan2(fwd.x, fwd.z);
       this.minimap.update(
         boatTransform.position.x,
         boatTransform.position.z,
-        boatTransform.rotation.y,
+        heading,
         this.wildlifeSystem.getWildlifePositions(),
       );
     }
