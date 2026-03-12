@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="#0a1628"/>
-  <g transform="translate(256,256) scale(7)">
+  <g transform="translate(256,256) scale(5.5)">
     <circle cx="0" cy="0" r="24" fill="none" stroke="#d94040" stroke-width="16"/>
     <path d="M0 -24 A24 24 0 0 1 24 0" fill="none" stroke="#f0f0f0" stroke-width="16" stroke-dasharray="19 19"/>
     <path d="M0 24 A24 24 0 0 1 -24 0" fill="none" stroke="#f0f0f0" stroke-width="16" stroke-dasharray="19 19"/>
   </g>
-  <text x="256" y="320" text-anchor="middle" dominant-baseline="middle"
+  <text x="256" y="310" text-anchor="middle" dominant-baseline="middle"
         font-family="'Playfair Display', serif" font-weight="700"
-        font-size="190" fill="#f0f0f0" letter-spacing="6">TB</text>
+        font-size="155" fill="#f0f0f0" letter-spacing="6">TB</text>
 </svg>

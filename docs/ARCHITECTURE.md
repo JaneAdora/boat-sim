@@ -224,7 +224,9 @@ The app is installable as a Progressive Web App. No plugins — fully manual imp
 
 - **Manifest**: `public/manifest.json` — fullscreen display, any orientation, navy theme
 - **Service worker**: `public/sw.js` — cache-first for hashed Vite bundles (`/assets/*`), network-first for HTML, stale-while-revalidate for fonts/icons. Bump `CACHE_NAME` when deploying breaking changes.
-- **Icons**: `public/icon.svg` (lifesaver on navy bg), `public/icon-192.png`, `public/icon-512.png`
+- **Icons**: `public/icon.svg` (lifesaver + "TB" on navy bg), `public/icon-192.png`, `public/icon-512.png`
+- **Maskable icons**: `public/icon-maskable.svg`, `icon-maskable-192.png`, `icon-maskable-512.png` — content within 80% safe zone for Android adaptive icon cropping
+- **Monochrome icon**: `public/icon-monochrome.svg` — alpha-only silhouette for Android Material You themed icons (future-proofing; Chrome PWA support pending)
 - **Install prompt**: Captured via `beforeinstallprompt` in `main.ts`. Shows "Install App" button on loading screen. Dismissable via X (persists in `localStorage`).
 - **Apple support**: `apple-mobile-web-app-capable`, `apple-touch-icon` meta tags in `index.html`
 - **Netlify**: `sw.js` served with `Cache-Control: no-cache` header (configured in `netlify.toml`)
