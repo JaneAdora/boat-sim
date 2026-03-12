@@ -189,5 +189,72 @@ if (escButton) {
   escButton.addEventListener('click', showEscMenu);
 }
 
+// Register service worker for PWA support
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+// PWA install prompt
+let deferredInstallPrompt: Event | null = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  if (localStorage.getItem('pwa-install-dismissed')) return;
+  deferredInstallPrompt = e;
+  showInstallButton();
+});
+
+function showInstallButton(): void {
+  const loadingInner = document.getElementById('loading-inner');
+  if (!loadingInner) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'install-btn';
+  btn.textContent = 'Install App';
+  btn.style.cssText = `
+    margin-top: 20px;
+    padding: 10px 24px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    color: rgba(255,255,255,0.6);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    letter-spacing: 0.5px;
+  `;
+  btn.addEventListener('mouseenter', () => {
+    btn.style.background = 'rgba(255,255,255,0.16)';
+    btn.style.color = 'rgba(255,255,255,0.85)';
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.style.background = 'rgba(255,255,255,0.08)';
+    btn.style.color = 'rgba(255,255,255,0.6)';
+  });
+  btn.addEventListener('click', async () => {
+    if (deferredInstallPrompt) {
+      (deferredInstallPrompt as any).prompt();
+      const result = await (deferredInstallPrompt as any).userChoice;
+      if (result.outcome === 'accepted') {
+        btn.remove();
+      }
+      deferredInstallPrompt = null;
+    }
+  });
+
+  const dismiss = document.createElement('span');
+  dismiss.textContent = ' \u00d7';
+  dismiss.style.cssText = 'opacity: 0.4; margin-left: 8px; cursor: pointer;';
+  dismiss.addEventListener('click', (e) => {
+    e.stopPropagation();
+    localStorage.setItem('pwa-install-dismissed', '1');
+    btn.remove();
+  });
+  btn.appendChild(dismiss);
+
+  loadingInner.appendChild(btn);
+}
+
 // Show selector once page is ready
 showSelector();

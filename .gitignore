@@ -4,6 +4,8 @@ dist
 *.local
 *.png
 !public/og-image.png
+!public/icon-192.png
+!public/icon-512.png
 *.jpg
 .playwright-mcp/
 .netlify/
