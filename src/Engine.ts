@@ -349,6 +349,7 @@ export class Engine {
     document.getElementById('torpedo-button')?.remove();
     document.getElementById('missile-button')?.remove();
     document.getElementById('tow-button')?.remove();
+    document.getElementById('touch-controls')?.remove();
 
     // Remove the renderer's canvas
     const canvas = this.sceneManager.renderer.domElement;
