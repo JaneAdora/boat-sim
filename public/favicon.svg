@@ -1,7 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Outer ring (red) -->
-  <circle cx="32" cy="32" r="24" fill="none" stroke="#d94040" stroke-width="12"/>
-  <!-- White segments -->
-  <path d="M32 8 A24 24 0 0 1 56 32" fill="none" stroke="#f0f0f0" stroke-width="12" stroke-dasharray="19 19"/>
-  <path d="M32 56 A24 24 0 0 1 8 32" fill="none" stroke="#f0f0f0" stroke-width="12" stroke-dasharray="19 19"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#d94040" stroke-width="16"/>
+  <path d="M32 8 A24 24 0 0 1 56 32" fill="none" stroke="#f0f0f0" stroke-width="16" stroke-dasharray="19 19"/>
+  <path d="M32 56 A24 24 0 0 1 8 32" fill="none" stroke="#f0f0f0" stroke-width="16" stroke-dasharray="19 19"/>
 </svg>
