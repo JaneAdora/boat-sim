@@ -129,13 +129,16 @@ export class TouchControls {
     this.throttleTrack.addEventListener('touchend', this.onThrottleEnd);
     this.throttleTrack.addEventListener('touchcancel', this.onThrottleEnd);
 
-    // Reset controls when page loses visibility (e.g. switching apps)
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.resetTiller();
-        this.resetThrottle();
-      }
-    });
+    // Reset controls when page loses focus (e.g. switching apps)
+    // Multiple listeners for cross-browser reliability on mobile
+    const resetAll = () => {
+      this.resetTiller();
+      this.resetThrottle();
+      this.cameraTouches.clear();
+    };
+    document.addEventListener('visibilitychange', () => { if (document.hidden) resetAll(); });
+    window.addEventListener('blur', resetAll);
+    window.addEventListener('pagehide', resetAll);
 
     // Camera gestures on the renderer canvas
     const canvas = this.rendererCanvas;
