@@ -62,6 +62,7 @@ function showSelector(): void {
 
   // Remove previous UI if it exists (re-entry case)
   document.getElementById('mode-pill')?.remove();
+  document.getElementById('divider-below-pill')?.remove();
   document.getElementById('boat-selector')?.remove();
 
   // Mode toggle pill
@@ -90,7 +91,13 @@ function showSelector(): void {
 
   modePill.appendChild(classicBtn);
   modePill.appendChild(magicalBtn);
-  loadingText.parentElement!.appendChild(modePill);
+  loadingText.parentElement!.insertBefore(modePill, loadingText);
+
+  // Divider bar below pill (matches the one above)
+  const divider = document.createElement('div');
+  divider.id = 'divider-below-pill';
+  divider.style.cssText = 'width: 240px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 24px;';
+  loadingText.parentElement!.insertBefore(divider, loadingText);
 
   const selector = document.createElement('div');
   selector.id = 'boat-selector';

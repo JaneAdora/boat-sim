@@ -102,7 +102,7 @@ export class Minimap {
       const rightDot = dx * cosH - dz * sinH;   // positive = starboard
       const fwdDot = dx * sinH + dz * cosH;     // positive = ahead
       // Map: starboard → canvas right, ahead → canvas up
-      const mx = HALF + rightDot / MAP_RADIUS * HALF;
+      const mx = HALF - rightDot / MAP_RADIUS * HALF;
       const mz = HALF - fwdDot / MAP_RADIUS * HALF;
       return [mx, mz];
     };
