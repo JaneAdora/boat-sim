@@ -70,7 +70,7 @@ function showSelector(): void {
 
   const classicBtn = document.createElement('button');
   classicBtn.className = `mode-btn${selectedMode === 'classic' ? ' active' : ''}`;
-  classicBtn.textContent = '\u{1F4A3} Boatface Killah';
+  classicBtn.textContent = 'Boatface Killah \u{1F4A3}';
 
   const magicalBtn = document.createElement('button');
   magicalBtn.className = `mode-btn${selectedMode === 'magical' ? ' active' : ''}`;
