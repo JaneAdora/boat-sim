@@ -129,6 +129,14 @@ export class TouchControls {
     this.throttleTrack.addEventListener('touchend', this.onThrottleEnd);
     this.throttleTrack.addEventListener('touchcancel', this.onThrottleEnd);
 
+    // Reset controls when page loses visibility (e.g. switching apps)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.resetTiller();
+        this.resetThrottle();
+      }
+    });
+
     // Camera gestures on the renderer canvas
     const canvas = this.rendererCanvas;
     if (canvas) {
@@ -137,6 +145,22 @@ export class TouchControls {
       canvas.addEventListener('touchend', this.onCanvasTouchEnd);
       canvas.addEventListener('touchcancel', this.onCanvasTouchEnd);
     }
+  }
+
+  private resetTiller(): void {
+    this.tillerTouchId = null;
+    this.rudder = 0;
+    this.tillerKnob.style.transition = 'left 0.2s ease-out, background 0.15s';
+    this.tillerKnob.style.left = '50%';
+    this.tillerKnob.style.background = 'rgba(255,255,255,0.25)';
+  }
+
+  private resetThrottle(): void {
+    this.throttleTouchId = null;
+    this.throttle = 0;
+    this.throttleKnob.style.transition = 'top 0.2s ease-out, background 0.15s';
+    this.throttleKnob.style.top = '50%';
+    this.throttleKnob.style.background = 'rgba(255,255,255,0.25)';
   }
 
   // ──── Tiller handlers ────
@@ -165,11 +189,7 @@ export class TouchControls {
   private onTillerEnd = (e: TouchEvent) => {
     for (let i = 0; i < e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === this.tillerTouchId) {
-        this.tillerTouchId = null;
-        this.rudder = 0;
-        this.tillerKnob.style.transition = 'left 0.2s ease-out, background 0.15s';
-        this.tillerKnob.style.left = '50%';
-        this.tillerKnob.style.background = 'rgba(255,255,255,0.25)';
+        this.resetTiller();
       }
     }
   };
