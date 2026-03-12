@@ -70,11 +70,11 @@ function showSelector(): void {
 
   const classicBtn = document.createElement('button');
   classicBtn.className = `mode-btn${selectedMode === 'classic' ? ' active' : ''}`;
-  classicBtn.textContent = 'Boatface Killah \u{1F4A3}';
+  classicBtn.textContent = 'Boatface Killah';
 
   const magicalBtn = document.createElement('button');
   magicalBtn.className = `mode-btn${selectedMode === 'magical' ? ' active' : ''}`;
-  magicalBtn.textContent = '\u2728 Magical Mode';
+  magicalBtn.textContent = 'Magical Mode';
 
   classicBtn.addEventListener('click', () => {
     selectedMode = 'classic';
