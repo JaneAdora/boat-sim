@@ -4,7 +4,7 @@
   "description": "Sail the infinite ocean",
   "start_url": "/",
   "display": "fullscreen",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#0a1628",
   "theme_color": "#0a1628",
   "icons": [
