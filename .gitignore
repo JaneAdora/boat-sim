@@ -3,6 +3,7 @@ dist
 .DS_Store
 *.local
 *.png
+!public/og-image.png
 *.jpg
 .playwright-mcp/
 .netlify/
