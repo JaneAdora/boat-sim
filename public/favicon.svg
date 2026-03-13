@@ -4,7 +4,7 @@
     <path d="M0 -24 A24 24 0 0 1 24 0" fill="none" stroke="#f0f0f0" stroke-width="16" stroke-dasharray="19 19"/>
     <path d="M0 24 A24 24 0 0 1 -24 0" fill="none" stroke="#f0f0f0" stroke-width="16" stroke-dasharray="19 19"/>
   </g>
-  <text x="32" y="35" text-anchor="middle" dominant-baseline="middle"
+  <text x="32" y="32" text-anchor="middle" dominant-baseline="central"
         font-family="'Playfair Display', serif" font-weight="700"
-        font-size="20" fill="#f0f0f0" letter-spacing="1">TB</text>
+        font-size="28" fill="#f0f0f0" letter-spacing="1">TB</text>
 </svg>
