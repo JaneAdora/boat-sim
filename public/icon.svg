@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <g transform="translate(256,256) scale(7)">
-    <circle cx="0" cy="0" r="16" fill="#0a1628"/>
     <circle cx="0" cy="0" r="24" fill="none" stroke="#d94040" stroke-width="16"/>
     <path d="M0 -24 A24 24 0 0 1 24 0" fill="none" stroke="#f0f0f0" stroke-width="16" stroke-dasharray="19 19"/>
     <path d="M0 24 A24 24 0 0 1 -24 0" fill="none" stroke="#f0f0f0" stroke-width="16" stroke-dasharray="19 19"/>
