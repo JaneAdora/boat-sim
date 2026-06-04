@@ -48,13 +48,15 @@ const loadingScreen = document.getElementById('loading-screen')!;
 const loadingText = document.getElementById('loading-text')!;
 const loadingBar = document.getElementById('loading-bar')!;
 const escMenu = document.getElementById('esc-menu')!;
-const escConfirm = document.getElementById('esc-confirm')!;
-const escCancel = document.getElementById('esc-cancel')!;
+const escResume = document.getElementById('esc-resume')!;
+const escLeave = document.getElementById('esc-leave')!;
+const escMute = document.getElementById('esc-mute')!;
+const volumeSlider = document.getElementById('volume-slider') as HTMLInputElement;
 const escButton = document.getElementById('esc-button');
 
 let activeEngine: Engine | null = null;
 let escKeyHandler: ((e: KeyboardEvent) => void) | null = null;
-let selectedMode: GameMode = 'classic';
+let selectedMode: GameMode = localStorage.getItem('tb-mode') === 'magical' ? 'magical' : 'classic';
 
 function showSelector(): void {
   loadingBar.style.width = '100%';
@@ -78,12 +80,14 @@ function showSelector(): void {
 
   classicBtn.addEventListener('click', () => {
     selectedMode = 'classic';
+    localStorage.setItem('tb-mode', 'classic');
     classicBtn.classList.add('active');
     magicalBtn.classList.remove('active');
   });
 
   magicalBtn.addEventListener('click', () => {
     selectedMode = 'magical';
+    localStorage.setItem('tb-mode', 'magical');
     magicalBtn.classList.add('active');
     classicBtn.classList.remove('active');
   });
@@ -95,9 +99,10 @@ function showSelector(): void {
   const selector = document.createElement('div');
   selector.id = 'boat-selector';
 
+  const lastBoat = localStorage.getItem('tb-boat');
   for (const boat of BOATS) {
     const card = document.createElement('button');
-    card.className = 'boat-card';
+    card.className = boat.def.name === lastBoat ? 'boat-card last-played' : 'boat-card';
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'boat-icon';
@@ -130,6 +135,8 @@ function showSelector(): void {
 function showEscMenu(): void {
   if (!activeEngine) return;
   activeEngine.pause();
+  volumeSlider.value = String(Math.round(activeEngine.getVolume() * 100));
+  escMute.textContent = activeEngine.isMuted() ? 'Unmute' : 'Mute';
   escMenu.classList.add('visible');
 }
 
@@ -161,6 +168,9 @@ function returnToSelector(): void {
 }
 
 function startGame(def: BoatDefinition, mode: GameMode): void {
+  if (activeEngine) return; // guard against the touchend + click double-fire
+  localStorage.setItem('tb-mode', mode);
+  localStorage.setItem('tb-boat', def.name);
   const engine = new Engine(def, { mode });
   activeEngine = engine;
   (window as any).__engine = engine;
@@ -181,8 +191,15 @@ function startGame(def: BoatDefinition, mode: GameMode): void {
 }
 
 // Wire ESC menu buttons
-escConfirm.addEventListener('click', returnToSelector);
-escCancel.addEventListener('click', hideEscMenu);
+escResume.addEventListener('click', hideEscMenu);
+escLeave.addEventListener('click', returnToSelector);
+escMute.addEventListener('click', () => {
+  if (!activeEngine) return;
+  escMute.textContent = activeEngine.toggleMute() ? 'Unmute' : 'Mute';
+});
+volumeSlider.addEventListener('input', () => {
+  activeEngine?.setVolume(Number(volumeSlider.value) / 100);
+});
 
 // Mobile escape button
 if (escButton) {

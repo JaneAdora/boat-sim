@@ -248,6 +248,7 @@
     .boat-icon { font-size: 32px; }
     .boat-name { font-size: 14px; font-weight: 500; letter-spacing: 0.5px; }
     .boat-desc { font-size: 11px; opacity: 0.5; }
+    .boat-card.last-played { border-color: rgba(125,184,236,0.5); box-shadow: 0 0 0 1px rgba(125,184,236,0.3); }
 
     /* Mobile HUD toggle */
     #hud-toggle {
@@ -401,9 +402,29 @@
       margin-bottom: 24px;
       letter-spacing: 0.5px;
     }
+    #esc-menu-box .esc-volume {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 22px;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      opacity: 0.85;
+    }
+    #esc-menu-box .esc-volume input[type="range"] {
+      width: 170px;
+      accent-color: #7db8ec;
+      cursor: pointer;
+    }
+    #esc-menu-box .esc-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
     #esc-menu-box button {
       padding: 10px 24px;
-      margin: 0 8px;
       border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.2);
       background: rgba(255,255,255,0.08);
@@ -414,11 +435,29 @@
       transition: background 0.2s;
     }
     #esc-menu-box button:hover { background: rgba(255,255,255,0.16); }
-    #esc-confirm {
+    #esc-resume {
+      background: rgba(125, 184, 236, 0.22);
+      border-color: rgba(125, 184, 236, 0.4);
+    }
+    #esc-resume:hover { background: rgba(125, 184, 236, 0.38); }
+    #esc-leave {
       background: rgba(200, 60, 60, 0.3);
       border-color: rgba(200, 60, 60, 0.4);
     }
-    #esc-confirm:hover { background: rgba(200, 60, 60, 0.5); }
+    #esc-leave:hover { background: rgba(200, 60, 60, 0.5); }
+    #esc-hint {
+      font-size: 12px;
+      opacity: 0.5;
+      margin: 18px 0 0;
+      letter-spacing: 0.3px;
+    }
+    #esc-hint kbd {
+      background: rgba(255,255,255,0.12);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: inherit;
+      font-size: 11px;
+    }
 
     /* Mobile escape button */
     #esc-button {
@@ -509,6 +548,8 @@
       #torpedo-button { left: 16px; bottom: 85px; }
       #missile-button { left: 60px; bottom: 85px; }
       #esc-button { display: block; }
+      /* keep the ? button clear of the mobile esc button (both top-left) */
+      #help-toggle { left: 56px; }
     }
   </style>
 </head>
@@ -581,9 +622,17 @@
 
   <div id="esc-menu">
     <div id="esc-menu-box">
-      <p>Leave the game?</p>
-      <button id="esc-confirm">Yes, leave</button>
-      <button id="esc-cancel">Cancel</button>
+      <p id="esc-title">Paused</p>
+      <div class="esc-volume">
+        <label for="volume-slider">Volume</label>
+        <input id="volume-slider" type="range" min="0" max="100" step="1" value="50" aria-label="Volume">
+      </div>
+      <div class="esc-actions">
+        <button id="esc-mute">Mute</button>
+        <button id="esc-resume">Resume</button>
+        <button id="esc-leave">Leave to menu</button>
+      </div>
+      <p id="esc-hint">Press <kbd>?</kbd> any time for controls</p>
     </div>
   </div>
 

@@ -7,19 +7,60 @@ import { clamp } from '../utils/math';
 export class SoundEffects {
   private audioCtx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
   private muted = false;
+  private userVolume = 0.5; // 0..1, shared with the volume slider
+  private static readonly GAIN_SCALE = 1.2; // SFX sit slightly above ambient
 
   private ensureContext(): AudioContext {
     if (!this.audioCtx) {
       this.audioCtx = new AudioContext();
+
+      // Limiter so overlapping explosions don't sum past 1.0 and hard-clip.
+      this.compressor = this.audioCtx.createDynamicsCompressor();
+      this.compressor.threshold.value = -6;
+      this.compressor.knee.value = 6;
+      this.compressor.ratio.value = 12;
+      this.compressor.attack.value = 0.003;
+      this.compressor.release.value = 0.25;
+      this.compressor.connect(this.audioCtx.destination);
+
       this.masterGain = this.audioCtx.createGain();
-      this.masterGain.gain.value = 0.8;
-      this.masterGain.connect(this.audioCtx.destination);
+      this.masterGain.gain.value = this.effectiveGain();
+      this.masterGain.connect(this.compressor);
     }
     if (this.audioCtx.state === 'suspended') {
       this.audioCtx.resume();
     }
     return this.audioCtx;
+  }
+
+  private effectiveGain(): number {
+    return this.muted ? 0 : Math.min(1, this.userVolume * SoundEffects.GAIN_SCALE);
+  }
+
+  /** 0..1 master volume (the slider). Ramped to avoid clicks. */
+  setMasterVolume(v: number): void {
+    this.userVolume = Math.max(0, Math.min(1, v));
+    this.applyMasterGain();
+  }
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    this.applyMasterGain();
+  }
+
+  private applyMasterGain(): void {
+    if (!this.masterGain || !this.audioCtx) return;
+    this.masterGain.gain.setTargetAtTime(this.effectiveGain(), this.audioCtx.currentTime, 0.02);
+  }
+
+  suspend(): void {
+    if (this.audioCtx?.state === 'running') this.audioCtx.suspend();
+  }
+
+  resume(): void {
+    this.audioCtx?.resume().catch(() => {});
   }
 
   private createNoiseBuffer(ctx: AudioContext, durationSec: number, white = false): AudioBuffer {
@@ -282,19 +323,12 @@ export class SoundEffects {
     shimmerSource.stop(now + 0.5);
   }
 
-  toggleMute(): boolean {
-    this.muted = !this.muted;
-    if (this.masterGain) {
-      this.masterGain.gain.value = this.muted ? 0 : 0.8;
-    }
-    return this.muted;
-  }
-
   stop(): void {
     if (this.audioCtx) {
       this.audioCtx.close();
       this.audioCtx = null;
       this.masterGain = null;
+      this.compressor = null;
     }
   }
 }

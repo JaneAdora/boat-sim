@@ -72,9 +72,16 @@ export class Engine {
   private keydownHandler: (e: KeyboardEvent) => void;
 
   private readonly config: GameConfig;
+  private audioVolume = 0.5;
+  private audioMuted = false;
 
   constructor(boatDef: BoatDefinition, config: GameConfig = { mode: 'classic' }) {
     this.config = config;
+
+    // Restore persisted audio preferences (set by the pause menu / mute key).
+    const storedVol = parseFloat(localStorage.getItem('tb-volume') ?? '');
+    this.audioVolume = Number.isFinite(storedVol) ? Math.max(0, Math.min(1, storedVol)) : 0.5;
+    this.audioMuted = localStorage.getItem('tb-muted') === '1';
     // Core
     this.world = new World();
     this.input = new InputManager();
@@ -157,6 +164,8 @@ export class Engine {
 
     // Sound effects (weapon SFX)
     this.soundEffects = new SoundEffects();
+    this.soundEffects.setMasterVolume(this.audioVolume);
+    this.soundEffects.setMuted(this.audioMuted);
 
     // Weapons (torpedoes & missiles)
     this.weaponsSystem = new WeaponsSystem(
@@ -176,6 +185,8 @@ export class Engine {
 
     // Audio
     this.soundscape = new AmbientSoundscape(boatDef.meshType);
+    this.soundscape.setMasterVolume(this.audioVolume);
+    this.soundscape.setMuted(this.audioMuted);
     this.soundscape.start();
 
     // Post-processing (subtle bloom for sun reflections)
@@ -201,8 +212,7 @@ export class Engine {
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyX') {
-        this.soundscape.toggleMute();
-        this.soundEffects.toggleMute();
+        this.toggleMute();
       }
       if (e.code === 'KeyN') {
         this.minimap.toggle();
@@ -318,10 +328,42 @@ export class Engine {
 
   pause(): void {
     this.gameLoop.pause();
+    this.soundscape.suspend();
+    this.soundEffects.suspend();
   }
 
   resume(): void {
     this.gameLoop.resume();
+    this.soundscape.resume();
+    this.soundEffects.resume();
+  }
+
+  /** 0..1 master volume; persisted and applied to both audio engines. */
+  setVolume(v: number): void {
+    this.audioVolume = Math.max(0, Math.min(1, v));
+    localStorage.setItem('tb-volume', String(this.audioVolume));
+    this.soundscape.setMasterVolume(this.audioVolume);
+    this.soundEffects.setMasterVolume(this.audioVolume);
+  }
+
+  setMuted(muted: boolean): void {
+    this.audioMuted = muted;
+    localStorage.setItem('tb-muted', muted ? '1' : '0');
+    this.soundscape.setMuted(muted);
+    this.soundEffects.setMuted(muted);
+  }
+
+  toggleMute(): boolean {
+    this.setMuted(!this.audioMuted);
+    return this.audioMuted;
+  }
+
+  getVolume(): number {
+    return this.audioVolume;
+  }
+
+  isMuted(): boolean {
+    return this.audioMuted;
   }
 
   dispose(): void {
