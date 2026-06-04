@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Tugboat Bliss | Sail the Infinite Ocean</title>
   <meta name="description" content="Free-roam 3D boat simulator with procedural oceans, dynamic weather, and combat. Choose your vessel and explore an infinite world — in classic combat or family-friendly Magical Mode.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -28,7 +28,43 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1628; }
+
+    :root {
+      --ink: #e0e8f0;
+      --bg-deep: #0a1628;
+      --accent: #7db8ec;
+      --surface: rgba(255,255,255,0.06);
+      --surface-hover: rgba(255,255,255,0.12);
+      --hairline: rgba(255,255,255,0.15);
+      --panel: rgba(0,0,0,0.35);
+    }
+
+    /* Keyboard focus ring — shared across every interactive control (a11y). */
+    .boat-card:focus-visible,
+    .mode-btn:focus-visible,
+    #esc-menu-box button:focus-visible,
+    #volume-slider:focus-visible,
+    #hud-toggle:focus-visible,
+    #help-toggle:focus-visible,
+    #map-toggle:focus-visible,
+    #esc-button:focus-visible,
+    #torpedo-button:focus-visible,
+    #missile-button:focus-visible,
+    #tow-button:focus-visible,
+    #install-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Respect reduced-motion: neutralise transitions + the kill flourish. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    html, body { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--bg-deep); }
     canvas { display: block; }
 
     #hud {
@@ -40,10 +76,10 @@
       gap: 24px;
       align-items: center;
       padding: 12px 24px;
-      background: rgba(0, 0, 0, 0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
       border-radius: 12px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 14px;
       pointer-events: none;
@@ -75,6 +111,28 @@
       transition: transform 0.3s ease;
     }
 
+    /* Kill counter flourish */
+    @keyframes kill-bump {
+      0%   { transform: scale(1); }
+      35%  { transform: scale(1.4); color: #ffd479; }
+      100% { transform: scale(1); }
+    }
+    #kill-count.kill-bump { display: inline-block; animation: kill-bump 0.35s ease-out; }
+    @keyframes kill-float {
+      0%   { opacity: 0; transform: translate(-50%, 0) scale(0.8); }
+      20%  { opacity: 1; transform: translate(-50%, -10px) scale(1.1); }
+      100% { opacity: 0; transform: translate(-50%, -44px) scale(1); }
+    }
+    .kill-float {
+      position: fixed;
+      pointer-events: none;
+      color: #ffd479;
+      font: 600 18px 'Segoe UI', system-ui, sans-serif;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      z-index: 30;
+      animation: kill-float 0.9s ease-out forwards;
+    }
+
     #loading-screen {
       position: fixed;
       inset: 0;
@@ -82,8 +140,8 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      background: #0a1628;
-      color: #e0e8f0;
+      background: var(--bg-deep);
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       z-index: 100;
       transition: opacity 0.8s ease;
@@ -126,7 +184,7 @@
     #loading-bar {
       width: 0%;
       height: 100%;
-      background: #5b9bd5;
+      background: var(--accent);
       transition: width 0.3s ease;
     }
 
@@ -145,7 +203,7 @@
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(8px);
       border-radius: 12px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 12px;
       pointer-events: none;
@@ -177,8 +235,8 @@
     #mode-pill {
       display: flex;
       margin-top: 24px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.15);
+      background: var(--surface);
+      border: 1px solid var(--hairline);
       border-radius: 24px;
       overflow: hidden;
       width: 336px;
@@ -187,6 +245,10 @@
 
     .mode-btn {
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
       padding: 16px 8px;
       white-space: nowrap;
       background: transparent;
@@ -205,9 +267,11 @@
     }
 
     .mode-btn.active {
-      background: rgba(255,255,255,0.12);
-      color: #e0e8f0;
+      background: var(--surface-hover);
+      color: var(--ink);
     }
+    .mode-name { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+    .mode-desc { font-size: 10px; font-weight: 400; opacity: 0.7; letter-spacing: 0.2px; }
 
     /* Boat selector */
     #boat-selector {
@@ -230,17 +294,18 @@
       align-items: center;
       gap: 8px;
       padding: 20px 24px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.15);
+      background: var(--surface);
+      border: 1px solid var(--hairline);
       border-radius: 12px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       cursor: pointer;
+      touch-action: manipulation;
       transition: background 0.2s, border-color 0.2s, transform 0.15s;
     }
 
     .boat-card:hover, .boat-card:active {
-      background: rgba(255,255,255,0.12);
+      background: var(--surface-hover);
       border-color: rgba(255,255,255,0.35);
       transform: translateY(-2px);
     }
@@ -259,9 +324,9 @@
       width: 36px;
       height: 36px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       color: rgba(255,255,255,0.6);
       font-size: 16px;
       cursor: pointer;
@@ -279,9 +344,9 @@
       width: 36px;
       height: 36px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       color: rgba(255,255,255,0.6);
       font-size: 18px;
       font-weight: 600;
@@ -306,7 +371,7 @@
       height: 140px;
       border-radius: 50%;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       box-shadow: 0 2px 12px rgba(0,0,0,0.3);
       z-index: 10;
       pointer-events: none;
@@ -325,9 +390,9 @@
       width: 36px;
       height: 36px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       color: rgba(255,255,255,0.6);
       font-size: 14px;
       cursor: pointer;
@@ -346,7 +411,7 @@
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 16px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 12px;
       letter-spacing: 0.5px;
@@ -386,13 +451,13 @@
       align-items: center;
       justify-content: center;
       font-family: 'Segoe UI', system-ui, sans-serif;
-      color: #e0e8f0;
+      color: var(--ink);
     }
     #esc-menu.visible { display: flex; }
     #esc-menu-box {
       text-align: center;
       background: rgba(10, 22, 40, 0.9);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       border-radius: 16px;
       padding: 32px 40px;
     }
@@ -414,7 +479,7 @@
     }
     #esc-menu-box .esc-volume input[type="range"] {
       width: 170px;
-      accent-color: #7db8ec;
+      accent-color: var(--accent);
       cursor: pointer;
     }
     #esc-menu-box .esc-actions {
@@ -428,7 +493,7 @@
       border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.2);
       background: rgba(255,255,255,0.08);
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: inherit;
       font-size: 14px;
       cursor: pointer;
@@ -452,7 +517,7 @@
       letter-spacing: 0.3px;
     }
     #esc-hint kbd {
-      background: rgba(255,255,255,0.12);
+      background: var(--surface-hover);
       border-radius: 4px;
       padding: 1px 6px;
       font-family: inherit;
@@ -468,9 +533,9 @@
       width: 36px;
       height: 36px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       color: rgba(255,255,255,0.6);
       font-size: 16px;
       cursor: pointer;
@@ -490,7 +555,7 @@
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 24px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 15px;
       letter-spacing: 0.5px;
@@ -516,8 +581,8 @@
     @media (pointer: coarse) {
       #hud {
         bottom: auto;
-        top: 16px;
-        left: 16px;
+        top: calc(60px + env(safe-area-inset-top));
+        left: calc(16px + env(safe-area-inset-left));
         transform: none;
         font-size: 12px;
         gap: 16px;
@@ -545,11 +610,16 @@
         padding: 7px 12px;
         z-index: 100;
       }
-      #torpedo-button { left: 16px; bottom: 85px; }
-      #missile-button { left: 60px; bottom: 85px; }
+      /* weapon buttons stack on the right, clear of the bottom-left tiller */
+      #torpedo-button { left: auto; right: calc(16px + env(safe-area-inset-right)); bottom: calc(250px + env(safe-area-inset-bottom)); }
+      #missile-button { left: auto; right: calc(16px + env(safe-area-inset-right)); bottom: calc(304px + env(safe-area-inset-bottom)); }
       #esc-button { display: block; }
-      /* keep the ? button clear of the mobile esc button (both top-left) */
-      #help-toggle { left: 56px; }
+      /* top-corner buttons clear the notch / status bar / side insets */
+      #esc-button, #help-toggle, #hud-toggle, #map-toggle { top: calc(16px + env(safe-area-inset-top)); }
+      #esc-button { left: calc(16px + env(safe-area-inset-left)); }
+      #help-toggle { left: calc(56px + env(safe-area-inset-left)); }
+      #hud-toggle { right: calc(16px + env(safe-area-inset-right)); }
+      #map-toggle { right: calc(56px + env(safe-area-inset-right)); }
     }
   </style>
 </head>

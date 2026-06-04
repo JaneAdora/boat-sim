@@ -35,7 +35,7 @@ export class TouchControls {
     this.container.style.cssText = `
       position: fixed; inset: 0; pointer-events: none; z-index: 50;
       display: flex; justify-content: space-between; align-items: flex-end;
-      padding: 20px 20px 30px;
+      padding: 20px calc(20px + env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
     `;
 
     // --- Tiller (bottom-left): horizontal slider ---

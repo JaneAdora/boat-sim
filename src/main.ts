@@ -56,6 +56,7 @@ const escButton = document.getElementById('esc-button');
 
 let activeEngine: Engine | null = null;
 let escKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+let escTrapHandler: ((e: KeyboardEvent) => void) | null = null;
 let selectedMode: GameMode = localStorage.getItem('tb-mode') === 'magical' ? 'magical' : 'classic';
 
 function showSelector(): void {
@@ -70,13 +71,20 @@ function showSelector(): void {
   const modePill = document.createElement('div');
   modePill.id = 'mode-pill';
 
-  const classicBtn = document.createElement('button');
-  classicBtn.className = `mode-btn${selectedMode === 'classic' ? ' active' : ''}`;
-  classicBtn.textContent = 'Boatface Killah';
-
-  const magicalBtn = document.createElement('button');
-  magicalBtn.className = `mode-btn${selectedMode === 'magical' ? ' active' : ''}`;
-  magicalBtn.textContent = 'Magical Mode';
+  const makeModeBtn = (active: boolean, name: string, desc: string): HTMLButtonElement => {
+    const btn = document.createElement('button');
+    btn.className = `mode-btn${active ? ' active' : ''}`;
+    const n = document.createElement('span');
+    n.className = 'mode-name';
+    n.textContent = name;
+    const d = document.createElement('span');
+    d.className = 'mode-desc';
+    d.textContent = desc;
+    btn.append(n, d);
+    return btn;
+  };
+  const classicBtn = makeModeBtn(selectedMode === 'classic', 'Boatface Killah', 'Combat — torpedoes & missiles');
+  const magicalBtn = makeModeBtn(selectedMode === 'magical', 'Magical Mode', 'Family-friendly rainbows');
 
   classicBtn.addEventListener('click', () => {
     selectedMode = 'classic';
@@ -138,15 +146,42 @@ function showEscMenu(): void {
   volumeSlider.value = String(Math.round(activeEngine.getVolume() * 100));
   escMute.textContent = activeEngine.isMuted() ? 'Unmute' : 'Mute';
   escMenu.classList.add('visible');
+
+  // Keyboard a11y: move focus into the dialog and trap Tab within it.
+  escResume.focus();
+  escTrapHandler = (e: KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    const f = Array.from(escMenu.querySelectorAll<HTMLElement>('button, input'));
+    if (f.length === 0) return;
+    const first = f[0];
+    const last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  escMenu.addEventListener('keydown', escTrapHandler);
+}
+
+function clearEscTrap(): void {
+  if (escTrapHandler) {
+    escMenu.removeEventListener('keydown', escTrapHandler);
+    escTrapHandler = null;
+  }
 }
 
 function hideEscMenu(): void {
   escMenu.classList.remove('visible');
+  clearEscTrap();
   if (activeEngine) activeEngine.resume();
 }
 
 function returnToSelector(): void {
   escMenu.classList.remove('visible');
+  clearEscTrap();
 
   // Dispose the running engine
   if (activeEngine) {

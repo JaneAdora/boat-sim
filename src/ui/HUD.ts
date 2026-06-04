@@ -26,6 +26,7 @@ export class HUD {
   private visible = true;
   private controlsVisible = false;
   private controlsTimer = 0;
+  private lastKillTotal = 0;
 
   constructor(private input: InputManager, killTracker: KillTracker, config: GameConfig = { mode: 'classic' }) {
     this.killTracker = killTracker;
@@ -108,9 +109,12 @@ export class HUD {
 
     if (!transform || !rb) return;
 
-    // Kill count
+    // Kill count — flash a flourish when it goes up
     if (this.killDisplay) {
-      this.killDisplay.textContent = `${this.killTracker.total}`;
+      const total = this.killTracker.total;
+      if (total > this.lastKillTotal) this.flashKill(total - this.lastKillTotal);
+      this.lastKillTotal = total;
+      this.killDisplay.textContent = `${total}`;
     }
 
     // Speed in knots (1 m/s ~ 1.94 knots)
@@ -137,6 +141,26 @@ export class HUD {
         this.sailValue.textContent = `${Math.round(ctrl.sailTrim * 100)}%`;
       }
     }
+  }
+
+  /** Pulse the kill counter and float a "+N" when a kill registers. */
+  private flashKill(delta: number): void {
+    const el = this.killDisplay;
+    if (!el) return;
+
+    el.classList.remove('kill-bump');
+    void el.offsetWidth; // force reflow so rapid kills restart the animation
+    el.classList.add('kill-bump');
+    el.addEventListener('animationend', () => el.classList.remove('kill-bump'), { once: true });
+
+    const rect = el.getBoundingClientRect();
+    const float = document.createElement('div');
+    float.className = 'kill-float';
+    float.textContent = `+${delta}`;
+    float.style.left = `${rect.left + rect.width / 2}px`;
+    float.style.top = `${rect.top}px`;
+    document.body.appendChild(float);
+    float.addEventListener('animationend', () => float.remove(), { once: true });
   }
 
   dispose(): void {
