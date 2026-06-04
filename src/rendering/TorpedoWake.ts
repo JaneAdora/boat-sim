@@ -4,6 +4,10 @@ import * as THREE from 'three';
  * Lightweight wake trail for torpedoes — simplified WakeTrail with fewer
  * points and narrower ribbon.
  */
+// Module-level scratch vectors — reused each frame to avoid per-point allocation.
+const _UP = new THREE.Vector3(0, 1, 0);
+const _dir = new THREE.Vector3();
+
 export class TorpedoWake {
   private mesh: THREE.Mesh;
   private maxPoints = 30;
@@ -85,8 +89,8 @@ export class TorpedoWake {
 
         if (i < count - 1) {
           const next = this.points[Math.min(i + 1, count - 1)];
-          const dir = new THREE.Vector3().subVectors(point, next).normalize();
-          right.crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+          _dir.subVectors(point, next).normalize();
+          right.crossVectors(_dir, _UP).normalize();
         }
 
         this.positions[idx * 3] = point.x - right.x * width;

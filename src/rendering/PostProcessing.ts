@@ -7,6 +7,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 export class PostProcessing {
   composer: EffectComposer;
   private bloomPass: UnrealBloomPass;
+  private onResize: () => void;
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
     this.composer = new EffectComposer(renderer);
@@ -27,9 +28,10 @@ export class PostProcessing {
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
 
-    window.addEventListener('resize', () => {
+    this.onResize = () => {
       this.composer.setSize(window.innerWidth, window.innerHeight);
-    });
+    };
+    window.addEventListener('resize', this.onResize);
   }
 
   render(): void {
@@ -38,5 +40,13 @@ export class PostProcessing {
 
   setBloomStrength(strength: number): void {
     this.bloomPass.strength = strength;
+  }
+
+  /** Free the EffectComposer's render targets + bloom mip chain (the heaviest
+   *  GPU allocations in the app) and remove the resize listener. */
+  dispose(): void {
+    window.removeEventListener('resize', this.onResize);
+    this.composer.dispose();
+    this.bloomPass.dispose();
   }
 }

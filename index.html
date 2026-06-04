@@ -14,15 +14,15 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <meta property="og:title" content="Tugboat Bliss | Sail the Infinite Ocean">
   <meta property="og:description" content="Free-roam 3D boat simulator with procedural oceans, dynamic weather, and combat.">
-  <meta property="og:image" content="https://tugboatbliss.com/og-image.png">
+  <meta property="og:image" content="https://tugboat-bliss.netlify.app/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://tugboatbliss.com">
+  <meta property="og:url" content="https://tugboat-bliss.netlify.app">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Tugboat Bliss | Sail the Infinite Ocean">
   <meta name="twitter:description" content="Free-roam 3D boat simulator with procedural oceans, dynamic weather, and combat.">
-  <meta name="twitter:image" content="https://tugboatbliss.com/og-image.png">
+  <meta name="twitter:image" content="https://tugboat-bliss.netlify.app/og-image.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
@@ -270,6 +270,32 @@
       text-align: center;
     }
 
+    /* Help (?) button — always visible on desktop + mobile */
+    #help-toggle {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.6);
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 20;
+      padding: 0;
+      line-height: 34px;
+      text-align: center;
+      transition: color 0.2s, background 0.2s;
+    }
+    #help-toggle:hover {
+      color: rgba(255,255,255,0.9);
+      background: rgba(0,0,0,0.5);
+    }
+
     /* Minimap */
     #minimap-container {
       position: fixed;
@@ -458,9 +484,7 @@
         gap: 16px;
         padding: 8px 16px;
       }
-      #controls-help {
-        display: none !important;
-      }
+      /* Controls card stays reachable on mobile via the help (?) button. */
       #hud-toggle {
         display: block;
       }
@@ -527,6 +551,7 @@
   </div>
 
   <button id="hud-toggle" aria-label="Toggle gauges"></button>
+  <button id="help-toggle" aria-label="Show controls" title="Controls (press ?)">?</button>
 
   <div id="controls-help">
     <table>
@@ -536,13 +561,13 @@
       <tr><td>R/F</td><td>Zoom</td></tr>
       <tr><td>Right-drag</td><td>Look around</td></tr>
       <tr><td>Scroll</td><td>Zoom</td></tr>
-      <tr><td>M</td><td>Mute audio</td></tr>
+      <tr><td>T</td><td>Fire Torpedo</td></tr>
+      <tr><td>M</td><td>Fire Missile</td></tr>
+      <tr><td>G</td><td>Tow / Release</td></tr>
+      <tr><td>X</td><td>Mute audio</td></tr>
       <tr><td>H</td><td>Toggle HUD</td></tr>
       <tr><td>N</td><td>Toggle map</td></tr>
-      <tr><td>T</td><td>Tow / Release</td></tr>
-      <tr><td>Y</td><td>Fire Torpedo</td></tr>
-      <tr><td>U</td><td>Fire Missile</td></tr>
-      <tr><td>/</td><td>Show controls</td></tr>
+      <tr><td>?</td><td>Show / hide controls</td></tr>
       <tr><td>Esc</td><td>Leave game</td></tr>
     </table>
   </div>

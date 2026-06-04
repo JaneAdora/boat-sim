@@ -40,6 +40,9 @@ import { RigidBody } from './components/RigidBody';
 import { BoatControl } from './components/BoatControl';
 import { GameConfig } from './state/GameConfig';
 
+// Reusable scratch vector for per-frame forward/heading math (avoids GC churn).
+const _forward = new THREE.Vector3();
+
 export class Engine {
   private world: World;
   private gameLoop: GameLoop;
@@ -197,7 +200,7 @@ export class Engine {
 
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
-      if (e.code === 'KeyM') {
+      if (e.code === 'KeyX') {
         this.soundscape.toggleMute();
         this.soundEffects.toggleMute();
       }
@@ -262,8 +265,7 @@ export class Engine {
 
       // Update wake trail
       if (boatRb) {
-        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(boatTransform.quaternion);
-        const speed = Math.abs(boatRb.velocity.dot(forward));
+        const speed = Math.abs(boatRb.velocity.dot(_forward.set(0, 0, 1).applyQuaternion(boatTransform.quaternion)));
         this.wakeTrail.update(boatTransform.position, boatTransform.quaternion, speed, dt);
         this.bowSpray.update(dt, boatTransform.position, boatTransform.quaternion, speed);
         this.bioluminescence.update(dt, boatTransform.position, boatTransform.quaternion, speed, sunDir.y);
@@ -282,8 +284,8 @@ export class Engine {
 
     // Update minimap — compute heading from forward vector (immune to pitch/roll)
     if (boatTransform) {
-      const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(boatTransform.quaternion);
-      const heading = Math.atan2(fwd.x, fwd.z);
+      _forward.set(0, 0, 1).applyQuaternion(boatTransform.quaternion);
+      const heading = Math.atan2(_forward.x, _forward.z);
       this.minimap.update(
         boatTransform.position.x,
         boatTransform.position.z,
@@ -329,23 +331,35 @@ export class Engine {
     // Remove keyboard handler
     window.removeEventListener('keydown', this.keydownHandler);
 
+    // Tear down ECS systems — each removes its own listeners + GPU resources
+    // (WeaponsSystem/TowingSystem keydown handlers, weapon effect buffers, etc.)
+    this.world.dispose();
+
+    // Tear down non-ECS managers that hold window listeners / render targets
+    this.input.dispose();
+    this.postProcessing.dispose();
+    this.hud.dispose();
+
     // Stop audio
     this.soundscape.stop();
     this.soundEffects.stop();
 
-    // Dispose Three.js scene
+    // Dispose every remaining renderable in the scene — NOT just Mesh.
+    // Points / Line / Sprite (particles, wakes, stars, moon, rain) are not Mesh
+    // subclasses, so a Mesh-only filter would leak all of their geometry + shaders.
     this.sceneManager.scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
-        obj.geometry.dispose();
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach((m: THREE.Material) => m.dispose());
-        } else if (obj.material) {
-          (obj.material as THREE.Material).dispose();
-        }
-      }
+      const o = obj as unknown as {
+        geometry?: THREE.BufferGeometry;
+        material?: THREE.Material | THREE.Material[];
+      };
+      o.geometry?.dispose();
+      const mat = o.material;
+      if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+      else mat?.dispose();
     });
 
-    // Remove dynamically created DOM elements
+    // Remove dynamically created DOM elements (idempotent safety net; systems
+    // already remove their own buttons in dispose()).
     document.getElementById('torpedo-button')?.remove();
     document.getElementById('missile-button')?.remove();
     document.getElementById('tow-button')?.remove();
@@ -355,7 +369,7 @@ export class Engine {
     const canvas = this.sceneManager.renderer.domElement;
     canvas.parentElement?.removeChild(canvas);
 
-    // Dispose renderer
-    this.sceneManager.renderer.dispose();
+    // Dispose renderer + remove SceneManager's own resize listener
+    this.sceneManager.dispose();
   }
 }

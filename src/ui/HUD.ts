@@ -8,6 +8,9 @@ import { InputManager } from '../core/InputManager';
 import { KillTracker } from '../state/KillTracker';
 import { GameConfig } from '../state/GameConfig';
 
+// Reused each frame to avoid allocating a Vector3 in the HUD update loop.
+const _fwd = new THREE.Vector3();
+
 export class HUD {
   private killDisplay: HTMLElement | null;
   private speedValue: HTMLElement | null;
@@ -15,6 +18,10 @@ export class HUD {
   private sailValue: HTMLElement | null;
   private hudContainer: HTMLElement | null;
   private controlsHelp: HTMLElement | null;
+  private hudToggle: HTMLElement | null = null;
+  private helpToggle: HTMLElement | null = null;
+  private onHudToggle?: () => void;
+  private onHelpToggle?: () => void;
   private killTracker: KillTracker;
   private visible = true;
   private controlsVisible = false;
@@ -36,16 +43,25 @@ export class HUD {
     }
 
     // Mobile HUD toggle button
-    const toggle = document.getElementById('hud-toggle');
-    if (toggle) {
+    this.hudToggle = document.getElementById('hud-toggle');
+    if (this.hudToggle) {
+      const toggle = this.hudToggle;
       toggle.textContent = '\u25C9'; // eye-like icon
-      toggle.addEventListener('click', () => {
+      this.onHudToggle = () => {
         this.visible = !this.visible;
         if (this.hudContainer) {
           this.hudContainer.style.display = this.visible ? 'flex' : 'none';
         }
         toggle.textContent = this.visible ? '\u25C9' : '\u25CE';
-      });
+      };
+      toggle.addEventListener('click', this.onHudToggle);
+    }
+
+    // Always-visible help (?) button \u2014 toggles the controls card (desktop + mobile)
+    this.helpToggle = document.getElementById('help-toggle');
+    if (this.helpToggle) {
+      this.onHelpToggle = () => this.toggleControls();
+      this.helpToggle.addEventListener('click', this.onHelpToggle);
     }
 
     // Show controls briefly at start
@@ -99,8 +115,7 @@ export class HUD {
 
     // Speed in knots (1 m/s ~ 1.94 knots)
     if (this.speedValue) {
-      const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(transform.quaternion);
-      const speed = Math.abs(rb.velocity.dot(forward)) * 1.94;
+      const speed = Math.abs(rb.velocity.dot(_fwd.set(0, 0, 1).applyQuaternion(transform.quaternion))) * 1.94;
       this.speedValue.textContent = speed.toFixed(1);
     }
 
@@ -122,5 +137,10 @@ export class HUD {
         this.sailValue.textContent = `${Math.round(ctrl.sailTrim * 100)}%`;
       }
     }
+  }
+
+  dispose(): void {
+    if (this.hudToggle && this.onHudToggle) this.hudToggle.removeEventListener('click', this.onHudToggle);
+    if (this.helpToggle && this.onHelpToggle) this.helpToggle.removeEventListener('click', this.onHelpToggle);
   }
 }

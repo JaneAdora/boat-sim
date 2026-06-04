@@ -1,4 +1,7 @@
-const CACHE_NAME = 'tugboat-bliss-v1';
+// Bump CACHE_VERSION on every deploy that changes precached files, so the
+// activate handler purges the previous cache and clients don't run a stale shell.
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `tugboat-bliss-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
   '/',

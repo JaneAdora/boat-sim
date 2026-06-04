@@ -3,6 +3,10 @@ import * as THREE from 'three';
 /**
  * Renders a foam wake trail behind the boat using a fading ribbon mesh.
  */
+// Module-level scratch vectors — reused each frame to avoid per-point allocation.
+const _UP = new THREE.Vector3(0, 1, 0);
+const _dir = new THREE.Vector3();
+
 export class WakeTrail {
   mesh: THREE.Mesh;
   private maxPoints = 80;
@@ -94,8 +98,8 @@ export class WakeTrail {
         // Direction perpendicular to trail
         if (i < count - 1) {
           const next = this.points[Math.min(i + 1, count - 1)];
-          const dir = new THREE.Vector3().subVectors(point, next).normalize();
-          right.crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+          _dir.subVectors(point, next).normalize();
+          right.crossVectors(_dir, _UP).normalize();
         }
 
         // Port vertex

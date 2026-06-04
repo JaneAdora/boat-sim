@@ -141,8 +141,8 @@ export class WeaponsSystem extends System {
 
     // Keyboard shortcuts
     this.keydownHandler = (e: KeyboardEvent) => {
-      if (e.code === 'KeyY' && !e.repeat) this.fireTorpedoAction();
-      if (e.code === 'KeyU' && !e.repeat) this.fireMissileAction();
+      if (e.code === 'KeyT' && !e.repeat) this.fireTorpedoAction();
+      if (e.code === 'KeyM' && !e.repeat) this.fireMissileAction();
     };
     window.addEventListener('keydown', this.keydownHandler);
   }

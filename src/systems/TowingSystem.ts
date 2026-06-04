@@ -23,6 +23,7 @@ export class TowingSystem extends System {
 
   // UI
   private towButton: HTMLButtonElement;
+  private keydownHandler: (e: KeyboardEvent) => void;
 
   private static readonly TOW_RANGE = 80;
   private static readonly ROPE_SEGMENTS = 8;
@@ -59,11 +60,12 @@ export class TowingSystem extends System {
       this.toggleTow();
     });
 
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyT' && !e.repeat) {
+    this.keydownHandler = (e: KeyboardEvent) => {
+      if (e.code === 'KeyG' && !e.repeat) {
         this.toggleTow();
       }
-    });
+    };
+    window.addEventListener('keydown', this.keydownHandler);
   }
 
   update(world: World, dt: number): void {
@@ -227,5 +229,11 @@ export class TowingSystem extends System {
     }
 
     (this.towLine.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+  }
+
+  dispose(): void {
+    window.removeEventListener('keydown', this.keydownHandler);
+    this.releaseTow();
+    this.towButton.remove();
   }
 }
