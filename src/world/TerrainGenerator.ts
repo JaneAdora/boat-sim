@@ -60,6 +60,9 @@ export function createTerrainMesh(island: IslandData): THREE.Mesh {
   // Biome-dependent color palettes
   const biomeColors = getBiomeColors(island.biome);
 
+  // Reused per vertex — was allocated 4096× per island chunk.
+  const color = new THREE.Color();
+
   for (let i = 0; i < positions.count; i++) {
     const x = i % size;
     const z = Math.floor(i / size);
@@ -79,7 +82,6 @@ export function createTerrainMesh(island: IslandData): THREE.Mesh {
     }
 
     // Color based on height, slope, and biome
-    const color = new THREE.Color();
     if (height < 1.5) {
       // Beach/shore
       color.copy(biomeColors.sand);

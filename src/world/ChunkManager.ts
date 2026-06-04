@@ -20,6 +20,16 @@ export class ChunkManager {
   private scene: THREE.Scene;
   private islandPositions: { x: number; z: number; radius: number; biome: Biome }[] = [];
 
+  // Streaming state. The immediate 3x3 ring loads synchronously (terrain under
+  // and adjacent to the boat must exist for collision/buoyancy every frame);
+  // distant chunks build a few per frame so generation never hitches.
+  private lastChunkX = NaN;
+  private lastChunkZ = NaN;
+  private buildQueue: { cx: number; cz: number; key: string }[] = [];
+  private queuedKeys = new Set<string>();
+  private static readonly IMMEDIATE_RADIUS = 1; // 3x3 around the player
+  private static readonly BUILD_BUDGET = 3;      // distant chunks built per frame
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
   }
@@ -32,9 +42,22 @@ export class ChunkManager {
     const currentChunkX = Math.floor(playerX / CHUNK_SIZE);
     const currentChunkZ = Math.floor(playerZ / CHUNK_SIZE);
 
+    // Reconcile the desired chunk set only when the player crosses a chunk
+    // boundary — avoids recomputing the 9x9 ring every frame (and the old
+    // behaviour of building a whole new row synchronously on a fast turn).
+    if (currentChunkX !== this.lastChunkX || currentChunkZ !== this.lastChunkZ) {
+      this.reconcileChunks(currentChunkX, currentChunkZ);
+      this.lastChunkX = currentChunkX;
+      this.lastChunkZ = currentChunkZ;
+    }
+
+    // Drain a few queued distant chunks each frame so generation never hitches.
+    this.drainBuildQueue();
+  }
+
+  private reconcileChunks(currentChunkX: number, currentChunkZ: number): void {
     const needed = new Set<string>();
 
-    // Determine which chunks should be loaded
     for (let dx = -CHUNK_LOAD_RADIUS; dx <= CHUNK_LOAD_RADIUS; dx++) {
       for (let dz = -CHUNK_LOAD_RADIUS; dz <= CHUNK_LOAD_RADIUS; dz++) {
         const cx = currentChunkX + dx;
@@ -42,18 +65,50 @@ export class ChunkManager {
         const key = this.chunkKey(cx, cz);
         needed.add(key);
 
-        if (!this.chunks.has(key)) {
+        if (this.chunks.has(key) || this.queuedKeys.has(key)) continue;
+
+        if (Math.max(Math.abs(dx), Math.abs(dz)) <= ChunkManager.IMMEDIATE_RADIUS) {
+          // Under/adjacent to the boat — must exist now for collision.
           this.loadChunk(cx, cz);
+        } else {
+          // Distant — defer to the per-frame build queue.
+          this.queuedKeys.add(key);
+          this.buildQueue.push({ cx, cz, key });
         }
       }
     }
 
-    // Unload chunks that are out of range
+    // Unload chunks that fell out of range.
     for (const [key, chunk] of this.chunks) {
       if (!needed.has(key)) {
         this.unloadChunk(chunk);
         this.chunks.delete(key);
       }
+    }
+
+    // Drop queued chunks no longer needed, then order the rest nearest-first.
+    if (this.buildQueue.length > 0) {
+      this.buildQueue = this.buildQueue.filter((q) => {
+        if (needed.has(q.key)) return true;
+        this.queuedKeys.delete(q.key);
+        return false;
+      });
+      this.buildQueue.sort(
+        (a, b) =>
+          ((a.cx - currentChunkX) ** 2 + (a.cz - currentChunkZ) ** 2) -
+          ((b.cx - currentChunkX) ** 2 + (b.cz - currentChunkZ) ** 2)
+      );
+    }
+  }
+
+  private drainBuildQueue(): void {
+    let built = 0;
+    while (built < ChunkManager.BUILD_BUDGET && this.buildQueue.length > 0) {
+      const next = this.buildQueue.shift()!;
+      this.queuedKeys.delete(next.key);
+      if (this.chunks.has(next.key)) continue;
+      this.loadChunk(next.cx, next.cz);
+      built++;
     }
   }
 
@@ -232,22 +287,31 @@ export class ChunkManager {
     return false;
   }
 
-  /** Sample terrain height at a world position. Returns 0 if open ocean. */
+  /** Sample terrain height at a world position. Returns 0 if open ocean.
+   *  Island heightmaps span at most radius*1.25 (~125u) from their center —
+   *  well under one 300u chunk — so only the 3x3 chunks around the query point
+   *  can possibly cover it. O(1) instead of scanning every loaded chunk. */
   getTerrainHeight(worldX: number, worldZ: number): number {
-    for (const chunk of this.chunks.values()) {
-      const island = chunk.island;
-      if (!island) continue;
+    const baseCx = Math.floor(worldX / CHUNK_SIZE);
+    const baseCz = Math.floor(worldZ / CHUNK_SIZE);
 
-      const scale = island.radius * 2.5 / island.heightmapSize;
-      const hx = (worldX - island.centerX) / scale + island.heightmapSize / 2;
-      const hz = (worldZ - island.centerZ) / scale + island.heightmapSize / 2;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const chunk = this.chunks.get(this.chunkKey(baseCx + dx, baseCz + dz));
+        const island = chunk?.island;
+        if (!island) continue;
 
-      if (hx < 0 || hx >= island.heightmapSize || hz < 0 || hz >= island.heightmapSize) continue;
+        const scale = island.radius * 2.5 / island.heightmapSize;
+        const hx = (worldX - island.centerX) / scale + island.heightmapSize / 2;
+        const hz = (worldZ - island.centerZ) / scale + island.heightmapSize / 2;
 
-      const ix = Math.floor(hx);
-      const iz = Math.floor(hz);
-      const h = island.heightmap[iz * island.heightmapSize + ix];
-      if (h > 0.3) return h;
+        if (hx < 0 || hx >= island.heightmapSize || hz < 0 || hz >= island.heightmapSize) continue;
+
+        const ix = Math.floor(hx);
+        const iz = Math.floor(hz);
+        const h = island.heightmap[iz * island.heightmapSize + ix];
+        if (h > 0.3) return h;
+      }
     }
     return 0;
   }
