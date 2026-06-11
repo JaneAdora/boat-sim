@@ -51,9 +51,17 @@ export class ContractSystem {
     }
   }
 
-  /** Destination beacon for the minimap, or null when no contract is active. */
+  /**
+   * The current objective for the radar/waypoint: the barge while it still
+   * needs hooking, then the destination once it's under tow. Null when idle.
+   */
   getMarker(): { x: number; z: number } | null {
-    return this.active ? { x: this.active.destX, z: this.active.destZ } : null;
+    const c = this.active;
+    if (!c) return null;
+    if (!c.barge.towed) {
+      return { x: c.barge.mesh.position.x, z: c.barge.mesh.position.z };
+    }
+    return { x: c.destX, z: c.destZ };
   }
 
   private tryGenerate(boatX: number, boatZ: number): void {

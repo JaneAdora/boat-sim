@@ -41,6 +41,7 @@ import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
 import { ReturnFireSystem } from './systems/ReturnFireSystem';
 import { RaceSystem } from './systems/RaceSystem';
+import { WaypointIndicator } from './ui/WaypointIndicator';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
@@ -80,6 +81,7 @@ export class Engine {
   private contracts: ContractSystem;
   private returnFire: ReturnFireSystem;
   private races: RaceSystem;
+  private waypoint = new WaypointIndicator();
   private boatEntity: number;
   private elapsedTime = 0;
   private keydownHandler: (e: KeyboardEvent) => void;
@@ -394,6 +396,14 @@ export class Engine {
         this.wildlifeSystem.getWildlifePositions(),
         this.contracts.getMarker(),
       );
+
+      // Screen-space waypoint to the contract objective (barge, then dest)
+      this.waypoint.update(
+        this.sceneManager.camera,
+        this.contracts.getMarker(),
+        boatTransform.position.x,
+        boatTransform.position.z,
+      );
     }
 
     // Update ambient audio
@@ -502,6 +512,7 @@ export class Engine {
     this.hud.dispose();
     this.returnFire.dispose();
     this.races.dispose();
+    this.waypoint.dispose();
 
     // Stop audio
     this.soundscape.stop();
