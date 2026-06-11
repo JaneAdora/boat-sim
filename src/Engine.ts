@@ -47,6 +47,7 @@ import { ReturnFireSystem } from './systems/ReturnFireSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
+import { PhotoMode } from './ui/PhotoMode';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
@@ -90,6 +91,7 @@ export class Engine {
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
+  private photoMode: PhotoMode;
   private boatEntity: number;
   private elapsedTime = 0;
   private keydownHandler: (e: KeyboardEvent) => void;
@@ -299,6 +301,31 @@ export class Engine {
     this.weather = new WeatherSystem(this.sceneManager.scene);
     this.aurora = new Aurora(this.sceneManager.scene);
 
+    // Photo mode — postcards with the place name and shareable coordinates
+    this.photoMode = new PhotoMode({
+      capture: () => {
+        // Render and read back in the same task (no preserveDrawingBuffer)
+        this.postProcessing.render();
+        return this.sceneManager.renderer.domElement.toDataURL('image/png');
+      },
+      getPlaceName: () => {
+        const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
+        if (!t) return 'Open Ocean';
+        let best: { name: string; d: number } | null = null;
+        for (const isl of this.chunkManager.getIslandPositions()) {
+          const d = Math.hypot(t.position.x - isl.x, t.position.z - isl.z);
+          if (d < 300 && (!best || d < best.d)) {
+            best = { name: islandName(isl.chunkX, isl.chunkZ, isl.biome), d };
+          }
+        }
+        return best?.name ?? 'Open Ocean';
+      },
+      getCoords: () => {
+        const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
+        return { x: t?.position.x ?? 0, z: t?.position.z ?? 0 };
+      },
+    });
+
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyX') {
@@ -306,6 +333,9 @@ export class Engine {
       }
       if (e.code === 'KeyN') {
         this.minimap.toggle();
+      }
+      if (e.code === 'KeyP') {
+        this.photoMode.toggle();
       }
       if (e.key === '/' || e.key === '?') {
         this.hud.toggleControls();
@@ -592,6 +622,7 @@ export class Engine {
     this.distress.dispose();
     this.waypoint.dispose();
     this.aurora.dispose();
+    this.photoMode.dispose();
 
     // Stop audio
     this.soundscape.stop();

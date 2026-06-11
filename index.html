@@ -176,6 +176,43 @@
       .discovery-toast { animation: none; }
     }
 
+    /* Photo mode: hide every overlay, show the capture bar */
+    body.photo-mode #hud,
+    body.photo-mode #mission-banners,
+    body.photo-mode #waypoint,
+    body.photo-mode #race-timer,
+    body.photo-mode #minimap-container,
+    body.photo-mode #controls-help,
+    body.photo-mode #hud-toggle,
+    body.photo-mode #map-toggle,
+    body.photo-mode #help-toggle,
+    body.photo-mode #esc-button,
+    body.photo-mode #torpedo-button,
+    body.photo-mode #missile-button,
+    body.photo-mode #tow-button,
+    body.photo-mode #touch-controls { display: none !important; }
+    #photo-bar {
+      position: fixed;
+      bottom: calc(24px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 30;
+    }
+    #photo-bar button {
+      padding: 10px 22px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+      color: var(--ink);
+      font: 400 14px 'Segoe UI', system-ui, sans-serif;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #photo-bar button:hover { background: var(--surface-hover); }
+
     /* Screen-space objective waypoint (contract barge / destination) */
     #waypoint {
       position: fixed;
@@ -873,6 +910,7 @@
       <tr><td>X</td><td>Mute audio</td></tr>
       <tr><td>H</td><td>Toggle HUD</td></tr>
       <tr><td>N</td><td>Toggle map</td></tr>
+      <tr><td>P</td><td>Photo mode</td></tr>
       <tr><td>?</td><td>Show / hide controls</td></tr>
       <tr><td>Esc</td><td>Leave game</td></tr>
     </table>
