@@ -197,13 +197,44 @@ function createBattleshipMesh(): THREE.Group {
 
 // ─── Wildlife entity types ───────────────────────────────────
 
+function createBargeMesh(): THREE.Group {
+  const group = new THREE.Group();
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0x6b5640, roughness: 0.9, metalness: 0.05 });
+  const crateMat = new THREE.MeshStandardMaterial({ color: 0x9a7b4f, roughness: 0.85, metalness: 0.0 });
+  const tarpMat = new THREE.MeshStandardMaterial({ color: 0x3f6b5a, roughness: 0.7, metalness: 0.0 });
+
+  // Flat rectangular hull
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(4.5, 1.0, 9), hullMat);
+  hull.position.y = 0.2;
+  group.add(hull);
+
+  // Cargo crates
+  const crateGeom = new THREE.BoxGeometry(1.6, 1.2, 1.6);
+  for (let i = 0; i < 3; i++) {
+    const crate = new THREE.Mesh(crateGeom, i === 1 ? tarpMat : crateMat);
+    crate.position.set(i === 2 ? -0.8 : 0.7, 1.3, (i - 1) * 2.6);
+    crate.rotation.y = i * 0.4;
+    group.add(crate);
+  }
+
+  // Corner bollard posts
+  const postGeom = new THREE.CylinderGeometry(0.12, 0.12, 0.8, 6);
+  for (const [px, pz] of [[-2, 4.2], [2, 4.2], [-2, -4.2], [2, -4.2]]) {
+    const post = new THREE.Mesh(postGeom, hullMat);
+    post.position.set(px, 0.9, pz);
+    group.add(post);
+  }
+
+  return group;
+}
+
 export interface StrikeZones {
   offsets: number[];   // Z offsets from mesh center (local space)
   hit: boolean[];      // which zones have been hit
 }
 
 export interface WildlifeEntity {
-  type: 'dolphin' | 'whale' | 'fishing_boat' | 'cargo_ship' | 'battleship';
+  type: 'dolphin' | 'whale' | 'fishing_boat' | 'cargo_ship' | 'battleship' | 'barge';
   mesh: THREE.Group;
   origin: THREE.Vector3;   // spawn world position
   heading: number;         // radians
@@ -271,7 +302,8 @@ export class WildlifeSystem extends System {
       const dx = e.mesh.position.x - bx;
       const dz = e.mesh.position.z - bz;
       const dist = Math.sqrt(dx * dx + dz * dz);
-      if ((dist > WildlifeSystem.DESPAWN_RADIUS || e.age > e.maxAge) && !e.towed) {
+      // Barges are contract cargo — they never despawn on their own.
+      if ((dist > WildlifeSystem.DESPAWN_RADIUS || e.age > e.maxAge) && !e.towed && e.type !== 'barge') {
         this.scene.remove(e.mesh);
         this.entities.splice(i, 1);
         continue;
@@ -284,9 +316,9 @@ export class WildlifeSystem extends System {
     const boatRb = world.getComponent<RigidBody>(this.boatEntity, 'RigidBody');
     if (boatRb) {
       for (const e of this.entities) {
-        if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship') continue;
+        if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship' && e.type !== 'barge') continue;
         if (e.towed) continue;
-        const collisionRadius = e.type === 'battleship' ? 16 : e.type === 'cargo_ship' ? 12 : 4;
+        const collisionRadius = e.type === 'battleship' ? 16 : e.type === 'cargo_ship' ? 12 : e.type === 'barge' ? 5 : 4;
         const dx = boatTransform.position.x - e.mesh.position.x;
         const dz = boatTransform.position.z - e.mesh.position.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
@@ -313,8 +345,8 @@ export class WildlifeSystem extends System {
   }
 
   private trySpawn(bx: number, bz: number): void {
-    // Pick a type that's under quota
-    const candidates: WildlifeEntity['type'][] = [];
+    // Pick a type that's under quota (barges only spawn via contracts)
+    const candidates: Exclude<WildlifeEntity['type'], 'barge'>[] = [];
     if (this.countType('dolphin') < WildlifeSystem.MAX_DOLPHINS) candidates.push('dolphin', 'dolphin', 'dolphin');
     if (this.countType('whale') < WildlifeSystem.MAX_WHALES) candidates.push('whale');
     if (this.countType('fishing_boat') < WildlifeSystem.MAX_FISHING) candidates.push('fishing_boat');
@@ -388,6 +420,29 @@ export class WildlifeSystem extends System {
     }
 
     this.entities.push(entity);
+  }
+
+  /** Spawn a derelict salvage barge at a world position (contract cargo). */
+  spawnBarge(x: number, z: number): WildlifeEntity {
+    const mesh = createBargeMesh();
+    const heading = Math.random() * Math.PI * 2;
+    mesh.position.set(x, 0, z);
+    mesh.rotation.y = heading;
+    this.scene.add(mesh);
+
+    const entity: WildlifeEntity = {
+      type: 'barge',
+      mesh,
+      origin: new THREE.Vector3(x, 0, z),
+      heading,
+      speed: 0,
+      phase: Math.random() * Math.PI * 2,
+      age: 0,
+      maxAge: Infinity,
+      towed: false,
+    };
+    this.entities.push(entity);
+    return entity;
   }
 
   /** Find the nearest towable vessel (fishing boat or cargo ship) within maxRadius */
@@ -583,6 +638,15 @@ export class WildlifeSystem extends System {
         e.mesh.rotation.x = Math.sin(t * 0.5 + e.phase) * 0.01;
         e.mesh.rotation.z = Math.sin(t * 0.3 + e.phase) * 0.02;
         e.heading += Math.sin(t * 0.1 + e.phase) * 0.05 * dt;
+        e.mesh.rotation.y = e.heading;
+        break;
+      }
+      case 'barge': {
+        // Derelict barge: adrift, low in the water, wallowing
+        e.mesh.position.y = waveY * 0.7 + 0.1;
+        e.mesh.rotation.x = Math.sin(t * 0.7 + e.phase) * 0.04;
+        e.mesh.rotation.z = Math.sin(t * 0.5 + e.phase * 1.4) * 0.06;
+        e.heading += Math.sin(t * 0.1 + e.phase) * 0.04 * dt;
         e.mesh.rotation.y = e.heading;
         break;
       }

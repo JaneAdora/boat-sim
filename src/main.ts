@@ -145,12 +145,13 @@ function showSelector(): void {
   // Lifetime voyage stats — only once there's something to show
   const stats = loadStats();
   const discovered = discoveredCount();
-  if (stats.bestKills > 0 || discovered > 0) {
+  if (stats.bestKills > 0 || discovered > 0 || stats.contracts > 0) {
     const line = document.createElement('div');
     line.id = 'voyage-stats';
     const parts: string[] = [];
     if (stats.bestKills > 0) parts.push(`Best voyage: ${stats.bestKills} kills`);
     if (discovered > 0) parts.push(`${discovered} island${discovered === 1 ? '' : 's'} discovered`);
+    if (stats.contracts > 0) parts.push(`${stats.contracts} contract${stats.contracts === 1 ? '' : 's'} hauled`);
     line.textContent = parts.join(' · ');
     loadingText.parentElement!.appendChild(line);
   }

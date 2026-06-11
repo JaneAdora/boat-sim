@@ -176,6 +176,24 @@
       .discovery-toast { animation: none; }
     }
 
+    /* Salvage contract banner — persistent, top-left under the help button */
+    #contract-banner {
+      position: fixed;
+      top: 60px;
+      left: 16px;
+      max-width: 320px;
+      padding: 8px 14px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 10px;
+      backdrop-filter: blur(8px);
+      color: var(--ink);
+      font: 400 13px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 0.3px;
+      pointer-events: none;
+      z-index: 25;
+    }
+
     #voyage-stats {
       margin-top: 18px;
       font: 400 13px 'Segoe UI', system-ui, sans-serif;

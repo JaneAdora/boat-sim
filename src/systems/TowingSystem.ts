@@ -164,10 +164,10 @@ export class TowingSystem extends System {
 
     // Distance and Y offset depend on entity type
     const towDists: Record<string, number> = {
-      cargo_ship: 18, fishing_boat: 8, whale: 6, dolphin: 4,
+      cargo_ship: 18, fishing_boat: 8, whale: 6, dolphin: 4, barge: 14,
     };
     const yOffsets: Record<string, number> = {
-      cargo_ship: 0.8, fishing_boat: 0.3, whale: 0.0, dolphin: 0.0,
+      cargo_ship: 0.8, fishing_boat: 0.3, whale: 0.0, dolphin: 0.0, barge: 0.3,
     };
     const towDist = towDists[e.type] ?? 6;
 

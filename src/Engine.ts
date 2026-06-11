@@ -35,8 +35,9 @@ import { WeatherSystem } from './rendering/WeatherSystem';
 import { BoatLights } from './rendering/BoatLights';
 import { KillTracker } from './state/KillTracker';
 import { DiscoveryTracker } from './state/DiscoveryTracker';
-import { bumpBestKills } from './state/VoyageLog';
+import { bumpBestKills, bumpContracts } from './state/VoyageLog';
 import { islandName } from './world/IslandNames';
+import { ContractSystem } from './systems/ContractSystem';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
@@ -72,6 +73,7 @@ export class Engine {
   private killTracker: KillTracker;
   private discovery = new DiscoveryTracker();
   private discoveryTimer = 0;
+  private contracts: ContractSystem;
   private boatEntity: number;
   private elapsedTime = 0;
   private keydownHandler: (e: KeyboardEvent) => void;
@@ -188,6 +190,16 @@ export class Engine {
     this.hud = new HUD(this.input, this.killTracker, this.config);
     this.minimap = new Minimap(this.chunkManager);
 
+    // Salvage contracts (tow the barge to a named island)
+    this.contracts = new ContractSystem(this.wildlifeSystem, this.chunkManager, {
+      onBanner: (text) => this.hud.setContract(text),
+      onComplete: (destName) => {
+        this.hud.showToast('Contract complete', `Salvage delivered to ${destName}`);
+        this.soundEffects.playDiscovery();
+        bumpContracts();
+      },
+    });
+
     // Audio
     this.soundscape = new AmbientSoundscape(boatDef.meshType);
     this.soundscape.setMasterVolume(this.audioVolume);
@@ -289,6 +301,9 @@ export class Engine {
       // Update weapon effects (torpedo wakes, explosions)
       this.weaponsSystem.updateEffects(dt);
 
+      // Salvage contracts (generation, banner, delivery detection)
+      this.contracts.update(dt, boatTransform.position.x, boatTransform.position.z);
+
       // Island discovery + best-kills high-water mark, throttled to 2Hz —
       // neither needs frame-rate precision and both touch localStorage.
       this.discoveryTimer += dt;
@@ -323,6 +338,7 @@ export class Engine {
         boatTransform.position.z,
         heading,
         this.wildlifeSystem.getWildlifePositions(),
+        this.contracts.getMarker(),
       );
     }
 

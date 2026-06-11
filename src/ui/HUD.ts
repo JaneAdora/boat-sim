@@ -145,19 +145,39 @@ export class HUD {
 
   /** Top-center toast announcing a newly discovered island. */
   showDiscovery(name: string): void {
+    this.showToast('Discovered', name);
+  }
+
+  /** Generic top-center toast: small uppercase label over a serif headline. */
+  showToast(label: string, headline: string): void {
     const toast = document.createElement('div');
     toast.className = 'discovery-toast';
-    const label = document.createElement('span');
-    label.className = 'discovery-label';
-    label.textContent = 'Discovered';
-    const islandSpan = document.createElement('span');
-    islandSpan.className = 'discovery-name';
-    islandSpan.textContent = name;
-    toast.append(label, islandSpan);
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'discovery-label';
+    labelSpan.textContent = label;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'discovery-name';
+    nameSpan.textContent = headline;
+    toast.append(labelSpan, nameSpan);
     document.body.appendChild(toast);
     // Timer removal (not animationend) so the toast still shows and clears
     // under prefers-reduced-motion, where the fade animation is disabled.
     setTimeout(() => toast.remove(), 4500);
+  }
+
+  /** Persistent contract banner under the help button; null clears it. */
+  setContract(text: string | null): void {
+    let banner = document.getElementById('contract-banner');
+    if (!text) {
+      banner?.remove();
+      return;
+    }
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'contract-banner';
+      document.body.appendChild(banner);
+    }
+    banner.textContent = text;
   }
 
   /** Pulse the kill counter and float a "+N" when a kill registers. */
@@ -183,5 +203,6 @@ export class HUD {
   dispose(): void {
     if (this.hudToggle && this.onHudToggle) this.hudToggle.removeEventListener('click', this.onHudToggle);
     if (this.helpToggle && this.onHelpToggle) this.helpToggle.removeEventListener('click', this.onHelpToggle);
+    document.getElementById('contract-banner')?.remove();
   }
 }

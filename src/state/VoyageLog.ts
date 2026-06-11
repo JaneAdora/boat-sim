@@ -1,6 +1,7 @@
 export interface VoyageStats {
   bestKills: number;
   voyages: number;
+  contracts: number;
 }
 
 const STORAGE_KEY = 'tb-stats';
@@ -12,9 +13,10 @@ export function loadStats(storage: Storage = localStorage): VoyageStats {
     return {
       bestKills: typeof o.bestKills === 'number' ? o.bestKills : 0,
       voyages: typeof o.voyages === 'number' ? o.voyages : 0,
+      contracts: typeof o.contracts === 'number' ? o.contracts : 0,
     };
   } catch {
-    return { bestKills: 0, voyages: 0 };
+    return { bestKills: 0, voyages: 0, contracts: 0 };
   }
 }
 
@@ -29,6 +31,12 @@ function save(stats: VoyageStats, storage: Storage): void {
 export function recordVoyageStart(storage: Storage = localStorage): void {
   const stats = loadStats(storage);
   stats.voyages++;
+  save(stats, storage);
+}
+
+export function bumpContracts(storage: Storage = localStorage): void {
+  const stats = loadStats(storage);
+  stats.contracts++;
   save(stats, storage);
 }
 

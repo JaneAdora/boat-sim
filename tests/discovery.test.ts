@@ -63,12 +63,12 @@ describe('VoyageLog', () => {
     recordVoyageStart(storage);
     bumpBestKills(7, storage);
     bumpBestKills(3, storage); // lower — must not regress
-    expect(loadStats(storage)).toEqual({ bestKills: 7, voyages: 2 });
+    expect(loadStats(storage)).toEqual({ bestKills: 7, voyages: 2, contracts: 0 });
   });
 
   it('defaults cleanly on corrupted storage', () => {
     const storage = new MemoryStorage();
     storage.setItem('tb-stats', '][');
-    expect(loadStats(storage)).toEqual({ bestKills: 0, voyages: 0 });
+    expect(loadStats(storage)).toEqual({ bestKills: 0, voyages: 0, contracts: 0 });
   });
 });
