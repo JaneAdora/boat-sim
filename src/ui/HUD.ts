@@ -165,6 +165,46 @@ export class HUD {
     setTimeout(() => toast.remove(), 4500);
   }
 
+  /** Hull integrity pips on the HUD bar (classic mode). */
+  setHull(hp: number, max: number): void {
+    let pips = document.getElementById('hull-pips');
+    if (!pips) {
+      pips = document.createElement('div');
+      pips.id = 'hull-pips';
+      const label = document.createElement('span');
+      label.className = 'hud-label';
+      label.textContent = 'Hull';
+      pips.appendChild(label);
+      const dots = document.createElement('span');
+      dots.id = 'hull-dots';
+      pips.appendChild(dots);
+      this.hudContainer?.appendChild(pips);
+    }
+    const dots = document.getElementById('hull-dots');
+    if (dots) {
+      dots.textContent = '';
+      for (let i = 0; i < max; i++) {
+        const dot = document.createElement('span');
+        dot.className = i < hp ? 'hull-pip' : 'hull-pip lost';
+        dot.textContent = '●';
+        dots.appendChild(dot);
+      }
+    }
+  }
+
+  /** Brief red vignette when the player takes a hit. */
+  flashDamage(): void {
+    let flash = document.getElementById('damage-flash');
+    if (!flash) {
+      flash = document.createElement('div');
+      flash.id = 'damage-flash';
+      document.body.appendChild(flash);
+    }
+    flash.classList.remove('active');
+    void flash.offsetWidth; // restart the animation on rapid hits
+    flash.classList.add('active');
+  }
+
   /** Persistent contract banner under the help button; null clears it. */
   setContract(text: string | null): void {
     let banner = document.getElementById('contract-banner');
@@ -204,5 +244,7 @@ export class HUD {
     if (this.hudToggle && this.onHudToggle) this.hudToggle.removeEventListener('click', this.onHudToggle);
     if (this.helpToggle && this.onHelpToggle) this.helpToggle.removeEventListener('click', this.onHelpToggle);
     document.getElementById('contract-banner')?.remove();
+    document.getElementById('hull-pips')?.remove();
+    document.getElementById('damage-flash')?.remove();
   }
 }

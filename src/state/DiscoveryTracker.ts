@@ -41,6 +41,11 @@ export class DiscoveryTracker {
     this.discovered = loadKeys(storage);
   }
 
+  /** Whether the island in the given chunk has been discovered. */
+  isDiscovered(chunkX: number, chunkZ: number): boolean {
+    return this.discovered.has(`${chunkX},${chunkZ}`);
+  }
+
   /**
    * Check the boat position against loaded islands; if it just arrived at an
    * undiscovered one, record it and return that island. Null otherwise.

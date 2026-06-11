@@ -553,6 +553,11 @@ export class WildlifeSystem extends System {
     this.entities.splice(idx, 1);
   }
 
+  /** Active battleships (for return fire). */
+  getBattleships(): WildlifeEntity[] {
+    return this.entities.filter(e => e.type === 'battleship' && !e.towed);
+  }
+
   /** Get positions of all active wildlife for minimap rendering */
   getWildlifePositions(): { x: number; z: number; type: string }[] {
     return this.entities.map(e => ({

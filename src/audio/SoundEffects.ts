@@ -324,6 +324,35 @@ export class SoundEffects {
   }
 
   /**
+   * Muffled distant gun report (~0.8s) — battleship return fire.
+   * Low sine thump through a lowpass, much quieter than a local explosion.
+   */
+  playDistantGun(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(70, now);
+    osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 120;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+    osc.connect(lp);
+    lp.connect(gain);
+    gain.connect(this.masterGain!);
+    osc.start(now);
+    osc.stop(now + 0.8);
+  }
+
+  /**
    * Soft two-note ship's bell for island discovery (~1.5s).
    * Rising perfect fourth (E5 → A5), gentle attack, long decay — meant to
    * feel like a reward without breaking the soothing mood.

@@ -38,6 +38,7 @@ import { DiscoveryTracker } from './state/DiscoveryTracker';
 import { bumpBestKills, bumpContracts } from './state/VoyageLog';
 import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
+import { ReturnFireSystem } from './systems/ReturnFireSystem';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
@@ -74,6 +75,7 @@ export class Engine {
   private discovery = new DiscoveryTracker();
   private discoveryTimer = 0;
   private contracts: ContractSystem;
+  private returnFire: ReturnFireSystem;
   private boatEntity: number;
   private elapsedTime = 0;
   private keydownHandler: (e: KeyboardEvent) => void;
@@ -190,6 +192,26 @@ export class Engine {
     this.hud = new HUD(this.input, this.killTracker, this.config);
     this.minimap = new Minimap(this.chunkManager);
 
+    // Battleship return fire + limp-home hull damage
+    this.returnFire = new ReturnFireSystem(
+      this.sceneManager.scene, this.wildlifeSystem, this.soundEffects, this.config,
+      {
+        onHull: (hp, max) => this.hud.setHull(hp, max),
+        onHit: () => this.hud.flashDamage(),
+        // Safe harbor = the calm shallows of any *discovered* island
+        isSafeHarbor: (x, z) => {
+          for (const isl of this.chunkManager.getIslandPositions()) {
+            if (!this.discovery.isDiscovered(isl.chunkX, isl.chunkZ)) continue;
+            if (Math.hypot(x - isl.x, z - isl.z) < isl.radius + 80) return true;
+          }
+          return false;
+        },
+      },
+    );
+    if (this.config.mode === 'classic') {
+      this.hud.setHull(ReturnFireSystem.MAX_HP, ReturnFireSystem.MAX_HP);
+    }
+
     // Salvage contracts (tow the barge to a named island)
     this.contracts = new ContractSystem(this.wildlifeSystem, this.chunkManager, {
       onBanner: (text) => this.hud.setContract(text),
@@ -303,6 +325,12 @@ export class Engine {
 
       // Salvage contracts (generation, banner, delivery detection)
       this.contracts.update(dt, boatTransform.position.x, boatTransform.position.z);
+
+      // Battleship return fire + hull repair
+      const ctrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
+      if (boatRb && ctrl) {
+        this.returnFire.update(dt, boatTransform, boatRb, ctrl);
+      }
 
       // Island discovery + best-kills high-water mark, throttled to 2Hz —
       // neither needs frame-rate precision and both touch localStorage.
@@ -419,6 +447,7 @@ export class Engine {
     this.input.dispose();
     this.postProcessing.dispose();
     this.hud.dispose();
+    this.returnFire.dispose();
 
     // Stop audio
     this.soundscape.stop();

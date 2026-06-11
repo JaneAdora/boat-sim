@@ -176,6 +176,24 @@
       .discovery-toast { animation: none; }
     }
 
+    /* Hull pips + damage flash */
+    #hull-pips { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .hull-pip { color: #7dec9b; font-size: 11px; margin: 0 1px; }
+    .hull-pip.lost { color: rgba(255, 100, 100, 0.35); }
+    #damage-flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 40;
+      opacity: 0;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(200, 30, 30, 0.45) 100%);
+    }
+    #damage-flash.active { animation: damage-flash 0.5s ease-out; }
+    @keyframes damage-flash {
+      0% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
     /* Salvage contract banner — persistent, top-left under the help button */
     #contract-banner {
       position: fixed;
