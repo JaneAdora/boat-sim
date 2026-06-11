@@ -8,6 +8,8 @@ import { GameMode } from './state/GameConfig';
 import { loadStats, recordVoyageStart } from './state/VoyageLog';
 import { discoveredCount } from './state/DiscoveryTracker';
 import { journalCount, JOURNAL_TOTAL } from './state/JournalTracker';
+import { getCredits } from './state/Wallet';
+import { applyBoatUpgrades, buyUpgrade, hasUpgrade, UPGRADE_CATALOG } from './state/Upgrades';
 
 // SVG boat silhouette icons (no emojis)
 const BOAT_ICONS: Record<string, string> = {
@@ -70,6 +72,8 @@ function showSelector(): void {
   document.getElementById('mode-pill')?.remove();
   document.getElementById('boat-selector')?.remove();
   document.getElementById('voyage-stats')?.remove();
+  document.getElementById('shipyard-btn')?.remove();
+  document.getElementById('shipyard')?.remove();
 
   // Mode toggle pill
   const modePill = document.createElement('div');
@@ -158,6 +162,66 @@ function showSelector(): void {
     line.textContent = parts.join(' · ');
     loadingText.parentElement!.appendChild(line);
   }
+
+  // Shipyard — spend salvage credits on per-boat upgrades
+  const shipyardBtn = document.createElement('button');
+  shipyardBtn.id = 'shipyard-btn';
+  shipyardBtn.textContent = `⚓ Shipyard · ${getCredits()} cr`;
+  shipyardBtn.addEventListener('click', () => toggleShipyard(shipyardBtn));
+  loadingText.parentElement!.appendChild(shipyardBtn);
+}
+
+function toggleShipyard(btn: HTMLButtonElement): void {
+  const existing = document.getElementById('shipyard');
+  if (existing) {
+    existing.remove();
+    return;
+  }
+  const panel = document.createElement('div');
+  panel.id = 'shipyard';
+
+  const render = (): void => {
+    panel.textContent = '';
+    const header = document.createElement('div');
+    header.className = 'shipyard-header';
+    header.textContent = `Salvage credits: ${getCredits()}`;
+    panel.appendChild(header);
+
+    for (const boat of BOATS) {
+      const row = document.createElement('div');
+      row.className = 'shipyard-row';
+      const name = document.createElement('span');
+      name.className = 'shipyard-boat';
+      name.textContent = boat.def.name;
+      row.appendChild(name);
+
+      for (const u of UPGRADE_CATALOG) {
+        const owned = hasUpgrade(boat.def.name, u.key);
+        const b = document.createElement('button');
+        b.className = owned ? 'shipyard-upgrade owned' : 'shipyard-upgrade';
+        b.title = u.desc;
+        b.textContent = owned ? `${u.name} ✓` : `${u.name} · ${u.cost}`;
+        b.disabled = owned || getCredits() < u.cost;
+        b.addEventListener('click', () => {
+          if (buyUpgrade(boat.def.name, u.key)) {
+            btn.textContent = `⚓ Shipyard · ${getCredits()} cr`;
+            render();
+          }
+        });
+        row.appendChild(b);
+      }
+      panel.appendChild(row);
+    }
+
+    const close = document.createElement('button');
+    close.className = 'shipyard-close';
+    close.textContent = 'Close';
+    close.addEventListener('click', () => panel.remove());
+    panel.appendChild(close);
+  };
+
+  render();
+  loadingText.parentElement!.appendChild(panel);
 }
 
 function showEscMenu(): void {
@@ -227,7 +291,7 @@ function startGame(def: BoatDefinition, mode: GameMode): void {
   localStorage.setItem('tb-mode', mode);
   localStorage.setItem('tb-boat', def.name);
   recordVoyageStart();
-  const engine = new Engine(def, { mode });
+  const engine = new Engine(applyBoatUpgrades(def), { mode });
   activeEngine = engine;
   (window as any).__engine = engine;
 

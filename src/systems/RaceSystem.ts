@@ -18,8 +18,8 @@ interface CourseRecord {
 export interface RaceCallbacks {
   /** Live timer text for the HUD, or null when not racing. */
   onTimer: (text: string | null) => void;
-  /** A run finished: headline for the toast (record or not). */
-  onFinish: (label: string, headline: string) => void;
+  /** A run finished: toast content plus the credit reward (records pay more). */
+  onFinish: (label: string, headline: string, reward: number) => void;
 }
 
 const STORAGE_KEY = 'tb-races';
@@ -156,11 +156,13 @@ export class RaceSystem {
       this.callbacks.onFinish(
         prev ? 'New record!' : 'Course complete',
         `${this.courseName} · ${formatTime(this.elapsed)}`,
+        40,
       );
     } else {
       this.callbacks.onFinish(
         'Course complete',
         `${this.courseName} · ${formatTime(this.elapsed)} (best ${formatTime(prev.time)})`,
+        10,
       );
     }
     this.clearRace();

@@ -35,8 +35,10 @@ import { WeatherSystem } from './rendering/WeatherSystem';
 import { BoatLights } from './rendering/BoatLights';
 import { KillTracker } from './state/KillTracker';
 import { DiscoveryTracker } from './state/DiscoveryTracker';
-import { JournalTracker } from './state/JournalTracker';
+import { JournalTracker, JOURNAL_TOTAL } from './state/JournalTracker';
 import { bumpBestKills, bumpContracts } from './state/VoyageLog';
+import { addCredits } from './state/Wallet';
+import { hasUpgrade } from './state/Upgrades';
 import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
 import { ReturnFireSystem } from './systems/ReturnFireSystem';
@@ -170,10 +172,11 @@ export class Engine {
     this.wildlifeSystem.setChunkManager(this.chunkManager);
     this.world.addSystem(this.wildlifeSystem);
 
-    // Towing (tugboat only)
+    // Towing (tow-winch upgrade extends hook range)
     const towingSystem = new TowingSystem(
       this.sceneManager.scene, this.ocean, this.boatEntity,
       this.wildlifeSystem,
+      hasUpgrade(boatDef.name, 'winch') ? 140 : 80,
     );
     this.world.addSystem(towingSystem);
 
@@ -213,9 +216,10 @@ export class Engine {
           return false;
         },
       },
+      hasUpgrade(boatDef.name, 'hull') ? 4 : ReturnFireSystem.BASE_HP,
     );
     if (this.config.mode === 'classic') {
-      this.hud.setHull(ReturnFireSystem.MAX_HP, ReturnFireSystem.MAX_HP);
+      this.hud.setHull(this.returnFire.maxHp, this.returnFire.maxHp);
     }
 
     // Buoy time-trials — gold buoy starts the course, ghost replays your best
@@ -224,8 +228,9 @@ export class Engine {
       boatMesh!.object3D as THREE.Group,
       {
         onTimer: (text) => this.hud.setRaceTimer(text),
-        onFinish: (label, headline) => {
-          this.hud.showToast(label, headline);
+        onFinish: (label, headline, reward) => {
+          addCredits(reward);
+          this.hud.showToast(label, `${headline} · +${reward} cr`);
           this.soundEffects.playDiscovery();
         },
       },
@@ -234,8 +239,9 @@ export class Engine {
     // Salvage contracts (tow the barge to a named island)
     this.contracts = new ContractSystem(this.wildlifeSystem, this.chunkManager, {
       onBanner: (text) => this.hud.setContract(text),
-      onComplete: (destName) => {
-        this.hud.showToast('Contract complete', `Salvage delivered to ${destName}`);
+      onComplete: (destName, payout) => {
+        addCredits(payout);
+        this.hud.showToast('Contract complete', `${destName} · +${payout} cr`);
         this.soundEffects.playDiscovery();
         bumpContracts();
       },
@@ -368,7 +374,8 @@ export class Engine {
           this.chunkManager.getIslandPositions(),
         );
         if (found) {
-          this.hud.showDiscovery(islandName(found.chunkX, found.chunkZ, found.biome));
+          addCredits(10);
+          this.hud.showToast('Discovered', `${islandName(found.chunkX, found.chunkZ, found.biome)} · +10 cr`);
           this.soundEffects.playDiscovery();
         }
         bumpBestKills(this.killTracker.total);
@@ -438,7 +445,8 @@ export class Engine {
     for (const key of hits) {
       const text = this.journal.log(key);
       if (text) {
-        this.hud.showToast(`Field Journal · ${this.journal.count()}/7`, text);
+        addCredits(15);
+        this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
         this.soundEffects.playDiscovery();
       }
     }

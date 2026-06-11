@@ -25,7 +25,7 @@ export class TowingSystem extends System {
   private towButton: HTMLButtonElement;
   private keydownHandler: (e: KeyboardEvent) => void;
 
-  private static readonly TOW_RANGE = 80;
+  private towRange: number;
   private static readonly ROPE_SEGMENTS = 8;
   private static readonly FISHING_TOW_DISTANCE = 8;
   private static readonly CARGO_TOW_DISTANCE = 18;
@@ -35,8 +35,10 @@ export class TowingSystem extends System {
     ocean: Ocean,
     boatEntity: number,
     wildlifeSystem: WildlifeSystem,
+    towRange = 80, // tow-winch upgrade extends this
   ) {
     super(67); // after WildlifeSystem (65), before SeagullSystem (70)
+    this.towRange = towRange;
     this.scene = scene;
     this.ocean = ocean;
     this.boatEntity = boatEntity;
@@ -94,7 +96,7 @@ export class TowingSystem extends System {
       this.nearestTowable = this.wildlifeSystem.findNearestTowable(
         transform.position.x,
         transform.position.z,
-        TowingSystem.TOW_RANGE,
+        this.towRange,
       );
 
       if (this.nearestTowable) {

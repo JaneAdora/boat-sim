@@ -36,8 +36,9 @@ export interface ReturnFireCallbacks {
  * Magical mode: impacts shove the boat around but never damage it.
  */
 export class ReturnFireSystem {
-  static readonly MAX_HP = 3;
-  hp = ReturnFireSystem.MAX_HP;
+  static readonly BASE_HP = 3;
+  readonly maxHp: number;
+  hp: number;
 
   private shells: Shell[] = [];
   private splashes: Splash[] = [];
@@ -67,7 +68,10 @@ export class ReturnFireSystem {
     private soundEffects: SoundEffects,
     private config: GameConfig,
     private callbacks: ReturnFireCallbacks,
+    maxHp = ReturnFireSystem.BASE_HP, // reinforced-hull upgrade raises this
   ) {
+    this.maxHp = maxHp;
+    this.hp = maxHp;
     // Damage smoke — dark sprites rising from the hull when hp < max
     const positions = new Float32Array(ReturnFireSystem.SMOKE_COUNT * 3);
     this.smokeVel = new Float32Array(ReturnFireSystem.SMOKE_COUNT);
@@ -171,7 +175,7 @@ export class ReturnFireSystem {
     this.callbacks.onHit();
     if (this.hp > 0) {
       this.hp--;
-      this.callbacks.onHull(this.hp, ReturnFireSystem.MAX_HP);
+      this.callbacks.onHull(this.hp, this.maxHp);
     }
   }
 
@@ -192,7 +196,7 @@ export class ReturnFireSystem {
   }
 
   private updateRepair(dt: number, boat: Transform): void {
-    if (this.hp >= ReturnFireSystem.MAX_HP) return;
+    if (this.hp >= this.maxHp) return;
     if (!this.callbacks.isSafeHarbor(boat.position.x, boat.position.z)) {
       this.repairProgress = 0;
       return;
@@ -201,17 +205,17 @@ export class ReturnFireSystem {
     if (this.repairProgress >= ReturnFireSystem.REPAIR_SECONDS) {
       this.repairProgress = 0;
       this.hp++;
-      this.callbacks.onHull(this.hp, ReturnFireSystem.MAX_HP);
+      this.callbacks.onHull(this.hp, this.maxHp);
     }
   }
 
-  /** Engine power factor for the current hull: 3 hp → 1.0 … 0 hp → 0.4. */
+  /** Engine power factor for the current hull: full → 1.0, floor 0.4. */
   getSpeedFactor(): number {
-    return [0.4, 0.55, 0.75, 1.0][this.hp] ?? 1.0;
+    return Math.max(0.4, 1 - (this.maxHp - this.hp) * 0.2);
   }
 
   private updateSmoke(dt: number, boat: Transform): void {
-    const damaged = ReturnFireSystem.MAX_HP - this.hp;
+    const damaged = this.maxHp - this.hp;
     const mat = this.smoke.material as THREE.PointsMaterial;
     mat.opacity = damaged === 0 ? 0 : 0.25 + damaged * 0.18;
     if (damaged === 0) return;

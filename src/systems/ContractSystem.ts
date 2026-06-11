@@ -9,13 +9,14 @@ interface ActiveContract {
   destRadius: number;
   destName: string;
   sourceName: string;
+  payout: number;
 }
 
 export interface ContractCallbacks {
   /** Update (or clear, with null) the persistent contract banner. */
   onBanner: (text: string | null) => void;
-  /** A contract was just completed at the named island. */
-  onComplete: (destName: string) => void;
+  /** A contract was just completed at the named island, paying out credits. */
+  onComplete: (destName: string, payout: number) => void;
 }
 
 /**
@@ -99,6 +100,8 @@ export class ContractSystem {
       source.z + (toPlayerZ / len) * offshore,
     );
 
+    // Longer hauls pay better
+    const legDist = Math.hypot(dest.x - source.x, dest.z - source.z);
     this.active = {
       barge,
       destX: dest.x,
@@ -106,6 +109,7 @@ export class ContractSystem {
       destRadius: dest.radius,
       destName: islandName(dest.chunkX, dest.chunkZ, dest.biome),
       sourceName: islandName(source.chunkX, source.chunkZ, source.biome),
+      payout: Math.min(150, Math.max(40, Math.round(legDist / 12))),
     };
     this.bannerTimer = 0;
   }
@@ -130,7 +134,7 @@ export class ContractSystem {
       this.wildlife.removeEntity(c.barge);
       this.active = null;
       this.callbacks.onBanner(null);
-      this.callbacks.onComplete(c.destName);
+      this.callbacks.onComplete(c.destName, c.payout);
       this.cooldown = 30; // breather before the next offer
       return;
     }

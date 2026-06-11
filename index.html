@@ -252,6 +252,69 @@
       z-index: 25;
     }
 
+    /* Shipyard (upgrades shop on the selector) */
+    #shipyard-btn {
+      margin-top: 14px;
+      padding: 8px 20px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: var(--ink);
+      font: 400 13px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #shipyard-btn:hover { background: var(--surface-hover); }
+    #shipyard {
+      margin-top: 12px;
+      padding: 16px 20px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 640px;
+    }
+    .shipyard-header {
+      font: 600 13px 'Segoe UI', system-ui, sans-serif;
+      color: #ffd479;
+      letter-spacing: 1px;
+    }
+    .shipyard-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .shipyard-boat {
+      width: 92px;
+      text-align: left;
+      font: 600 12px 'Segoe UI', system-ui, sans-serif;
+      color: var(--ink);
+    }
+    .shipyard-upgrade {
+      padding: 5px 12px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: var(--ink);
+      font: 400 12px 'Segoe UI', system-ui, sans-serif;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .shipyard-upgrade:hover:not(:disabled) { background: var(--surface-hover); }
+    .shipyard-upgrade:disabled { opacity: 0.45; cursor: default; }
+    .shipyard-upgrade.owned { border-color: rgba(125, 236, 155, 0.4); color: #7dec9b; opacity: 1; }
+    .shipyard-close {
+      align-self: center;
+      margin-top: 4px;
+      padding: 5px 18px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: var(--ink);
+      font: 400 12px 'Segoe UI', system-ui, sans-serif;
+      cursor: pointer;
+    }
+
     #voyage-stats {
       margin-top: 18px;
       font: 400 13px 'Segoe UI', system-ui, sans-serif;
