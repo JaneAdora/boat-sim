@@ -143,6 +143,23 @@ export class HUD {
     }
   }
 
+  /** Top-center toast announcing a newly discovered island. */
+  showDiscovery(name: string): void {
+    const toast = document.createElement('div');
+    toast.className = 'discovery-toast';
+    const label = document.createElement('span');
+    label.className = 'discovery-label';
+    label.textContent = 'Discovered';
+    const islandSpan = document.createElement('span');
+    islandSpan.className = 'discovery-name';
+    islandSpan.textContent = name;
+    toast.append(label, islandSpan);
+    document.body.appendChild(toast);
+    // Timer removal (not animationend) so the toast still shows and clears
+    // under prefers-reduced-motion, where the fade animation is disabled.
+    setTimeout(() => toast.remove(), 4500);
+  }
+
   /** Pulse the kill counter and float a "+N" when a kill registers. */
   private flashKill(delta: number): void {
     const el = this.killDisplay;

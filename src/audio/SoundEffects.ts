@@ -323,6 +323,50 @@ export class SoundEffects {
     shimmerSource.stop(now + 0.5);
   }
 
+  /**
+   * Soft two-note ship's bell for island discovery (~1.5s).
+   * Rising perfect fourth (E5 → A5), gentle attack, long decay — meant to
+   * feel like a reward without breaking the soothing mood.
+   */
+  playDiscovery(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const notes = [659.3, 880]; // E5, A5
+    for (let i = 0; i < notes.length; i++) {
+      const at = now + i * 0.22;
+
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(notes[i], at);
+
+      // Quiet upper partial gives it a bell-like timbre instead of a pure beep
+      const partial = ctx.createOscillator();
+      partial.type = 'sine';
+      partial.frequency.setValueAtTime(notes[i] * 2.76, at);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(0.18, at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 1.3);
+
+      const partialGain = ctx.createGain();
+      partialGain.gain.setValueAtTime(0, at);
+      partialGain.gain.linearRampToValueAtTime(0.04, at + 0.01);
+      partialGain.gain.exponentialRampToValueAtTime(0.001, at + 0.5);
+
+      osc.connect(gain);
+      partial.connect(partialGain);
+      gain.connect(this.masterGain!);
+      partialGain.connect(this.masterGain!);
+      osc.start(at);
+      osc.stop(at + 1.4);
+      partial.start(at);
+      partial.stop(at + 0.6);
+    }
+  }
+
   stop(): void {
     if (this.audioCtx) {
       this.audioCtx.close();

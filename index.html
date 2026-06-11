@@ -133,6 +133,57 @@
       animation: kill-float 0.9s ease-out forwards;
     }
 
+    /* Island discovery toast */
+    @keyframes discovery-toast {
+      0%   { opacity: 0; transform: translate(-50%, -10px); }
+      8%   { opacity: 1; transform: translate(-50%, 0); }
+      85%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .discovery-toast {
+      position: fixed;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 10px 26px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      z-index: 30;
+      animation: discovery-toast 4.2s ease forwards;
+    }
+    .discovery-toast .discovery-label {
+      font: 600 10px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .discovery-toast .discovery-name {
+      font: 400 19px 'Playfair Display', serif;
+      color: var(--ink);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+    /* The global reduced-motion rule zeroes animation durations, which would
+       snap this toast straight to its 100% (opacity 0) frame. Show it static
+       instead — HUD removes it on a timer. */
+    @media (prefers-reduced-motion: reduce) {
+      .discovery-toast { animation: none; }
+    }
+
+    #voyage-stats {
+      margin-top: 18px;
+      font: 400 13px 'Segoe UI', system-ui, sans-serif;
+      color: var(--ink);
+      opacity: 0.55;
+      letter-spacing: 0.5px;
+    }
+
     #loading-screen {
       position: fixed;
       inset: 0;

@@ -5,6 +5,8 @@ import { CRUISE_SHIP } from './boats/CruiseShip';
 import { SPEEDBOAT } from './boats/Speedboat';
 import { VIKING_SHIP } from './boats/VikingShip';
 import { GameMode } from './state/GameConfig';
+import { loadStats, recordVoyageStart } from './state/VoyageLog';
+import { discoveredCount } from './state/DiscoveryTracker';
 
 // SVG boat silhouette icons (no emojis)
 const BOAT_ICONS: Record<string, string> = {
@@ -66,6 +68,7 @@ function showSelector(): void {
   // Remove previous UI if it exists (re-entry case)
   document.getElementById('mode-pill')?.remove();
   document.getElementById('boat-selector')?.remove();
+  document.getElementById('voyage-stats')?.remove();
 
   // Mode toggle pill
   const modePill = document.createElement('div');
@@ -138,6 +141,19 @@ function showSelector(): void {
   }
 
   loadingText.parentElement!.appendChild(selector);
+
+  // Lifetime voyage stats — only once there's something to show
+  const stats = loadStats();
+  const discovered = discoveredCount();
+  if (stats.bestKills > 0 || discovered > 0) {
+    const line = document.createElement('div');
+    line.id = 'voyage-stats';
+    const parts: string[] = [];
+    if (stats.bestKills > 0) parts.push(`Best voyage: ${stats.bestKills} kills`);
+    if (discovered > 0) parts.push(`${discovered} island${discovered === 1 ? '' : 's'} discovered`);
+    line.textContent = parts.join(' · ');
+    loadingText.parentElement!.appendChild(line);
+  }
 }
 
 function showEscMenu(): void {
@@ -206,6 +222,7 @@ function startGame(def: BoatDefinition, mode: GameMode): void {
   if (activeEngine) return; // guard against the touchend + click double-fire
   localStorage.setItem('tb-mode', mode);
   localStorage.setItem('tb-boat', def.name);
+  recordVoyageStart();
   const engine = new Engine(def, { mode });
   activeEngine = engine;
   (window as any).__engine = engine;

@@ -34,6 +34,9 @@ import { Moon } from './rendering/Moon';
 import { WeatherSystem } from './rendering/WeatherSystem';
 import { BoatLights } from './rendering/BoatLights';
 import { KillTracker } from './state/KillTracker';
+import { DiscoveryTracker } from './state/DiscoveryTracker';
+import { bumpBestKills } from './state/VoyageLog';
+import { islandName } from './world/IslandNames';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
@@ -67,6 +70,8 @@ export class Engine {
   private wildlifeSystem: WildlifeSystem;
   private weaponsSystem: WeaponsSystem;
   private killTracker: KillTracker;
+  private discovery = new DiscoveryTracker();
+  private discoveryTimer = 0;
   private boatEntity: number;
   private elapsedTime = 0;
   private keydownHandler: (e: KeyboardEvent) => void;
@@ -283,6 +288,23 @@ export class Engine {
 
       // Update weapon effects (torpedo wakes, explosions)
       this.weaponsSystem.updateEffects(dt);
+
+      // Island discovery + best-kills high-water mark, throttled to 2Hz —
+      // neither needs frame-rate precision and both touch localStorage.
+      this.discoveryTimer += dt;
+      if (this.discoveryTimer >= 0.5) {
+        this.discoveryTimer = 0;
+        const found = this.discovery.check(
+          boatTransform.position.x,
+          boatTransform.position.z,
+          this.chunkManager.getIslandPositions(),
+        );
+        if (found) {
+          this.hud.showDiscovery(islandName(found.chunkX, found.chunkZ, found.biome));
+          this.soundEffects.playDiscovery();
+        }
+        bumpBestKills(this.killTracker.total);
+      }
     }
 
     // Update moon and boat lights

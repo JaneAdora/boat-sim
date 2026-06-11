@@ -18,7 +18,7 @@ interface LoadedChunk {
 export class ChunkManager {
   private chunks = new Map<string, LoadedChunk>();
   private scene: THREE.Scene;
-  private islandPositions: { x: number; z: number; radius: number; biome: Biome }[] = [];
+  private islandPositions: { chunkX: number; chunkZ: number; x: number; z: number; radius: number; biome: Biome }[] = [];
 
   // Streaming state. The immediate 3x3 ring loads synchronously (terrain under
   // and adjacent to the boat must exist for collision/buoyancy every frame);
@@ -140,6 +140,8 @@ export class ChunkManager {
       this.scene.add(buoys);
 
       this.islandPositions.push({
+        chunkX: island.chunkX,
+        chunkZ: island.chunkZ,
         x: island.centerX,
         z: island.centerZ,
         radius: island.radius,
@@ -245,7 +247,7 @@ export class ChunkManager {
     }
   }
 
-  getIslandPositions(): { x: number; z: number; radius: number; biome: Biome }[] {
+  getIslandPositions(): { chunkX: number; chunkZ: number; x: number; z: number; radius: number; biome: Biome }[] {
     return this.islandPositions;
   }
 
