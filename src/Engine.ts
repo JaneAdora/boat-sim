@@ -299,6 +299,9 @@ export class Engine {
     if (fog) {
       this.weather.update(dt, this.sceneManager.camera.position, fog);
 
+      // Storms raise the sea state — rendering and physics together
+      this.ocean.setStormScale(1 + this.weather.getRainIntensity() * 0.9);
+
       // Fog color based on time of day + weather darkness
       const sunElev = sunDir.y;
       const dark = this.weather.getWeatherDarkness();

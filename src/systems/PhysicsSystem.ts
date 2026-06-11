@@ -66,9 +66,13 @@ export class PhysicsSystem extends System {
         rb.force.add(_sailForce);
       }
 
-      // Engine thrust
+      // Engine thrust — running with the wind is up to ~10% faster, beating
+      // into it ~10% slower, so heading and weather become navigation choices.
       if (ctrl && ctrl.enginePower > 0 && Math.abs(ctrl.throttle) > 0.01) {
-        rb.force.addScaledVector(_forward, ctrl.throttle * ctrl.enginePower);
+        const wind = this.windSystem.getWindVector();
+        const align = (wind.x * _forward.x + wind.y * _forward.z) / 8; // strength tops out ~8 m/s
+        const windFactor = 1 + Math.max(-1, Math.min(1, align)) * 0.1;
+        rb.force.addScaledVector(_forward, ctrl.throttle * ctrl.enginePower * windFactor);
       }
 
       // Steering — carve toward a target yaw rate instead of applying raw
