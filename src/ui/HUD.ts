@@ -205,6 +205,21 @@ export class HUD {
     flash.classList.add('active');
   }
 
+  /** Live race timer, top-center; null hides it. */
+  setRaceTimer(text: string | null): void {
+    let timer = document.getElementById('race-timer');
+    if (!text) {
+      timer?.remove();
+      return;
+    }
+    if (!timer) {
+      timer = document.createElement('div');
+      timer.id = 'race-timer';
+      document.body.appendChild(timer);
+    }
+    timer.textContent = text;
+  }
+
   /** Persistent contract banner under the help button; null clears it. */
   setContract(text: string | null): void {
     let banner = document.getElementById('contract-banner');
@@ -246,5 +261,6 @@ export class HUD {
     document.getElementById('contract-banner')?.remove();
     document.getElementById('hull-pips')?.remove();
     document.getElementById('damage-flash')?.remove();
+    document.getElementById('race-timer')?.remove();
   }
 }

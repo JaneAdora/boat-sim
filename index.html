@@ -176,6 +176,25 @@
       .discovery-toast { animation: none; }
     }
 
+    /* Race timer — top-center, below where toasts appear */
+    #race-timer {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 6px 16px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+      color: var(--ink);
+      font: 600 14px 'Segoe UI', system-ui, sans-serif;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
+      pointer-events: none;
+      z-index: 25;
+    }
+
     /* Hull pips + damage flash */
     #hull-pips { display: flex; flex-direction: column; align-items: center; gap: 2px; }
     .hull-pip { color: #7dec9b; font-size: 11px; margin: 0 1px; }

@@ -13,6 +13,7 @@ interface LoadedChunk {
   rockGroup: THREE.Group | null;
   lighthouse: THREE.Group | null;
   buoys: THREE.Group | null;
+  buoyPositions: { x: number; z: number }[];
 }
 
 export class ChunkManager {
@@ -121,6 +122,7 @@ export class ChunkManager {
     let rockGroup: THREE.Group | null = null;
     let lighthouse: THREE.Group | null = null;
     let buoys: THREE.Group | null = null;
+    let buoyPositions: { x: number; z: number }[] = [];
 
     if (island) {
       terrainMesh = createTerrainMesh(island);
@@ -135,9 +137,10 @@ export class ChunkManager {
       lighthouse = createLighthouse(island);
       if (lighthouse) this.scene.add(lighthouse);
 
-      // Navigation buoys around the island
+      // Navigation buoys around the island (also a time-trial course)
       buoys = this.createBuoys(island);
       this.scene.add(buoys);
+      buoyPositions = buoys.children.map((b) => ({ x: b.position.x, z: b.position.z }));
 
       this.islandPositions.push({
         chunkX: island.chunkX,
@@ -149,7 +152,7 @@ export class ChunkManager {
       });
     }
 
-    this.chunks.set(key, { key, chunkX: cx, chunkZ: cz, island, terrainMesh, treeGroup, rockGroup, lighthouse, buoys });
+    this.chunks.set(key, { key, chunkX: cx, chunkZ: cz, island, terrainMesh, treeGroup, rockGroup, lighthouse, buoys, buoyPositions });
   }
 
   private createBuoys(island: IslandData): THREE.Group {
@@ -159,13 +162,18 @@ export class ChunkManager {
     const topGeom = new THREE.ConeGeometry(0.2, 0.5, 6);
     const redMat = new THREE.MeshStandardMaterial({ color: 0xCC2222, roughness: 0.6, metalness: 0.1 });
     const greenMat = new THREE.MeshStandardMaterial({ color: 0x22AA44, roughness: 0.6, metalness: 0.1 });
+    // Buoy 0 is gold: the start gate of the island's time-trial course
+    const goldMat = new THREE.MeshStandardMaterial({
+      color: 0xE8B33A, roughness: 0.35, metalness: 0.4,
+      emissive: 0x55400a, emissiveIntensity: 0.6,
+    });
 
     for (let i = 0; i < buoyCount; i++) {
       const angle = (i / buoyCount) * Math.PI * 2 + island.centerX * 0.01;
       const dist = island.radius + 15 + Math.sin(i * 3.7) * 10;
       const x = island.centerX + Math.cos(angle) * dist;
       const z = island.centerZ + Math.sin(angle) * dist;
-      const mat = i % 2 === 0 ? redMat : greenMat;
+      const mat = i === 0 ? goldMat : i % 2 === 0 ? redMat : greenMat;
 
       const buoy = new THREE.Group();
       const body = new THREE.Mesh(buoyGeom, mat);
@@ -249,6 +257,21 @@ export class ChunkManager {
 
   getIslandPositions(): { chunkX: number; chunkZ: number; x: number; z: number; radius: number; biome: Biome }[] {
     return this.islandPositions;
+  }
+
+  /** Time-trial courses: buoy rings of loaded islands with enough gates. */
+  getCourses(): { chunkX: number; chunkZ: number; biome: Biome; buoys: { x: number; z: number }[] }[] {
+    const courses: { chunkX: number; chunkZ: number; biome: Biome; buoys: { x: number; z: number }[] }[] = [];
+    for (const chunk of this.chunks.values()) {
+      if (!chunk.island || chunk.buoyPositions.length < 4) continue;
+      courses.push({
+        chunkX: chunk.chunkX,
+        chunkZ: chunk.chunkZ,
+        biome: chunk.island.biome,
+        buoys: chunk.buoyPositions,
+      });
+    }
+    return courses;
   }
 
   /** Find the lighthouse group for an island at the given center position. */

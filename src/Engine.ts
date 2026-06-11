@@ -39,6 +39,7 @@ import { bumpBestKills, bumpContracts } from './state/VoyageLog';
 import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
 import { ReturnFireSystem } from './systems/ReturnFireSystem';
+import { RaceSystem } from './systems/RaceSystem';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
@@ -76,6 +77,7 @@ export class Engine {
   private discoveryTimer = 0;
   private contracts: ContractSystem;
   private returnFire: ReturnFireSystem;
+  private races: RaceSystem;
   private boatEntity: number;
   private elapsedTime = 0;
   private keydownHandler: (e: KeyboardEvent) => void;
@@ -212,6 +214,19 @@ export class Engine {
       this.hud.setHull(ReturnFireSystem.MAX_HP, ReturnFireSystem.MAX_HP);
     }
 
+    // Buoy time-trials — gold buoy starts the course, ghost replays your best
+    this.races = new RaceSystem(
+      this.sceneManager.scene, this.chunkManager,
+      boatMesh!.object3D as THREE.Group,
+      {
+        onTimer: (text) => this.hud.setRaceTimer(text),
+        onFinish: (label, headline) => {
+          this.hud.showToast(label, headline);
+          this.soundEffects.playDiscovery();
+        },
+      },
+    );
+
     // Salvage contracts (tow the barge to a named island)
     this.contracts = new ContractSystem(this.wildlifeSystem, this.chunkManager, {
       onBanner: (text) => this.hud.setContract(text),
@@ -332,6 +347,9 @@ export class Engine {
         this.returnFire.update(dt, boatTransform, boatRb, ctrl);
       }
 
+      // Time-trials (start detection, gates, ghost replay)
+      this.races.update(dt, boatTransform);
+
       // Island discovery + best-kills high-water mark, throttled to 2Hz —
       // neither needs frame-rate precision and both touch localStorage.
       this.discoveryTimer += dt;
@@ -448,6 +466,7 @@ export class Engine {
     this.postProcessing.dispose();
     this.hud.dispose();
     this.returnFire.dispose();
+    this.races.dispose();
 
     // Stop audio
     this.soundscape.stop();
