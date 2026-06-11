@@ -33,11 +33,21 @@ export function hasUpgrade(boatName: string, key: UpgradeKey, storage: Storage =
   return load(storage)[boatName]?.[key] === true;
 }
 
+/** Reputation-adjusted price (karma discount or surcharge). */
+export function upgradeCost(u: UpgradeDef, priceFactor: number): number {
+  return Math.round(u.cost * priceFactor);
+}
+
 /** Buy an upgrade for a boat. Spends credits; false if owned or unaffordable. */
-export function buyUpgrade(boatName: string, key: UpgradeKey, storage: Storage = localStorage): boolean {
+export function buyUpgrade(
+  boatName: string,
+  key: UpgradeKey,
+  storage: Storage = localStorage,
+  priceFactor = 1
+): boolean {
   const def = UPGRADE_CATALOG.find((u) => u.key === key);
   if (!def || hasUpgrade(boatName, key, storage)) return false;
-  if (!spendCredits(def.cost, storage)) return false;
+  if (!spendCredits(upgradeCost(def, priceFactor), storage)) return false;
   const store = load(storage);
   store[boatName] = { ...store[boatName], [key]: true };
   try {

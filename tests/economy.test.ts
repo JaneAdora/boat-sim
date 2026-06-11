@@ -56,6 +56,15 @@ describe('Upgrades', () => {
     expect(getCredits(s)).toBe(5);
   });
 
+  it('applies a karma price factor when given one', () => {
+    const s = new MemoryStorage();
+    const hull = UPGRADE_CATALOG.find((u) => u.key === 'hull')!;
+    addCredits(hull.cost, s); // enough at list price...
+    expect(buyUpgrade('Tugboat', 'hull', s, 1.3)).toBe(false); // ...not at outlaw markup
+    expect(buyUpgrade('Tugboat', 'hull', s, 0.9)).toBe(true); // guardian discount
+    expect(getCredits(s)).toBe(hull.cost - Math.round(hull.cost * 0.9));
+  });
+
   it('engine tune adds 3 knots to the boat definition copy', () => {
     const s = new MemoryStorage();
     addCredits(1000, s);

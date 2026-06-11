@@ -9,7 +9,8 @@ import { loadStats, recordVoyageStart } from './state/VoyageLog';
 import { discoveredCount } from './state/DiscoveryTracker';
 import { journalCount, JOURNAL_TOTAL } from './state/JournalTracker';
 import { getCredits } from './state/Wallet';
-import { applyBoatUpgrades, buyUpgrade, hasUpgrade, UPGRADE_CATALOG } from './state/Upgrades';
+import { applyBoatUpgrades, buyUpgrade, hasUpgrade, upgradeCost, UPGRADE_CATALOG } from './state/Upgrades';
+import { getKarma, karmaTitle, karmaPriceFactor } from './state/Karma';
 
 // SVG boat silhouette icons (no emojis)
 const BOAT_ICONS: Record<string, string> = {
@@ -151,10 +152,12 @@ function showSelector(): void {
   const stats = loadStats();
   const discovered = discoveredCount();
   const journal = journalCount();
-  if (stats.bestKills > 0 || discovered > 0 || stats.contracts > 0 || journal > 0) {
+  const karma = getKarma();
+  if (stats.bestKills > 0 || discovered > 0 || stats.contracts > 0 || journal > 0 || karma !== 0) {
     const line = document.createElement('div');
     line.id = 'voyage-stats';
     const parts: string[] = [];
+    if (karma !== 0) parts.push(`${karmaTitle(karma)} (karma ${karma > 0 ? '+' : ''}${karma})`);
     if (stats.bestKills > 0) parts.push(`Best voyage: ${stats.bestKills} kills`);
     if (discovered > 0) parts.push(`${discovered} island${discovered === 1 ? '' : 's'} discovered`);
     if (stats.contracts > 0) parts.push(`${stats.contracts} contract${stats.contracts === 1 ? '' : 's'} hauled`);
@@ -182,9 +185,12 @@ function toggleShipyard(btn: HTMLButtonElement): void {
 
   const render = (): void => {
     panel.textContent = '';
+    const factor = karmaPriceFactor(getKarma());
     const header = document.createElement('div');
     header.className = 'shipyard-header';
-    header.textContent = `Salvage credits: ${getCredits()}`;
+    header.textContent =
+      `Salvage credits: ${getCredits()}` +
+      (factor < 1 ? ` · ${karmaTitle(getKarma())} discount` : factor > 1 ? ` · ${karmaTitle(getKarma())} surcharge` : '');
     panel.appendChild(header);
 
     for (const boat of BOATS) {
@@ -197,13 +203,14 @@ function toggleShipyard(btn: HTMLButtonElement): void {
 
       for (const u of UPGRADE_CATALOG) {
         const owned = hasUpgrade(boat.def.name, u.key);
+        const price = upgradeCost(u, factor);
         const b = document.createElement('button');
         b.className = owned ? 'shipyard-upgrade owned' : 'shipyard-upgrade';
         b.title = u.desc;
-        b.textContent = owned ? `${u.name} ✓` : `${u.name} · ${u.cost}`;
-        b.disabled = owned || getCredits() < u.cost;
+        b.textContent = owned ? `${u.name} ✓` : `${u.name} · ${price}`;
+        b.disabled = owned || getCredits() < price;
         b.addEventListener('click', () => {
-          if (buyUpgrade(boat.def.name, u.key)) {
+          if (buyUpgrade(boat.def.name, u.key, localStorage, factor)) {
             btn.textContent = `⚓ Shipyard · ${getCredits()} cr`;
             render();
           }
