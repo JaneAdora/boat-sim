@@ -7,6 +7,7 @@ import { VIKING_SHIP } from './boats/VikingShip';
 import { GameMode } from './state/GameConfig';
 import { loadStats, recordVoyageStart } from './state/VoyageLog';
 import { discoveredCount } from './state/DiscoveryTracker';
+import { journalCount, JOURNAL_TOTAL } from './state/JournalTracker';
 
 // SVG boat silhouette icons (no emojis)
 const BOAT_ICONS: Record<string, string> = {
@@ -145,13 +146,15 @@ function showSelector(): void {
   // Lifetime voyage stats — only once there's something to show
   const stats = loadStats();
   const discovered = discoveredCount();
-  if (stats.bestKills > 0 || discovered > 0 || stats.contracts > 0) {
+  const journal = journalCount();
+  if (stats.bestKills > 0 || discovered > 0 || stats.contracts > 0 || journal > 0) {
     const line = document.createElement('div');
     line.id = 'voyage-stats';
     const parts: string[] = [];
     if (stats.bestKills > 0) parts.push(`Best voyage: ${stats.bestKills} kills`);
     if (discovered > 0) parts.push(`${discovered} island${discovered === 1 ? '' : 's'} discovered`);
     if (stats.contracts > 0) parts.push(`${stats.contracts} contract${stats.contracts === 1 ? '' : 's'} hauled`);
+    if (journal > 0) parts.push(`journal ${journal}/${JOURNAL_TOTAL}`);
     line.textContent = parts.join(' · ');
     loadingText.parentElement!.appendChild(line);
   }

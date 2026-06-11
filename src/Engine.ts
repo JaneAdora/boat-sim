@@ -35,6 +35,7 @@ import { WeatherSystem } from './rendering/WeatherSystem';
 import { BoatLights } from './rendering/BoatLights';
 import { KillTracker } from './state/KillTracker';
 import { DiscoveryTracker } from './state/DiscoveryTracker';
+import { JournalTracker } from './state/JournalTracker';
 import { bumpBestKills, bumpContracts } from './state/VoyageLog';
 import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
@@ -74,6 +75,7 @@ export class Engine {
   private weaponsSystem: WeaponsSystem;
   private killTracker: KillTracker;
   private discovery = new DiscoveryTracker();
+  private journal = new JournalTracker();
   private discoveryTimer = 0;
   private contracts: ContractSystem;
   private returnFire: ReturnFireSystem;
@@ -368,6 +370,9 @@ export class Engine {
           this.soundEffects.playDiscovery();
         }
         bumpBestKills(this.killTracker.total);
+
+        // Field journal sightings (same 2Hz cadence)
+        if (boatRb) this.checkJournal(boatTransform, boatRb, sunDir.y);
       }
     }
 
@@ -400,6 +405,33 @@ export class Engine {
 
     // Render with post-processing
     this.postProcessing.render();
+  }
+
+  /** First-time wildlife/moment sightings → field journal toast + bell. */
+  private checkJournal(boatTransform: Transform, boatRb: RigidBody, sunY: number): void {
+    const bx = boatTransform.position.x;
+    const bz = boatTransform.position.z;
+    const speed = boatRb.velocity.length();
+    const hits: string[] = [];
+
+    for (const w of this.wildlifeSystem.getWildlifePositions()) {
+      const dist = Math.hypot(w.x - bx, w.z - bz);
+      if (w.type === 'dolphin' && dist < 15 && speed > 3) hits.push('dolphins');
+      else if (w.type === 'whale' && dist < 60) hits.push('whale');
+      else if (w.type === 'fishing_boat' && dist < 60) hits.push('fishing');
+      else if (w.type === 'cargo_ship' && dist < 80) hits.push('cargo');
+      else if (w.type === 'battleship' && dist < 150) hits.push('battleship');
+    }
+    if (sunY < -0.1) hits.push('night');
+    if (this.weather.getRainIntensity() > 0.8) hits.push('storm');
+
+    for (const key of hits) {
+      const text = this.journal.log(key);
+      if (text) {
+        this.hud.showToast(`Field Journal · ${this.journal.count()}/7`, text);
+        this.soundEffects.playDiscovery();
+      }
+    }
   }
 
   start(): void {
