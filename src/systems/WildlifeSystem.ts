@@ -244,6 +244,7 @@ export interface WildlifeEntity {
   maxAge: number;          // despawn after this
   towed: boolean;          // true when attached to tugboat
   strikeZones?: StrikeZones;  // battleship-only: multi-hit zones
+  entangled?: boolean;     // whale-only: caught in a ghost net, stays surfaced
 }
 
 // ─── System ──────────────────────────────────────────────────
@@ -474,6 +475,56 @@ export class WildlifeSystem extends System {
     entity.age = 0;
   }
 
+  /** Spawn a whale tangled in a ghost net at a world position (distress event). */
+  spawnEntangledWhale(x: number, z: number): WildlifeEntity {
+    const mesh = createWhaleMesh();
+    const heading = Math.random() * Math.PI * 2;
+    mesh.position.set(x, 0, z);
+    mesh.rotation.y = heading;
+
+    // The ghost net — a pale tangle draped over the whale
+    const net = new THREE.Mesh(
+      new THREE.SphereGeometry(6.5, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xb8c4c0, wireframe: true, transparent: true, opacity: 0.55 }),
+    );
+    net.scale.set(1, 0.45, 1.5);
+    net.position.y = 1;
+    net.name = 'ghost-net';
+    mesh.add(net);
+    this.scene.add(mesh);
+
+    const entity: WildlifeEntity = {
+      type: 'whale',
+      mesh,
+      origin: new THREE.Vector3(x, 0, z),
+      heading,
+      speed: 0,
+      phase: Math.random() * Math.PI * 2,
+      age: 0,
+      maxAge: Infinity, // protected until freed
+      towed: false,
+      entangled: true,
+    };
+    this.entities.push(entity);
+    return entity;
+  }
+
+  /** Cut the net away — the whale swims free. */
+  freeWhale(entity: WildlifeEntity): void {
+    const net = entity.mesh.getObjectByName('ghost-net') as THREE.Mesh | null;
+    if (net) {
+      entity.mesh.remove(net);
+      net.geometry.dispose();
+      (net.material as THREE.Material).dispose();
+    }
+    entity.entangled = false;
+    entity.speed = 1.8;
+    entity.age = 0;
+    entity.maxAge = 60 + Math.random() * 60;
+    // Surface triumphantly before the first dive
+    entity.phase = Math.PI / 2 - this.time * 0.4;
+  }
+
   /** Find the nearest towable vessel (fishing boat or cargo ship) within maxRadius */
   findNearestTowable(x: number, z: number, maxRadius: number): WildlifeEntity | null {
     let best: WildlifeEntity | null = null;
@@ -635,6 +686,14 @@ export class WildlifeSystem extends System {
         break;
       }
       case 'whale': {
+        if (e.entangled) {
+          // Caught in a ghost net: pinned at the surface, struggling in place
+          e.mesh.position.y = waveY - 0.4;
+          e.mesh.rotation.z = Math.sin(t * 2.2 + e.phase) * 0.08;
+          e.mesh.rotation.x = Math.sin(t * 1.4 + e.phase) * 0.05;
+          e.mesh.visible = true;
+          break;
+        }
         // Whales: slow surfacing cycle — mostly underwater, occasionally surfaces
         const breathCycle = Math.sin(t * 0.4 + e.phase);
         const surfaceOffset = breathCycle > 0.3

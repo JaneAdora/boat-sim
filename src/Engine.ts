@@ -257,6 +257,10 @@ export class Engine {
             this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
           }
         },
+        onWhaleFreed: () => {
+          this.soundEffects.playDiscovery();
+          this.awardKarma(20, 'Freed a tangled whale', 'whale-freed');
+        },
         isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
         nearestHarbor: (x, z) => this.nearestDiscoveredHarbor(x, z),
       },
@@ -416,7 +420,9 @@ export class Engine {
       this.contracts.update(dt, boatTransform.position.x, boatTransform.position.z);
 
       // Distress calls (spawn, smoke, rescue detection)
-      this.distress.update(dt, boatTransform.position.x, boatTransform.position.z);
+      // horizontal speed only — wave heave would read as "moving" while holding station
+      this.distress.update(dt, boatTransform.position.x, boatTransform.position.z,
+        boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0);
 
       // Battleship return fire + hull repair
       const ctrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');

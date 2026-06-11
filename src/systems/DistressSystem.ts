@@ -6,12 +6,17 @@ export interface DistressCallbacks {
   onBanner: (text: string | null) => void;
   /** Rescue delivered — reward in credits. */
   onComplete: (reward: number) => void;
+  /** Ghost-net whale cut free — pure karma, no credits. */
+  onWhaleFreed: () => void;
   isSafeHarbor: (x: number, z: number) => boolean;
   nearestHarbor: (x: number, z: number) => { x: number; z: number } | null;
 }
 
 const REWARD = 60;
 const SMOKE_COUNT = 18;
+const CUT_RADIUS = 22;     // hold within this range of the whale...
+const CUT_MAX_SPEED = 2.5; // ...below this speed...
+const CUT_SECONDS = 4;     // ...for this long to cut the net
 
 /**
  * Distress calls — the living-sea event. A fishing boat catches fire and
@@ -20,6 +25,8 @@ const SMOKE_COUNT = 18;
  */
 export class DistressSystem {
   private vessel: WildlifeEntity | null = null;
+  private kind: 'fire' | 'whale' = 'fire';
+  private cutProgress = 0;
   private cooldown = 100; // first call comes after the player has settled in
   private bannerTimer = 0;
 
@@ -43,9 +50,9 @@ export class DistressSystem {
     scene.add(this.smoke);
   }
 
-  update(dt: number, boatX: number, boatZ: number): void {
+  update(dt: number, boatX: number, boatZ: number, boatSpeed: number): void {
     if (this.vessel) {
-      this.updateActive(dt, boatX, boatZ);
+      this.updateActive(dt, boatX, boatZ, boatSpeed);
       return;
     }
     this.cooldown -= dt;
@@ -58,7 +65,7 @@ export class DistressSystem {
   /** The rescue objective for radar/waypoint (vessel, then nearest harbor). */
   getMarker(): { x: number; z: number } | null {
     if (!this.vessel) return null;
-    if (!this.vessel.towed) {
+    if (this.kind === 'whale' || !this.vessel.towed) {
       return { x: this.vessel.mesh.position.x, z: this.vessel.mesh.position.z };
     }
     return this.callbacks.nearestHarbor(this.vessel.mesh.position.x, this.vessel.mesh.position.z);
@@ -72,13 +79,17 @@ export class DistressSystem {
       const z = boatZ + Math.sin(angle) * dist;
       if (this.chunkManager.getTerrainHeight(x, z) > 0) continue; // not on land
 
-      this.vessel = this.wildlife.spawnDistressedVessel(x, z);
+      this.kind = Math.random() < 0.5 ? 'whale' : 'fire';
+      this.vessel = this.kind === 'whale'
+        ? this.wildlife.spawnEntangledWhale(x, z)
+        : this.wildlife.spawnDistressedVessel(x, z);
+      this.cutProgress = 0;
       this.bannerTimer = 0;
       return;
     }
   }
 
-  private updateActive(dt: number, boatX: number, boatZ: number): void {
+  private updateActive(dt: number, boatX: number, boatZ: number, boatSpeed: number): void {
     const v = this.vessel!;
     if (!this.wildlife.isEntityAlive(v)) {
       // Vessel destroyed (a stray torpedo, perhaps) — the call goes quiet
@@ -86,10 +97,39 @@ export class DistressSystem {
       return;
     }
 
-    this.updateSmoke(dt, v);
-
     const vx = v.mesh.position.x;
     const vz = v.mesh.position.z;
+
+    if (this.kind === 'whale') {
+      const dist = Math.hypot(vx - boatX, vz - boatZ);
+      if (dist < CUT_RADIUS && boatSpeed < CUT_MAX_SPEED) {
+        this.cutProgress += dt; // patient work — progress never decays
+        if (this.cutProgress >= CUT_SECONDS) {
+          this.wildlife.freeWhale(v);
+          this.clear(240);
+          this.callbacks.onWhaleFreed();
+          return;
+        }
+      }
+      this.bannerTimer -= dt;
+      if (this.bannerTimer <= 0) {
+        this.bannerTimer = 0.5;
+        if (dist < CUT_RADIUS) {
+          const pct = Math.round((this.cutProgress / CUT_SECONDS) * 100);
+          this.callbacks.onBanner(
+            boatSpeed < CUT_MAX_SPEED
+              ? `🐋 Hold steady — cutting the net · ${pct}%`
+              : `🐋 Slow down to cut the net · ${pct}%`,
+          );
+        } else {
+          this.callbacks.onBanner(`🐋 A whale is tangled in a ghost net · ${Math.round(dist)}m`);
+        }
+      }
+      return;
+    }
+
+    this.updateSmoke(dt, v);
+
     if (this.callbacks.isSafeHarbor(vx, vz)) {
       this.wildlife.restoreVessel(v);
       this.clear(240);

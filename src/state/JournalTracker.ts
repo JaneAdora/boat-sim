@@ -14,6 +14,7 @@ export const JOURNAL_ENTRIES: Record<string, string> = {
   arch: 'Sailed past the sea arch',
   aurora: 'Auroras over the night sea',
   beacon: 'Darkened a beacon — the coast is a little less safe',
+  'whale-freed': 'Cut a whale free of a ghost net',
 };
 
 export const JOURNAL_TOTAL = Object.keys(JOURNAL_ENTRIES).length;
