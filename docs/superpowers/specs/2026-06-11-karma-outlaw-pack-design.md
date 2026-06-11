@@ -51,12 +51,12 @@ Jane specified the ledger, not the consequences. Chosen effects, all gentle:
 
 ## Outlaw Pack features
 
-### 1. Lighthouses
-Deterministic: islands with radius > 65 where `chunkHash(cx,cz,11) < 0.30` get a
-white-and-red banded tower on the rim at a hashed angle. At night the lamp lights and
-two opposed additive beam cones sweep — a real navigation aid. **Destructible**: 3
-weapon hits topple it (smoke, light dies), −20 karma + journal entry "Darkened a
-beacon". Not persisted — rebuilt next session; the karma is what's permanent.
+### 1. Lighthouses *(amended during build)*
+The game already had deterministic lighthouses (~35% of islands, placed at the
+highest point, beacon lit at night) and missiles already destroyed them — what was
+missing was the moral weight. This pack adds it: destroying one is −20 karma plus the
+shameful journal entry "Darkened a beacon". Destruction is not persisted (rebuilt next
+session); the karma is what's permanent.
 
 ### 2. Whale rescue
 Distress spawns now alternate vessel-fire / entangled-whale. A surfaced whale wrapped
@@ -73,20 +73,23 @@ boat anchors in place, bobbing on the waves, re-boardable with E (free). Each th
 extended range. Weapons (Space) work from any hull. *v1 limitation: commandeered state
 and the abandoned boat are session-only — reload returns you to your selected boat.*
 
-### 4. Cargo heists + heat stars
-Cargo ships carry visible deck containers. **T** in winch range rips one overboard and
-tows it — hot cargo. −10 karma, **+1 heat star (☠, max 3)** shown by the hull pips.
-1★ nearest battleship vectors toward you · 2★ engage range ×1.4 · 3★ a hunter
-destroyer spawns and pursues. Fence hot cargo at a discovered harbor ≥ 600 m from the
-theft → ~90 cr. Heat decays 1★/75 s while clean; never decays with hot cargo attached.
+### 4. Cargo heists + heat stars *(key amended: F, not T/G)*
+**F** alongside a cargo ship (T fires torpedoes and G is the tow hook, both taken)
+splashes a container overboard and auto-hooks it to the tow line — hot cargo. −10
+karma, **+1 heat star (☠, max 3)** shown by the hull pips. 1★ nearest battleship
+vectors toward you · 2★ engage range ×1.4 · 3★ a hunter destroyer spawns at 300 m
+(inside the wildlife cull radius — learned the hard way) and pursues at speed 7.
+Fence at a discovered harbor ≥ 600 m from the theft → 60–150 cr scaled by distance.
+One container per ship; heat decays 1★/75 s while the line is clean.
 
 ### 5. Jet ski
 Fifth playable. **44 kn — the viking (46 kn) stays the fastest, per Jane.** Turn
-radius 10 m, rudderSlew 4.0, 1 hull pip, mass ~250. Its identity: agility + air. When
-every buoyancy sample clears the wave surface > 0.3 s you're airborne; landing banks
-style = hangtime + full spins → credits (capped per trick). Storm swells become a
-skate park. Selector + shipyard integration (engine tune, hull → 2 pips, winch — yes,
-a jet ski can tow a barge; it's hilarious and allowed).
+radius 10 m (holds below ~8 m/s; above that it rides the 0.8 rad/s physics yaw clamp,
+which still out-carves the entire fleet — ~28 m at top speed), rudderSlew 4.0, 1 hull
+pip, mass 250. Airborne when the hull clears the wave face > 0.45 s; landing banks
+style = hangtime + spin degrees → 1–25 cr per trick. Storm swells become a skate
+park. Selector + shipyard integration (engine tune, hull → 2 pips, winch — yes, a jet
+ski can tow a barge; it's hilarious and allowed).
 
 ## Roadmap (separate PRs, in order)
 
