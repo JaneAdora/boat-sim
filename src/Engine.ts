@@ -26,6 +26,7 @@ import { Minimap } from './ui/Minimap';
 import { TouchControls } from './ui/TouchControls';
 import { AmbientSoundscape } from './audio/AmbientSoundscape';
 import { SoundEffects } from './audio/SoundEffects';
+import { GenerativeMusic } from './audio/GenerativeMusic';
 import { PostProcessing } from './rendering/PostProcessing';
 import { WakeTrail } from './rendering/WakeTrail';
 import { BowSpray } from './rendering/BowSpray';
@@ -69,6 +70,7 @@ export class Engine {
   private minimap: Minimap;
   private soundscape: AmbientSoundscape;
   private soundEffects: SoundEffects;
+  private music: GenerativeMusic;
   private postProcessing: PostProcessing;
   private wakeTrail: WakeTrail;
   private bowSpray: BowSpray;
@@ -270,6 +272,12 @@ export class Engine {
     this.soundscape.setMuted(this.audioMuted);
     this.soundscape.start();
 
+    // Generative ambient soundtrack (starts inside the launch gesture)
+    this.music = new GenerativeMusic();
+    this.music.setMasterVolume(this.audioVolume);
+    this.music.setMuted(this.audioMuted);
+    this.music.start();
+
     // Post-processing (subtle bloom for sun reflections)
     this.postProcessing = new PostProcessing(
       this.sceneManager.renderer,
@@ -403,6 +411,11 @@ export class Engine {
 
         // Field journal sightings (same 2Hz cadence)
         if (boatRb) this.checkJournal(boatTransform, boatRb, sunDir.y);
+
+        // Soundtrack mood: storm darkens, night thins, battleships add a pulse
+        const dangerNear = this.wildlifeSystem.getBattleships().some((b) =>
+          Math.hypot(b.mesh.position.x - boatTransform.position.x, b.mesh.position.z - boatTransform.position.z) < 300);
+        this.music.setMood(this.weather.getRainIntensity(), sunDir.y < -0.05, dangerNear);
       }
     }
 
@@ -435,7 +448,8 @@ export class Engine {
       );
     }
 
-    // Update ambient audio
+    // Update ambient audio + soundtrack timers
+    this.music.update(dt);
     this.soundscape.update(this.windSystem.strength, false, dt, this.weather.getRainIntensity());
     const boatCtrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
     if (boatCtrl) {
@@ -518,12 +532,14 @@ export class Engine {
     this.gameLoop.pause();
     this.soundscape.suspend();
     this.soundEffects.suspend();
+    this.music.suspend();
   }
 
   resume(): void {
     this.gameLoop.resume();
     this.soundscape.resume();
     this.soundEffects.resume();
+    this.music.resume();
   }
 
   /** 0..1 master volume; persisted and applied to both audio engines. */
@@ -532,6 +548,7 @@ export class Engine {
     localStorage.setItem('tb-volume', String(this.audioVolume));
     this.soundscape.setMasterVolume(this.audioVolume);
     this.soundEffects.setMasterVolume(this.audioVolume);
+    this.music.setMasterVolume(this.audioVolume);
   }
 
   setMuted(muted: boolean): void {
@@ -539,6 +556,7 @@ export class Engine {
     localStorage.setItem('tb-muted', muted ? '1' : '0');
     this.soundscape.setMuted(muted);
     this.soundEffects.setMuted(muted);
+    this.music.setMuted(muted);
   }
 
   toggleMute(): boolean {
@@ -578,6 +596,7 @@ export class Engine {
     // Stop audio
     this.soundscape.stop();
     this.soundEffects.stop();
+    this.music.stop();
 
     // Dispose every remaining renderable in the scene — NOT just Mesh.
     // Points / Line / Sprite (particles, wakes, stars, moon, rain) are not Mesh
