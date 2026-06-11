@@ -48,6 +48,8 @@ import { ReturnFireSystem } from './systems/ReturnFireSystem';
 import { CommandeerSystem } from './systems/CommandeerSystem';
 import { HeistSystem } from './systems/HeistSystem';
 import { TrickSystem } from './systems/TrickSystem';
+import { BottleSystem } from './systems/BottleSystem';
+import { TreasureChart } from './ui/TreasureChart';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
@@ -95,6 +97,8 @@ export class Engine {
   private commandeer: CommandeerSystem;
   private heists: HeistSystem;
   private tricks: TrickSystem;
+  private bottles: BottleSystem;
+  private treasureChart: TreasureChart;
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
@@ -384,6 +388,32 @@ export class Engine {
       },
     });
 
+    // Bottled messages + treasure hunts — the chart is the puzzle, no waypoint
+    this.treasureChart = new TreasureChart();
+    this.bottles = new BottleSystem(this.sceneManager.scene, this.ocean, this.chunkManager, {
+      onMap: (map) => {
+        this.treasureChart.setMap(map);
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('🗺️ A torn chart', 'Press V — find the island by its shape');
+      },
+      onStory: (story) => {
+        this.hud.showToast('📜 Message in a bottle', story);
+        this.soundEffects.playDiscovery();
+      },
+      onTreasure: (reward) => {
+        this.treasureChart.setMap(null);
+        addCredits(reward);
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('⚒️ Treasure', `The chest surfaces · +${reward} cr`);
+        const text = this.journal.log('treasure');
+        if (text) {
+          addCredits(15);
+          this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+        }
+      },
+    });
+    this.treasureChart.setMap(this.bottles.getMap()); // resume a persisted hunt
+
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyX') {
@@ -394,6 +424,9 @@ export class Engine {
       }
       if (e.code === 'KeyP') {
         this.photoMode.toggle();
+      }
+      if (e.code === 'KeyV') {
+        this.treasureChart.toggle();
       }
       if (e.key === '/' || e.key === '?') {
         this.hud.toggleControls();
@@ -487,6 +520,9 @@ export class Engine {
 
       // Airtime tricks
       this.tricks.update(dt);
+
+      // Bottles bob, get collected, and the dig check
+      this.bottles.update(dt, boatTransform.position.x, boatTransform.position.z);
 
       // Time-trials (start detection, gates, ghost replay)
       this.races.update(dt, boatTransform);
@@ -704,6 +740,8 @@ export class Engine {
     this.distress.dispose();
     this.commandeer.dispose();
     this.heists.dispose();
+    this.bottles.dispose();
+    this.treasureChart.dispose();
     this.waypoint.dispose();
     this.aurora.dispose();
     this.photoMode.dispose();

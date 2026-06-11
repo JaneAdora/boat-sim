@@ -259,6 +259,24 @@
     .hull-pip.lost { color: rgba(255, 100, 100, 0.35); }
     #heat-stars { display: flex; flex-direction: column; align-items: center; gap: 2px; }
     #heat-marks { color: #ff7a5c; font-size: 12px; letter-spacing: 2px; text-shadow: 0 0 6px rgba(255, 90, 60, 0.5); }
+    #treasure-chart {
+      position: fixed;
+      top: 50%;
+      right: 24px;
+      transform: translateY(-50%) rotate(1.5deg);
+      z-index: 30;
+      filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+    }
+    #treasure-chart canvas { display: block; border-radius: 3px; }
+    #treasure-chart-hint {
+      text-align: center;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 6px;
+      text-transform: uppercase;
+    }
+    body.photo-mode #treasure-chart { display: none; }
     #damage-flash {
       position: fixed;
       inset: 0;
@@ -911,6 +929,7 @@
       <tr><td>G</td><td>Tow / Release</td></tr>
       <tr><td>B</td><td>Board vessel</td></tr>
       <tr><td>F</td><td>Plunder cargo</td></tr>
+      <tr><td>V</td><td>Treasure chart</td></tr>
       <tr><td>X</td><td>Mute audio</td></tr>
       <tr><td>H</td><td>Toggle HUD</td></tr>
       <tr><td>N</td><td>Toggle map</td></tr>
