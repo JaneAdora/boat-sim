@@ -138,7 +138,7 @@ function createSailGeometry(width: number, height: number, segments: number = 8)
 export interface BoatParts {
   group: THREE.Group;
   sailPivot: THREE.Group | null;
-  rudderPivot: THREE.Group;
+  rudderPivot: THREE.Group | null;
 }
 
 function createSailboatMesh(): BoatParts {
@@ -762,6 +762,45 @@ function createVikingShipMesh(): BoatParts {
   return { group, sailPivot: null, rudderPivot };
 }
 
+function createJetSkiMesh(): BoatParts {
+  const group = new THREE.Group();
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe8554d, roughness: 0.35, metalness: 0.15 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xf2ede4, roughness: 0.5 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.7 });
+
+  // Hull — low, narrow, nose tapered
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, 2.6), bodyMat);
+  hull.position.y = 0.15;
+  group.add(hull);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.9, 4), bodyMat);
+  nose.rotation.x = Math.PI / 2;
+  nose.rotation.y = Math.PI / 4;
+  nose.position.set(0, 0.15, 1.7);
+  nose.scale.set(1.0, 1.0, 0.55);
+  group.add(nose);
+
+  // Deck pad + seat
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.1, 2.2), trimMat);
+  pad.position.y = 0.45;
+  group.add(pad);
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 1.2), darkMat);
+  seat.position.set(0, 0.65, -0.5);
+  group.add(seat);
+
+  // Steering column + handlebars
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.6, 6), darkMat);
+  column.position.set(0, 0.75, 0.7);
+  column.rotation.x = -0.5;
+  group.add(column);
+  const bars = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6), darkMat);
+  bars.rotation.z = Math.PI / 2;
+  bars.position.set(0, 1.0, 0.85);
+  group.add(bars);
+
+  return { group, sailPivot: null, rudderPivot: null };
+}
+
 // ─── Entity spawner ─────────────────────────────────────────
 
 export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefinition): EntityId {
@@ -797,6 +836,7 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     cruiseship: createCruiseShipMesh,
     speedboat: createSpeedboatMesh,
     vikingship: createVikingShipMesh,
+    jetski: createJetSkiMesh,
   };
   const parts = (meshCreators[definition.meshType] || createTugboatMesh)();
   scene.add(parts.group);

@@ -4,6 +4,7 @@ import { TUGBOAT } from './boats/Tugboat';
 import { CRUISE_SHIP } from './boats/CruiseShip';
 import { SPEEDBOAT } from './boats/Speedboat';
 import { VIKING_SHIP } from './boats/VikingShip';
+import { JETSKI } from './boats/JetSki';
 import { GameMode } from './state/GameConfig';
 import { loadStats, recordVoyageStart } from './state/VoyageLog';
 import { discoveredCount } from './state/DiscoveryTracker';
@@ -40,6 +41,14 @@ const BOAT_ICONS: Record<string, string> = {
     <line x1="22" y1="17" x2="42" y2="17" stroke="rgba(255,200,150,0.3)" stroke-width="1"/>
     <line x1="22" y1="22" x2="42" y2="22" stroke="rgba(255,200,150,0.3)" stroke-width="1"/>
   </svg>`,
+  jetski: `<svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="30">
+    <path d="M14 30 Q10 30 12 33 L18 35 H46 L54 31 Q57 29 52 28 L40 27 Z" fill="rgba(255,255,255,0.7)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+    <path d="M26 27 Q28 22 33 22 L36 26" stroke="rgba(255,255,255,0.6)" stroke-width="2" fill="none"/>
+    <line x1="33" y1="22" x2="30" y2="18" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
+    <line x1="26" y1="18" x2="34" y2="18" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
+    <path d="M8 33 Q4 31 2 27" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" fill="none"/>
+    <path d="M10 35 Q6 35 3 33" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" fill="none"/>
+  </svg>`,
 };
 
 const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
@@ -47,6 +56,7 @@ const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
   { def: SPEEDBOAT, desc: 'Fast & nimble', iconKey: 'speedboat' },
   { def: CRUISE_SHIP, desc: 'Huge & majestic', iconKey: 'cruiseship' },
   { def: VIKING_SHIP, desc: 'Ancient & humble', iconKey: 'vikingship' },
+  { def: JETSKI, desc: 'Tiny & airborne', iconKey: 'jetski' },
 ];
 
 // Shared DOM refs

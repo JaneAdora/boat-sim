@@ -47,6 +47,7 @@ import { ContractSystem } from './systems/ContractSystem';
 import { ReturnFireSystem } from './systems/ReturnFireSystem';
 import { CommandeerSystem } from './systems/CommandeerSystem';
 import { HeistSystem } from './systems/HeistSystem';
+import { TrickSystem } from './systems/TrickSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
@@ -93,6 +94,7 @@ export class Engine {
   private returnFire: ReturnFireSystem;
   private commandeer: CommandeerSystem;
   private heists: HeistSystem;
+  private tricks: TrickSystem;
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
@@ -243,6 +245,15 @@ export class Engine {
         onNavalAlert: (active) => this.returnFire.setNavalAlert(active),
       },
     );
+
+    // Airtime trick scoring — the wave field is a skate park
+    this.tricks = new TrickSystem(this.world, this.boatEntity, this.ocean, {
+      onTrick: (credits, headline) => {
+        addCredits(credits);
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('✨ Style', headline);
+      },
+    });
 
     // Cargo heists — F plunders a container; fence it far from the crime
     this.heists = new HeistSystem(this.wildlifeSystem, towingSystem, {
@@ -473,6 +484,9 @@ export class Engine {
 
       // Heists: plunder requests, fence detection, naval heat
       this.heists.update(dt, boatTransform.position.x, boatTransform.position.z);
+
+      // Airtime tricks
+      this.tricks.update(dt);
 
       // Time-trials (start detection, gates, ghost replay)
       this.races.update(dt, boatTransform);
