@@ -18,6 +18,8 @@ export const JOURNAL_ENTRIES: Record<string, string> = {
   'stolen-ship': 'Sailed off in a stolen ship',
   pirate: 'Turned pirate — fenced hot cargo',
   treasure: 'Dug up buried treasure',
+  leviathan: 'Watched the Leviathan take a ship',
+  'leviathan-slain': 'Slew the Leviathan',
 };
 
 export const JOURNAL_TOTAL = Object.keys(JOURNAL_ENTRIES).length;

@@ -234,7 +234,7 @@ export interface StrikeZones {
 }
 
 export interface WildlifeEntity {
-  type: 'dolphin' | 'whale' | 'fishing_boat' | 'cargo_ship' | 'battleship' | 'barge';
+  type: 'dolphin' | 'whale' | 'fishing_boat' | 'cargo_ship' | 'battleship' | 'barge' | 'leviathan';
   mesh: THREE.Group;
   origin: THREE.Vector3;   // spawn world position
   heading: number;         // radians
@@ -347,7 +347,7 @@ export class WildlifeSystem extends System {
 
   private trySpawn(bx: number, bz: number): void {
     // Pick a type that's under quota (barges only spawn via contracts)
-    const candidates: Exclude<WildlifeEntity['type'], 'barge'>[] = [];
+    const candidates: Exclude<WildlifeEntity['type'], 'barge' | 'leviathan'>[] = [];
     if (this.countType('dolphin') < WildlifeSystem.MAX_DOLPHINS) candidates.push('dolphin', 'dolphin', 'dolphin');
     if (this.countType('whale') < WildlifeSystem.MAX_WHALES) candidates.push('whale');
     if (this.countType('fishing_boat') < WildlifeSystem.MAX_FISHING) candidates.push('fishing_boat');
@@ -538,6 +538,25 @@ export class WildlifeSystem extends System {
     return entity;
   }
 
+  /** Register the leviathan (mesh built and animated by LeviathanSystem).
+   *  Five tentacle strike zones along its axis — torpedo each to sever it. */
+  registerLeviathan(mesh: THREE.Group, x: number, z: number): WildlifeEntity {
+    const entity: WildlifeEntity = {
+      type: 'leviathan',
+      mesh,
+      origin: new THREE.Vector3(x, 0, z),
+      heading: 0,
+      speed: 0,
+      phase: Math.random() * Math.PI * 2,
+      age: 0,
+      maxAge: Infinity, // LeviathanSystem decides when it submerges
+      towed: false,
+      strikeZones: { offsets: [-24, -12, 0, 12, 24], hit: [false, false, false, false, false] },
+    };
+    this.entities.push(entity);
+    return entity;
+  }
+
   /** A hunter destroyer — fast patrol dispatched when piracy heat maxes out. */
   spawnHunterBattleship(x: number, z: number): WildlifeEntity {
     const mesh = createBattleshipMesh();
@@ -669,10 +688,10 @@ export class WildlifeSystem extends System {
     let bestDist = maxRadius;
 
     for (const e of this.entities) {
-      if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship') continue;
+      if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship' && e.type !== 'leviathan') continue;
       if (e.towed) continue;
 
-      if (e.type === 'battleship' && e.strikeZones) {
+      if (e.strikeZones) {
         // Target the nearest unhit strike zone
         for (let i = 0; i < e.strikeZones.offsets.length; i++) {
           if (e.strikeZones.hit[i]) continue;

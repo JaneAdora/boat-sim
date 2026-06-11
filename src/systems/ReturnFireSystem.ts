@@ -105,6 +105,17 @@ export class ReturnFireSystem {
     this.heatLevel = stars;
   }
 
+  /** Hull damage from something other than a shell (a tentacle, say).
+   *  Magical mode stays bloodless: the flash without the hit point. */
+  applyExternalDamage(): void {
+    this.callbacks.onHit();
+    if (this.config.mode === 'magical') return;
+    if (this.hp > 0) {
+      this.hp--;
+      this.callbacks.onHull(this.hp, this.maxHp);
+    }
+  }
+
   update(dt: number, boat: Transform, rb: RigidBody, ctrl: BoatControl): void {
     if (this.baseEnginePower === 0) this.baseEnginePower = ctrl.enginePower;
 

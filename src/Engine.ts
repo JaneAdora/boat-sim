@@ -50,6 +50,7 @@ import { HeistSystem } from './systems/HeistSystem';
 import { TrickSystem } from './systems/TrickSystem';
 import { BottleSystem } from './systems/BottleSystem';
 import { TreasureChart } from './ui/TreasureChart';
+import { LeviathanSystem } from './systems/LeviathanSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
@@ -99,6 +100,7 @@ export class Engine {
   private tricks: TrickSystem;
   private bottles: BottleSystem;
   private treasureChart: TreasureChart;
+  private leviathan: LeviathanSystem;
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
@@ -388,6 +390,33 @@ export class Engine {
       },
     });
 
+    // The Leviathan — spectacle first, then a storm boss for those who've seen it
+    this.leviathan = new LeviathanSystem(
+      this.sceneManager.scene, this.ocean, this.wildlifeSystem, this.chunkManager,
+      {
+        onWitnessed: () => {
+          const text = this.journal.log('leviathan');
+          if (text) {
+            addCredits(15);
+            this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+          }
+        },
+        onBanner: (text) => this.hud.setLeviathan(text),
+        onSlam: () => {
+          this.returnFire.applyExternalDamage();
+          this.soundEffects.playExplosion();
+        },
+        groan: () => this.soundEffects.playLeviathanGroan(),
+      },
+    );
+    this.weaponsSystem.onLeviathanSlain = () => {
+      addCredits(200);
+      this.hud.setLeviathan(null);
+      this.soundEffects.playDiscovery();
+      this.hud.showToast('🐙 The Leviathan is slain', 'Bounty · +200 cr');
+      this.awardKarma(15, 'Slew the Leviathan', 'leviathan-slain');
+    };
+
     // Bottled messages + treasure hunts — the chart is the puzzle, no waypoint
     this.treasureChart = new TreasureChart();
     this.bottles = new BottleSystem(this.sceneManager.scene, this.ocean, this.chunkManager, {
@@ -523,6 +552,9 @@ export class Engine {
 
       // Bottles bob, get collected, and the dig check
       this.bottles.update(dt, boatTransform.position.x, boatTransform.position.z);
+
+      // The Leviathan stirs in deep-water storms
+      this.leviathan.update(dt, boatTransform.position.x, boatTransform.position.z, this.weather.getRainIntensity());
 
       // Time-trials (start detection, gates, ghost replay)
       this.races.update(dt, boatTransform);
@@ -742,6 +774,7 @@ export class Engine {
     this.heists.dispose();
     this.bottles.dispose();
     this.treasureChart.dispose();
+    this.leviathan.dispose();
     this.waypoint.dispose();
     this.aurora.dispose();
     this.photoMode.dispose();

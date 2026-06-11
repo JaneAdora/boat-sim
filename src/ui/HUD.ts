@@ -240,6 +240,11 @@ export class HUD {
     this.setMissionBanner('heist-banner', text);
   }
 
+  /** Leviathan encounter banner. */
+  setLeviathan(text: string | null): void {
+    this.setMissionBanner('leviathan-banner', text);
+  }
+
   /** Naval heat stars (piracy response level 0–3). */
   setHeat(stars: number): void {
     let el = document.getElementById('heat-stars');

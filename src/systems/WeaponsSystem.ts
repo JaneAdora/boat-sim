@@ -62,6 +62,8 @@ interface Missile {
 export class WeaponsSystem extends System {
   /** Karma stain for destroying innocents — set by the engine. Battleships are fair game. */
   onKarma: ((delta: number, reason: string, journalKey?: string) => void) | null = null;
+  /** All five tentacles severed — the engine pays the bounty. */
+  onLeviathanSlain: (() => void) | null = null;
 
   private scene: THREE.Scene;
   private ocean: Ocean;
@@ -312,14 +314,14 @@ export class WeaponsSystem extends System {
           this.soundEffects.playExplosion();
         }
 
-        if (hit.entity.type === 'battleship' && hit.entity.strikeZones && hit.zoneIndex >= 0) {
-          // Mark zone as hit
+        if (hit.entity.strikeZones && hit.zoneIndex >= 0) {
+          // Mark zone as hit (battleship turret or leviathan tentacle)
           hit.entity.strikeZones.hit[hit.zoneIndex] = true;
 
           // Check if all zones destroyed
           const allHit = hit.entity.strikeZones.hit.every(h => h);
           if (allHit) {
-            // Battleship sinks — extra effects at each zone
+            // The vessel (or beast) goes down — extra effects at each zone
             for (const offset of hit.entity.strikeZones.offsets) {
               const wx = hit.entity.mesh.position.x + Math.sin(hit.entity.heading) * offset;
               const wz = hit.entity.mesh.position.z + Math.cos(hit.entity.heading) * offset;
@@ -333,7 +335,11 @@ export class WeaponsSystem extends System {
               this.unicornEffect?.spawn(hit.entity.mesh.position);
             }
             this.wildlifeSystem.removeEntity(hit.entity);
-            this.killTracker.recordBoatKill();
+            if (hit.entity.type === 'leviathan') {
+              this.onLeviathanSlain?.();
+            } else {
+              this.killTracker.recordBoatKill();
+            }
           }
         } else {
           // Regular vessel — instant destroy
@@ -363,13 +369,14 @@ export class WeaponsSystem extends System {
     const dz = result.targetZ - torpedo.position.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
 
-    const hitRadius = result.entity.type === 'battleship' ? 5
+    const hitRadius = result.entity.type === 'leviathan' ? 6
+      : result.entity.type === 'battleship' ? 5
       : result.entity.type === 'cargo_ship' ? 4 : 2;
 
     if (dist >= hitRadius) return null;
 
-    // Determine which zone was hit for battleships
-    if (result.entity.type === 'battleship' && result.entity.strikeZones) {
+    // Determine which zone was hit (battleship turrets, leviathan tentacles)
+    if (result.entity.strikeZones) {
       for (let i = 0; i < result.entity.strikeZones.offsets.length; i++) {
         if (result.entity.strikeZones.hit[i]) continue;
         const zoneZ = result.entity.strikeZones.offsets[i];

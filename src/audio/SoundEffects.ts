@@ -323,6 +323,34 @@ export class SoundEffects {
     shimmerSource.stop(now + 0.5);
   }
 
+  /** A vast groan from beneath (~2.6s) — the leviathan announcing itself. */
+  playLeviathanGroan(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(55, now);
+    osc.frequency.exponentialRampToValueAtTime(26, now + 2.2);
+
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(220, now);
+    lp.frequency.exponentialRampToValueAtTime(80, now + 2.2);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 2.6);
+
+    osc.connect(lp);
+    lp.connect(gain);
+    gain.connect(this.masterGain!);
+    osc.start(now);
+    osc.stop(now + 2.7);
+  }
+
   /**
    * Muffled distant gun report (~0.8s) — battleship return fire.
    * Low sine thump through a lowpass, much quieter than a local explosion.
