@@ -10,6 +10,9 @@ export const JOURNAL_ENTRIES: Record<string, string> = {
   night: 'Sailing under the stars',
   storm: 'Weathered a storm',
   rescue: 'Answered a mayday call',
+  wrecks: 'A graveyard of wrecks',
+  arch: 'Sailed past the sea arch',
+  aurora: 'Auroras over the night sea',
 };
 
 export const JOURNAL_TOTAL = Object.keys(JOURNAL_ENTRIES).length;

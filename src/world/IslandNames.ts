@@ -8,7 +8,8 @@ import { Biome } from './IslandGenerator';
 
 // 32-bit integer hash of chunk coords → [0, 1). Math.imul keeps the
 // multiplications in 32-bit space (plain * would lose low bits as floats).
-function hash2D(cx: number, cz: number, salt: number): number {
+// Exported for other deterministic chunk features (landmarks).
+export function chunkHash(cx: number, cz: number, salt: number): number {
   let h = Math.imul(cx, 374761393) ^ Math.imul(cz, 668265263) ^ Math.imul(salt, 1013904223);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   h ^= h >>> 16;
@@ -30,8 +31,8 @@ const SUFFIXES: Record<Biome, string[]> = {
 };
 
 export function islandName(chunkX: number, chunkZ: number, biome: Biome): string {
-  const prefix = PREFIXES[Math.floor(hash2D(chunkX, chunkZ, 1) * PREFIXES.length)];
+  const prefix = PREFIXES[Math.floor(chunkHash(chunkX, chunkZ, 1) * PREFIXES.length)];
   const suffixes = SUFFIXES[biome];
-  const suffix = suffixes[Math.floor(hash2D(chunkX, chunkZ, 2) * suffixes.length)];
+  const suffix = suffixes[Math.floor(chunkHash(chunkX, chunkZ, 2) * suffixes.length)];
   return `${prefix} ${suffix}`;
 }

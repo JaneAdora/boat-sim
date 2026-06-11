@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CHUNK_SIZE, CHUNK_LOAD_RADIUS } from './WorldSeed';
 import { generateIsland, IslandData, Biome } from './IslandGenerator';
+import { chunkHash } from './IslandNames';
 import { createTerrainMesh, createTreeInstances, createShoreRocks, createLighthouse } from './TerrainGenerator';
 
 interface LoadedChunk {
@@ -14,12 +15,16 @@ interface LoadedChunk {
   lighthouse: THREE.Group | null;
   buoys: THREE.Group | null;
   buoyPositions: { x: number; z: number }[];
+  landmark: THREE.Group | null;
 }
+
+export type LandmarkType = 'wrecks' | 'arch';
 
 export class ChunkManager {
   private chunks = new Map<string, LoadedChunk>();
   private scene: THREE.Scene;
   private islandPositions: { chunkX: number; chunkZ: number; x: number; z: number; radius: number; biome: Biome }[] = [];
+  private landmarkPositions: { key: string; type: LandmarkType; x: number; z: number }[] = [];
 
   // Streaming state. The immediate 3x3 ring loads synchronously (terrain under
   // and adjacent to the boat must exist for collision/buoyancy every frame);
@@ -123,6 +128,25 @@ export class ChunkManager {
     let lighthouse: THREE.Group | null = null;
     let buoys: THREE.Group | null = null;
     let buoyPositions: { x: number; z: number }[] = [];
+    let landmark: THREE.Group | null = null;
+
+    // Rare deterministic landmarks: a sea arch off big islands, or a wreck
+    // graveyard in otherwise-empty water. Hash-placed, so they're the same
+    // for every player — real places you can give directions to.
+    if (island && island.radius > 70 && chunkHash(cx, cz, 7) < 0.18) {
+      const angle = chunkHash(cx, cz, 8) * Math.PI * 2;
+      const ax = island.centerX + Math.cos(angle) * (island.radius + 28);
+      const az = island.centerZ + Math.sin(angle) * (island.radius + 28);
+      landmark = createSeaArch(ax, az, angle);
+      this.scene.add(landmark);
+      this.landmarkPositions.push({ key, type: 'arch', x: ax, z: az });
+    } else if (!island && chunkHash(cx, cz, 9) < 0.03) {
+      const wx = cx * CHUNK_SIZE + CHUNK_SIZE / 2;
+      const wz = cz * CHUNK_SIZE + CHUNK_SIZE / 2;
+      landmark = createWreckGraveyard(wx, wz, cx, cz);
+      this.scene.add(landmark);
+      this.landmarkPositions.push({ key, type: 'wrecks', x: wx, z: wz });
+    }
 
     if (island) {
       terrainMesh = createTerrainMesh(island);
@@ -152,7 +176,7 @@ export class ChunkManager {
       });
     }
 
-    this.chunks.set(key, { key, chunkX: cx, chunkZ: cz, island, terrainMesh, treeGroup, rockGroup, lighthouse, buoys, buoyPositions });
+    this.chunks.set(key, { key, chunkX: cx, chunkZ: cz, island, terrainMesh, treeGroup, rockGroup, lighthouse, buoys, buoyPositions, landmark });
   }
 
   private createBuoys(island: IslandData): THREE.Group {
@@ -219,6 +243,10 @@ export class ChunkManager {
     disposeGroup(chunk.rockGroup);
     disposeGroup(chunk.lighthouse);
     disposeGroup(chunk.buoys);
+    disposeGroup(chunk.landmark);
+    if (chunk.landmark) {
+      this.landmarkPositions = this.landmarkPositions.filter((l) => l.key !== chunk.key);
+    }
 
     if (chunk.island) {
       this.islandPositions = this.islandPositions.filter(
@@ -257,6 +285,11 @@ export class ChunkManager {
 
   getIslandPositions(): { chunkX: number; chunkZ: number; x: number; z: number; radius: number; biome: Biome }[] {
     return this.islandPositions;
+  }
+
+  /** Loaded rare landmarks (for field-journal proximity checks). */
+  getLandmarks(): { type: LandmarkType; x: number; z: number }[] {
+    return this.landmarkPositions;
   }
 
   /** Time-trial courses: buoy rings of loaded islands with enough gates. */
@@ -340,4 +373,55 @@ export class ChunkManager {
     }
     return 0;
   }
+}
+
+// ─── Rare landmark meshes ────────────────────────────────────
+
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x6f6a62, roughness: 1.0, metalness: 0.0 });
+const wreckMat = new THREE.MeshStandardMaterial({ color: 0x3a3027, roughness: 0.95, metalness: 0.05 });
+
+/** Two weathered pillars and a lintel — sail under it. */
+function createSeaArch(x: number, z: number, angle: number): THREE.Group {
+  const group = new THREE.Group();
+  const pillarGeom = new THREE.BoxGeometry(4, 17, 4);
+  for (const side of [-1, 1]) {
+    const pillar = new THREE.Mesh(pillarGeom, rockMat);
+    pillar.position.set(side * 7, 5.5, 0);
+    pillar.rotation.y = side * 0.3;
+    pillar.rotation.z = side * 0.06;
+    group.add(pillar);
+  }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(19, 4, 5), rockMat);
+  lintel.position.y = 13;
+  lintel.rotation.z = 0.04;
+  group.add(lintel);
+  group.position.set(x, -1.5, z);
+  group.rotation.y = angle;
+  return group;
+}
+
+/** Half-sunk hulls and tilted masts in open water. */
+function createWreckGraveyard(x: number, z: number, cx: number, cz: number): THREE.Group {
+  const group = new THREE.Group();
+  const hullGeom = new THREE.BoxGeometry(3, 2.5, 11);
+  const mastGeom = new THREE.CylinderGeometry(0.15, 0.22, 9, 6);
+  for (let i = 0; i < 4; i++) {
+    const hull = new THREE.Mesh(hullGeom, wreckMat);
+    hull.position.set(
+      (chunkHash(cx, cz, 20 + i) - 0.5) * 70,
+      -0.9,
+      (chunkHash(cx, cz, 30 + i) - 0.5) * 70,
+    );
+    hull.rotation.y = chunkHash(cx, cz, 40 + i) * Math.PI * 2;
+    hull.rotation.z = 0.25 + chunkHash(cx, cz, 50 + i) * 0.4;
+    group.add(hull);
+    if (i < 2) {
+      const mast = new THREE.Mesh(mastGeom, wreckMat);
+      mast.position.set(hull.position.x + 1, 2.2, hull.position.z);
+      mast.rotation.z = 0.5 + chunkHash(cx, cz, 60 + i) * 0.4;
+      group.add(mast);
+    }
+  }
+  group.position.set(x, 0, z);
+  return group;
 }

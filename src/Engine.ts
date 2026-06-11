@@ -32,6 +32,7 @@ import { BowSpray } from './rendering/BowSpray';
 import { Bioluminescence } from './rendering/Bioluminescence';
 import { Moon } from './rendering/Moon';
 import { WeatherSystem } from './rendering/WeatherSystem';
+import { Aurora } from './rendering/Aurora';
 import { BoatLights } from './rendering/BoatLights';
 import { KillTracker } from './state/KillTracker';
 import { DiscoveryTracker } from './state/DiscoveryTracker';
@@ -74,6 +75,7 @@ export class Engine {
   private bioluminescence: Bioluminescence;
   private moon: Moon;
   private weather: WeatherSystem;
+  private aurora: Aurora;
   private boatLights: BoatLights;
   private wildlifeSystem: WildlifeSystem;
   private weaponsSystem: WeaponsSystem;
@@ -285,8 +287,9 @@ export class Engine {
     this.bioluminescence = new Bioluminescence(this.sceneManager.scene);
     this.moon = new Moon(this.sceneManager.scene);
 
-    // Weather (rain, fog, lightning)
+    // Weather (rain, fog, lightning) + rare aurora nights
     this.weather = new WeatherSystem(this.sceneManager.scene);
+    this.aurora = new Aurora(this.sceneManager.scene);
 
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
@@ -403,9 +406,10 @@ export class Engine {
       }
     }
 
-    // Update moon and boat lights
+    // Update moon, boat lights, and aurora
     this.moon.update(sunDir, sunDir.y);
     this.boatLights.update(sunDir.y);
+    this.aurora.update(dt, this.sceneManager.camera.position, sunDir.y, this.weather.getRainIntensity());
 
     // Update HUD
     this.hud.update(this.world, this.boatEntity, this.windSystem, dt);
@@ -482,6 +486,12 @@ export class Engine {
     }
     if (sunY < -0.1) hits.push('night');
     if (this.weather.getRainIntensity() > 0.8) hits.push('storm');
+    if (this.aurora.isActive()) hits.push('aurora');
+    for (const lm of this.chunkManager.getLandmarks()) {
+      const dist = Math.hypot(lm.x - bx, lm.z - bz);
+      if (lm.type === 'wrecks' && dist < 70) hits.push('wrecks');
+      else if (lm.type === 'arch' && dist < 30) hits.push('arch');
+    }
 
     for (const key of hits) {
       const text = this.journal.log(key);
@@ -563,6 +573,7 @@ export class Engine {
     this.races.dispose();
     this.distress.dispose();
     this.waypoint.dispose();
+    this.aurora.dispose();
 
     // Stop audio
     this.soundscape.stop();
