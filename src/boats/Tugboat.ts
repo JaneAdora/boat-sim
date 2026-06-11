@@ -24,8 +24,8 @@ export const TUGBOAT: BoatDefinition = {
   ],
   sailArea: 0,
   enginePower: 6000,
-  rudderEffectiveness: 2.5,
-  dragForward: 0.12,
-  dragLateral: 3.0,
-  dragAngular: 1.5,
+  maxSpeedKnots: 18,
+  turnRadius: 40,
+  rudderSlew: 1.5,
+  propWash: 0.15,
 };

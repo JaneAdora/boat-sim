@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { World, EntityId } from '../ecs/World';
-import { BoatDefinition } from './BoatDefinition';
+import { BoatDefinition, deriveDragQuad } from './BoatDefinition';
 import { createTransform } from '../components/Transform';
 import { createRigidBody } from '../components/RigidBody';
 import { createBuoyancy, BuoyancySamplePoint } from '../components/Buoyancy';
@@ -777,9 +777,14 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     localOffset: p.offset.clone(),
     area: p.area,
   }));
-  world.addComponent(entity, 'Buoyancy', createBuoyancy(samplePoints));
+  world.addComponent(entity, 'Buoyancy', createBuoyancy(samplePoints, deriveDragQuad(definition)));
 
-  world.addComponent(entity, 'BoatControl', createBoatControl(definition.enginePower));
+  world.addComponent(entity, 'BoatControl', createBoatControl(
+    definition.enginePower,
+    definition.rudderSlew,
+    definition.turnRadius,
+    definition.propWash,
+  ));
 
   if (definition.sailArea > 0) {
     world.addComponent(entity, 'WindReceiver', createWindReceiver(definition.sailArea));

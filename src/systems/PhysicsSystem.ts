@@ -71,16 +71,25 @@ export class PhysicsSystem extends System {
         rb.force.addScaledVector(_forward, ctrl.throttle * ctrl.enginePower);
       }
 
-      // Rudder torque
+      // Steering — carve toward a target yaw rate instead of applying raw
+      // rudder torque. Target = rudder × (signed speed / turn radius), so the
+      // boat holds a consistent turning circle at any speed (and steering
+      // naturally flips in reverse). Prop wash adds helm authority at
+      // near-standstill so docking turns still answer.
       if (ctrl && Math.abs(ctrl.rudderAngle) > 0.01) {
         const speed = rb.velocity.dot(_forward);
-        // Rudder effectiveness proportional to speed^2
-        let rudderForce = ctrl.rudderAngle * speed * Math.abs(speed) * 2.0;
-        // Propeller wash gives rudder authority even at low speed
-        if (ctrl.enginePower > 0 && Math.abs(ctrl.throttle) > 0.1) {
-          rudderForce += ctrl.rudderAngle * ctrl.throttle * 5.0;
-        }
-        rb.torque.y += -rudderForce * rb.mass * 0.1;
+        // Wash only matters near standstill — fade it out by ~6 m/s so it
+        // doesn't tighten the carve radius at cruising speed.
+        const washFade = Math.max(0, 1 - Math.abs(speed) / 6);
+        const wash = ctrl.enginePower > 0 ? ctrl.throttle * ctrl.propWash * washFade : 0;
+        const targetYaw = -ctrl.rudderAngle * (speed / ctrl.turnRadius + wash);
+        rb.angularVelocity.y += (targetYaw - rb.angularVelocity.y) * Math.min(1, 3.0 * dt);
+
+        // Hard turns scrub a little speed — rewards smooth lines
+        rb.force.addScaledVector(
+          _forward,
+          -speed * Math.abs(rb.angularVelocity.y) * Math.abs(ctrl.rudderAngle) * 0.4 * rb.mass,
+        );
       }
 
       // Semi-implicit Euler integration

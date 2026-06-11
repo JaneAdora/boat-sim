@@ -24,8 +24,8 @@ export const SAILBOAT: BoatDefinition = {
   ],
   sailArea: 30,
   enginePower: 0,
-  rudderEffectiveness: 2.0,
-  dragForward: 0.3,
-  dragLateral: 3.0,
-  dragAngular: 1.5,
+  maxSpeedKnots: 16,
+  turnRadius: 45,
+  rudderSlew: 1.5,
+  propWash: 0.0,
 };
