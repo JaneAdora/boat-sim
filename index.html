@@ -234,11 +234,18 @@
       100% { opacity: 0; }
     }
 
-    /* Salvage contract banner — persistent, top-left under the help button */
-    #contract-banner {
+    /* Mission banners (contract, distress) — stacked top-left under the help button */
+    #mission-banners {
       position: fixed;
       top: 60px;
       left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 25;
+    }
+    .mission-banner {
       max-width: 320px;
       padding: 8px 14px;
       background: var(--panel);
@@ -248,8 +255,6 @@
       color: var(--ink);
       font: 400 13px 'Segoe UI', system-ui, sans-serif;
       letter-spacing: 0.3px;
-      pointer-events: none;
-      z-index: 25;
     }
 
     /* Shipyard (upgrades shop on the selector) */

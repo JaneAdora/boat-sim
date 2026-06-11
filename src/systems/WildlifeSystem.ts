@@ -445,6 +445,35 @@ export class WildlifeSystem extends System {
     return entity;
   }
 
+  /** Spawn a distressed (dead-in-the-water) fishing boat for a rescue event. */
+  spawnDistressedVessel(x: number, z: number): WildlifeEntity {
+    const mesh = createFishingBoatMesh();
+    const heading = Math.random() * Math.PI * 2;
+    mesh.position.set(x, 0, z);
+    mesh.rotation.y = heading;
+    this.scene.add(mesh);
+    const entity: WildlifeEntity = {
+      type: 'fishing_boat',
+      mesh,
+      origin: new THREE.Vector3(x, 0, z),
+      heading,
+      speed: 0,
+      phase: Math.random() * Math.PI * 2,
+      age: 0,
+      maxAge: Infinity, // protected until rescued
+      towed: false,
+    };
+    this.entities.push(entity);
+    return entity;
+  }
+
+  /** A rescued vessel goes back to being ordinary traffic. */
+  restoreVessel(entity: WildlifeEntity): void {
+    entity.speed = 1 + Math.random() * 2;
+    entity.maxAge = 60 + Math.random() * 60;
+    entity.age = 0;
+  }
+
   /** Find the nearest towable vessel (fishing boat or cargo ship) within maxRadius */
   findNearestTowable(x: number, z: number, maxRadius: number): WildlifeEntity | null {
     let best: WildlifeEntity | null = null;

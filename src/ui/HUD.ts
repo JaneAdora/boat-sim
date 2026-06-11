@@ -220,17 +220,35 @@ export class HUD {
     timer.textContent = text;
   }
 
-  /** Persistent contract banner under the help button; null clears it. */
+  /** Persistent contract banner (stacked top-left); null clears it. */
   setContract(text: string | null): void {
-    let banner = document.getElementById('contract-banner');
+    this.setMissionBanner('contract-banner', text);
+  }
+
+  /** Distress-call banner, stacked alongside the contract banner. */
+  setDistress(text: string | null): void {
+    this.setMissionBanner('distress-banner', text);
+  }
+
+  private setMissionBanner(id: string, text: string | null): void {
+    let container = document.getElementById('mission-banners');
+    const existing = document.getElementById(id);
     if (!text) {
-      banner?.remove();
+      existing?.remove();
+      if (container && container.childElementCount === 0) container.remove();
       return;
     }
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'mission-banners';
+      document.body.appendChild(container);
+    }
+    let banner = existing;
     if (!banner) {
       banner = document.createElement('div');
-      banner.id = 'contract-banner';
-      document.body.appendChild(banner);
+      banner.id = id;
+      banner.className = 'mission-banner';
+      container.appendChild(banner);
     }
     banner.textContent = text;
   }
@@ -258,7 +276,7 @@ export class HUD {
   dispose(): void {
     if (this.hudToggle && this.onHudToggle) this.hudToggle.removeEventListener('click', this.onHudToggle);
     if (this.helpToggle && this.onHelpToggle) this.helpToggle.removeEventListener('click', this.onHelpToggle);
-    document.getElementById('contract-banner')?.remove();
+    document.getElementById('mission-banners')?.remove();
     document.getElementById('hull-pips')?.remove();
     document.getElementById('damage-flash')?.remove();
     document.getElementById('race-timer')?.remove();

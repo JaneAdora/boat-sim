@@ -43,6 +43,7 @@ import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
 import { ReturnFireSystem } from './systems/ReturnFireSystem';
 import { RaceSystem } from './systems/RaceSystem';
+import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
@@ -83,6 +84,7 @@ export class Engine {
   private contracts: ContractSystem;
   private returnFire: ReturnFireSystem;
   private races: RaceSystem;
+  private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
   private boatEntity: number;
   private elapsedTime = 0;
@@ -207,14 +209,7 @@ export class Engine {
       {
         onHull: (hp, max) => this.hud.setHull(hp, max),
         onHit: () => this.hud.flashDamage(),
-        // Safe harbor = the calm shallows of any *discovered* island
-        isSafeHarbor: (x, z) => {
-          for (const isl of this.chunkManager.getIslandPositions()) {
-            if (!this.discovery.isDiscovered(isl.chunkX, isl.chunkZ)) continue;
-            if (Math.hypot(x - isl.x, z - isl.z) < isl.radius + 80) return true;
-          }
-          return false;
-        },
+        isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
       },
       hasUpgrade(boatDef.name, 'hull') ? 4 : ReturnFireSystem.BASE_HP,
     );
@@ -233,6 +228,26 @@ export class Engine {
           this.hud.showToast(label, `${headline} · +${reward} cr`);
           this.soundEffects.playDiscovery();
         },
+      },
+    );
+
+    // Distress calls — rescue burning vessels, tow them to a discovered harbor
+    this.distress = new DistressSystem(
+      this.sceneManager.scene, this.wildlifeSystem, this.chunkManager,
+      {
+        onBanner: (text) => this.hud.setDistress(text),
+        onComplete: (reward) => {
+          addCredits(reward);
+          this.hud.showToast('Rescue complete', `Survivor safe · +${reward} cr`);
+          this.soundEffects.playDiscovery();
+          const text = this.journal.log('rescue');
+          if (text) {
+            addCredits(15);
+            this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+          }
+        },
+        isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
+        nearestHarbor: (x, z) => this.nearestDiscoveredHarbor(x, z),
       },
     );
 
@@ -354,6 +369,9 @@ export class Engine {
       // Salvage contracts (generation, banner, delivery detection)
       this.contracts.update(dt, boatTransform.position.x, boatTransform.position.z);
 
+      // Distress calls (spawn, smoke, rescue detection)
+      this.distress.update(dt, boatTransform.position.x, boatTransform.position.z);
+
       // Battleship return fire + hull repair
       const ctrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
       if (boatRb && ctrl) {
@@ -401,13 +419,13 @@ export class Engine {
         boatTransform.position.z,
         heading,
         this.wildlifeSystem.getWildlifePositions(),
-        this.contracts.getMarker(),
+        this.distress.getMarker() ?? this.contracts.getMarker(),
       );
 
-      // Screen-space waypoint to the contract objective (barge, then dest)
+      // Screen-space waypoint to the active objective (rescue first, then contract)
       this.waypoint.update(
         this.sceneManager.camera,
-        this.contracts.getMarker(),
+        this.distress.getMarker() ?? this.contracts.getMarker(),
         boatTransform.position.x,
         boatTransform.position.z,
       );
@@ -422,6 +440,29 @@ export class Engine {
 
     // Render with post-processing
     this.postProcessing.render();
+  }
+
+  /** Safe harbor = the calm shallows of any *discovered* island. */
+  private isSafeHarbor(x: number, z: number): boolean {
+    for (const isl of this.chunkManager.getIslandPositions()) {
+      if (!this.discovery.isDiscovered(isl.chunkX, isl.chunkZ)) continue;
+      if (Math.hypot(x - isl.x, z - isl.z) < isl.radius + 80) return true;
+    }
+    return false;
+  }
+
+  private nearestDiscoveredHarbor(x: number, z: number): { x: number; z: number } | null {
+    let best: { x: number; z: number } | null = null;
+    let bestDist = Infinity;
+    for (const isl of this.chunkManager.getIslandPositions()) {
+      if (!this.discovery.isDiscovered(isl.chunkX, isl.chunkZ)) continue;
+      const d = Math.hypot(x - isl.x, z - isl.z);
+      if (d < bestDist) {
+        bestDist = d;
+        best = { x: isl.x, z: isl.z };
+      }
+    }
+    return best;
   }
 
   /** First-time wildlife/moment sightings → field journal toast + bell. */
@@ -520,6 +561,7 @@ export class Engine {
     this.hud.dispose();
     this.returnFire.dispose();
     this.races.dispose();
+    this.distress.dispose();
     this.waypoint.dispose();
 
     // Stop audio
