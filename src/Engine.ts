@@ -45,6 +45,7 @@ import { hasUpgrade } from './state/Upgrades';
 import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
 import { ReturnFireSystem } from './systems/ReturnFireSystem';
+import { CommandeerSystem } from './systems/CommandeerSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
@@ -89,6 +90,7 @@ export class Engine {
   private discoveryTimer = 0;
   private contracts: ContractSystem;
   private returnFire: ReturnFireSystem;
+  private commandeer: CommandeerSystem;
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
@@ -214,6 +216,7 @@ export class Engine {
     this.weaponsSystem.onKarma = (delta, reason, journalKey) => this.awardKarma(delta, reason, journalKey);
 
     // Battleship return fire + limp-home hull damage
+    const ownMaxHp = hasUpgrade(boatDef.name, 'hull') ? 4 : ReturnFireSystem.BASE_HP;
     this.returnFire = new ReturnFireSystem(
       this.sceneManager.scene, this.wildlifeSystem, this.soundEffects, this.config,
       {
@@ -221,11 +224,23 @@ export class Engine {
         onHit: () => this.hud.flashDamage(),
         isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
       },
-      hasUpgrade(boatDef.name, 'hull') ? 4 : ReturnFireSystem.BASE_HP,
+      ownMaxHp,
     );
     if (this.config.mode === 'classic') {
       this.hud.setHull(this.returnFire.maxHp, this.returnFire.maxHp);
     }
+
+    // Commandeering — pull alongside, press B, sail off with it
+    this.commandeer = new CommandeerSystem(
+      this.world, this.boatEntity, this.wildlifeSystem, this.ocean,
+      boatDef, ownMaxHp,
+      {
+        onKarma: (delta, reason, journalKey) => this.awardKarma(delta, reason, journalKey),
+        onHint: (text) => this.hud.setBoardHint(text),
+        setHull: (maxHp) => this.returnFire.setHull(maxHp),
+        onNavalAlert: (active) => this.returnFire.setNavalAlert(active),
+      },
+    );
 
     // Buoy time-trials — gold buoy starts the course, ghost replays your best
     this.races = new RaceSystem(
@@ -429,6 +444,9 @@ export class Engine {
       if (boatRb && ctrl) {
         this.returnFire.update(dt, boatTransform, boatRb, ctrl);
       }
+
+      // Boarding prompts + hull swaps
+      this.commandeer.update(dt);
 
       // Time-trials (start detection, gates, ghost replay)
       this.races.update(dt, boatTransform);
@@ -644,6 +662,7 @@ export class Engine {
     this.returnFire.dispose();
     this.races.dispose();
     this.distress.dispose();
+    this.commandeer.dispose();
     this.waypoint.dispose();
     this.aurora.dispose();
     this.photoMode.dispose();

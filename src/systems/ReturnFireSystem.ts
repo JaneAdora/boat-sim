@@ -37,8 +37,10 @@ export interface ReturnFireCallbacks {
  */
 export class ReturnFireSystem {
   static readonly BASE_HP = 3;
-  readonly maxHp: number;
+  maxHp: number;
   hp: number;
+  /** True while the player captains a stolen military vessel — the navy holds a grudge. */
+  private navalAlert = false;
 
   private shells: Shell[] = [];
   private splashes: Splash[] = [];
@@ -84,6 +86,19 @@ export class ReturnFireSystem {
     scene.add(this.smoke);
   }
 
+  /** Swap hulls (commandeering): new pip count, full health, re-learn engine power. */
+  setHull(maxHp: number): void {
+    this.maxHp = maxHp;
+    this.hp = maxHp;
+    this.baseEnginePower = 0; // re-captured from the new BoatControl next frame
+    this.repairProgress = 0;
+    this.callbacks.onHull(this.hp, this.maxHp);
+  }
+
+  setNavalAlert(active: boolean): void {
+    this.navalAlert = active;
+  }
+
   update(dt: number, boat: Transform, rb: RigidBody, ctrl: BoatControl): void {
     if (this.baseEnginePower === 0) this.baseEnginePower = ctrl.enginePower;
 
@@ -104,7 +119,8 @@ export class ReturnFireSystem {
       const dist = Math.hypot(dx, dz);
 
       let timer = this.fireTimers.get(e) ?? 2 + Math.random() * 3;
-      if (dist < ReturnFireSystem.RANGE) {
+      const range = this.navalAlert ? ReturnFireSystem.RANGE * 1.3 : ReturnFireSystem.RANGE;
+      if (dist < range) {
         timer -= dt;
         if (timer <= 0) {
           this.fire(e, boat);

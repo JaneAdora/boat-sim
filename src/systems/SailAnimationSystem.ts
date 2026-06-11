@@ -8,7 +8,7 @@ import { smoothDamp } from '../utils/math';
 
 interface BoatVisuals {
   sailPivot: THREE.Group | null;
-  rudderPivot: THREE.Group;
+  rudderPivot: THREE.Group | null; // commandeered NPC hulls have no rigged rudder
 }
 
 export class SailAnimationSystem extends System {
@@ -64,7 +64,9 @@ export class SailAnimationSystem extends System {
       // Rudder turns opposite to steering direction (visual convention)
       const targetRudder = -ctrl.rudderAngle * 0.6; // max ~35 degrees
       this.currentRudderAngle = smoothDamp(this.currentRudderAngle, targetRudder, 8, dt);
-      visuals.rudderPivot.rotation.y = this.currentRudderAngle;
+      if (visuals.rudderPivot) {
+        visuals.rudderPivot.rotation.y = this.currentRudderAngle;
+      }
     }
   }
 }

@@ -475,6 +475,33 @@ export class WildlifeSystem extends System {
     entity.age = 0;
   }
 
+  /** Remove an entity from the roster but leave its mesh in the scene
+   *  (commandeering takes ownership of the Object3D). */
+  releaseEntity(entity: WildlifeEntity): void {
+    const i = this.entities.indexOf(entity);
+    if (i >= 0) this.entities.splice(i, 1);
+  }
+
+  /** An abandoned stolen hull rejoins ordinary traffic. */
+  adoptVessel(mesh: THREE.Group, type: 'fishing_boat' | 'cargo_ship' | 'battleship', heading: number): WildlifeEntity {
+    const entity: WildlifeEntity = {
+      type,
+      mesh,
+      origin: mesh.position.clone(),
+      heading,
+      speed: 1 + Math.random() * 2,
+      phase: Math.random() * Math.PI * 2,
+      age: 0,
+      maxAge: 60 + Math.random() * 60,
+      towed: false,
+    };
+    if (type === 'battleship') {
+      entity.strikeZones = { offsets: [-10, 0, 10], hit: [false, false, false] };
+    }
+    this.entities.push(entity);
+    return entity;
+  }
+
   /** Spawn a whale tangled in a ghost net at a world position (distress event). */
   spawnEntangledWhale(x: number, z: number): WildlifeEntity {
     const mesh = createWhaleMesh();

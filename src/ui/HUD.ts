@@ -230,6 +230,11 @@ export class HUD {
     this.setMissionBanner('distress-banner', text);
   }
 
+  /** Boarding prompt — shown while alongside a commandeerable vessel. */
+  setBoardHint(text: string | null): void {
+    this.setMissionBanner('board-hint', text);
+  }
+
   private setMissionBanner(id: string, text: string | null): void {
     let container = document.getElementById('mission-banners');
     const existing = document.getElementById(id);
