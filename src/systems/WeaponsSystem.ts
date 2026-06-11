@@ -60,6 +60,9 @@ interface Missile {
 }
 
 export class WeaponsSystem extends System {
+  /** Karma stain for destroying innocents — set by the engine. Battleships are fair game. */
+  onKarma: ((delta: number, reason: string, journalKey?: string) => void) | null = null;
+
   private scene: THREE.Scene;
   private ocean: Ocean;
   private boatEntity: number;
@@ -339,6 +342,10 @@ export class WeaponsSystem extends System {
           }
           this.wildlifeSystem.removeEntity(hit.entity);
           this.killTracker.recordBoatKill();
+          this.onKarma?.(
+            -15,
+            hit.entity.type === 'fishing_boat' ? 'Sank an innocent fishing boat' : 'Sank an innocent cargo ship',
+          );
         }
 
         this.destroyTorpedo(i);
@@ -455,6 +462,7 @@ export class WeaponsSystem extends System {
           }
           this.chunkManager.removeLighthouse(m.targetIslandX, m.targetIslandZ);
           this.killTracker.recordLighthouseKill();
+          this.onKarma?.(-20, 'Darkened a beacon', 'beacon');
         } else {
           // No lighthouse — normal island impact, no kill
           for (let e = 0; e < 5; e++) {

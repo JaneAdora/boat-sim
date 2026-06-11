@@ -40,6 +40,7 @@ import { DiscoveryTracker } from './state/DiscoveryTracker';
 import { JournalTracker, JOURNAL_TOTAL } from './state/JournalTracker';
 import { bumpBestKills, bumpContracts } from './state/VoyageLog';
 import { addCredits } from './state/Wallet';
+import { addKarma } from './state/Karma';
 import { hasUpgrade } from './state/Upgrades';
 import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
@@ -209,6 +210,9 @@ export class Engine {
     this.hud = new HUD(this.input, this.killTracker, this.config);
     this.minimap = new Minimap(this.chunkManager);
 
+    // Sinking innocents and darkening beacons stains the permanent ledger
+    this.weaponsSystem.onKarma = (delta, reason, journalKey) => this.awardKarma(delta, reason, journalKey);
+
     // Battleship return fire + limp-home hull damage
     this.returnFire = new ReturnFireSystem(
       this.sceneManager.scene, this.wildlifeSystem, this.soundEffects, this.config,
@@ -244,7 +248,8 @@ export class Engine {
         onBanner: (text) => this.hud.setDistress(text),
         onComplete: (reward) => {
           addCredits(reward);
-          this.hud.showToast('Rescue complete', `Survivor safe · +${reward} cr`);
+          addKarma(15);
+          this.hud.showToast('Rescue complete', `Survivor safe · +${reward} cr · ⚖️ +15 karma`);
           this.soundEffects.playDiscovery();
           const text = this.journal.log('rescue');
           if (text) {
@@ -514,6 +519,19 @@ export class Engine {
   }
 
   /** First-time wildlife/moment sightings → field journal toast + bell. */
+  /** Apply a karma change with a toast; optionally log a journal entry (good or shameful). */
+  private awardKarma(delta: number, reason: string, journalKey?: string): void {
+    addKarma(delta);
+    this.hud.showToast(`⚖️ Karma ${delta > 0 ? '+' : ''}${delta}`, reason);
+    if (journalKey) {
+      const text = this.journal.log(journalKey);
+      if (text) {
+        addCredits(15);
+        this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+      }
+    }
+  }
+
   private checkJournal(boatTransform: Transform, boatRb: RigidBody, sunY: number): void {
     const bx = boatTransform.position.x;
     const bz = boatTransform.position.z;
