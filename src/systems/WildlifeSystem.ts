@@ -502,6 +502,65 @@ export class WildlifeSystem extends System {
     return entity;
   }
 
+  /** A stolen shipping container, splashed overboard — rides the tow line like a barge. */
+  spawnStolenContainer(x: number, z: number): WildlifeEntity {
+    const mesh = new THREE.Group();
+    const colors = [0xa64833, 0x3f6e8c, 0x7a8c3f];
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 2.2, 6),
+      new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)], roughness: 0.7, metalness: 0.25 }),
+    );
+    box.position.y = 0.6; // floats low, mostly awash
+    mesh.add(box);
+    for (let i = -1; i <= 1; i++) {
+      const rib = new THREE.Mesh(
+        new THREE.BoxGeometry(2.7, 2.3, 0.12),
+        new THREE.MeshStandardMaterial({ color: 0x2c2c30, roughness: 0.6 }),
+      );
+      rib.position.set(0, 0.6, i * 2.4);
+      mesh.add(rib);
+    }
+    mesh.position.set(x, 0, z);
+    this.scene.add(mesh);
+
+    const entity: WildlifeEntity = {
+      type: 'barge', // barges never despawn and weapons ignore them — exactly right
+      mesh,
+      origin: new THREE.Vector3(x, 0, z),
+      heading: Math.random() * Math.PI * 2,
+      speed: 0,
+      phase: Math.random() * Math.PI * 2,
+      age: 0,
+      maxAge: Infinity,
+      towed: false,
+    };
+    this.entities.push(entity);
+    return entity;
+  }
+
+  /** A hunter destroyer — fast patrol dispatched when piracy heat maxes out. */
+  spawnHunterBattleship(x: number, z: number): WildlifeEntity {
+    const mesh = createBattleshipMesh();
+    const heading = Math.random() * Math.PI * 2;
+    mesh.position.set(x, 0, z);
+    mesh.rotation.y = heading;
+    this.scene.add(mesh);
+    const entity: WildlifeEntity = {
+      type: 'battleship',
+      mesh,
+      origin: new THREE.Vector3(x, 0, z),
+      heading,
+      speed: 7,
+      phase: Math.random() * Math.PI * 2,
+      age: 0,
+      maxAge: 240,
+      towed: false,
+      strikeZones: { offsets: [-10, 0, 10], hit: [false, false, false] },
+    };
+    this.entities.push(entity);
+    return entity;
+  }
+
   /** Spawn a whale tangled in a ghost net at a world position (distress event). */
   spawnEntangledWhale(x: number, z: number): WildlifeEntity {
     const mesh = createWhaleMesh();

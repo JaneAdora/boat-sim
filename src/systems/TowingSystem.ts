@@ -122,6 +122,23 @@ export class TowingSystem extends System {
     }
   }
 
+  /** Attach a specific entity to the tow line (heists auto-hook stolen cargo). */
+  towEntity(entity: WildlifeEntity): boolean {
+    if (this.towedEntity) return false;
+    this.startTow(entity);
+    return true;
+  }
+
+  /** The entity currently on the line, if any. */
+  getTowedEntity(): WildlifeEntity | null {
+    return this.towedEntity;
+  }
+
+  /** Release the line if this specific entity is on it (fencing stolen cargo). */
+  releaseEntity(entity: WildlifeEntity): void {
+    if (this.towedEntity === entity) this.releaseTow();
+  }
+
   private startTow(entity: WildlifeEntity): void {
     this.towedEntity = entity;
     this.wildlifeSystem.setEntityTowed(entity, true);

@@ -235,6 +235,34 @@ export class HUD {
     this.setMissionBanner('board-hint', text);
   }
 
+  /** Hot-cargo banner for heists. */
+  setHeist(text: string | null): void {
+    this.setMissionBanner('heist-banner', text);
+  }
+
+  /** Naval heat stars (piracy response level 0–3). */
+  setHeat(stars: number): void {
+    let el = document.getElementById('heat-stars');
+    if (stars <= 0) {
+      el?.remove();
+      return;
+    }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'heat-stars';
+      const label = document.createElement('span');
+      label.className = 'hud-label';
+      label.textContent = 'Heat';
+      el.appendChild(label);
+      const marks = document.createElement('span');
+      marks.id = 'heat-marks';
+      el.appendChild(marks);
+      this.hudContainer?.appendChild(el);
+    }
+    const marks = document.getElementById('heat-marks');
+    if (marks) marks.textContent = '☠'.repeat(Math.min(3, stars));
+  }
+
   private setMissionBanner(id: string, text: string | null): void {
     let container = document.getElementById('mission-banners');
     const existing = document.getElementById(id);
@@ -283,6 +311,7 @@ export class HUD {
     if (this.helpToggle && this.onHelpToggle) this.helpToggle.removeEventListener('click', this.onHelpToggle);
     document.getElementById('mission-banners')?.remove();
     document.getElementById('hull-pips')?.remove();
+    document.getElementById('heat-stars')?.remove();
     document.getElementById('damage-flash')?.remove();
     document.getElementById('race-timer')?.remove();
   }

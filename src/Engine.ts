@@ -46,6 +46,7 @@ import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
 import { ReturnFireSystem } from './systems/ReturnFireSystem';
 import { CommandeerSystem } from './systems/CommandeerSystem';
+import { HeistSystem } from './systems/HeistSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
@@ -91,6 +92,7 @@ export class Engine {
   private contracts: ContractSystem;
   private returnFire: ReturnFireSystem;
   private commandeer: CommandeerSystem;
+  private heists: HeistSystem;
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
@@ -241,6 +243,27 @@ export class Engine {
         onNavalAlert: (active) => this.returnFire.setNavalAlert(active),
       },
     );
+
+    // Cargo heists — F plunders a container; fence it far from the crime
+    this.heists = new HeistSystem(this.wildlifeSystem, towingSystem, {
+      onKarma: (delta, reason, journalKey) => this.awardKarma(delta, reason, journalKey),
+      onBanner: (text) => this.hud.setHeist(text),
+      onFence: (payout) => {
+        addCredits(payout);
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('Cargo fenced', `No questions asked · +${payout} cr`);
+        const text = this.journal.log('pirate');
+        if (text) {
+          addCredits(15);
+          this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+        }
+      },
+      onHeat: (stars) => {
+        this.hud.setHeat(stars);
+        this.returnFire.setHeatLevel(stars);
+      },
+      isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
+    });
 
     // Buoy time-trials — gold buoy starts the course, ghost replays your best
     this.races = new RaceSystem(
@@ -447,6 +470,9 @@ export class Engine {
 
       // Boarding prompts + hull swaps
       this.commandeer.update(dt);
+
+      // Heists: plunder requests, fence detection, naval heat
+      this.heists.update(dt, boatTransform.position.x, boatTransform.position.z);
 
       // Time-trials (start detection, gates, ghost replay)
       this.races.update(dt, boatTransform);
@@ -663,6 +689,7 @@ export class Engine {
     this.races.dispose();
     this.distress.dispose();
     this.commandeer.dispose();
+    this.heists.dispose();
     this.waypoint.dispose();
     this.aurora.dispose();
     this.photoMode.dispose();

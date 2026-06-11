@@ -41,6 +41,7 @@ export class ReturnFireSystem {
   hp: number;
   /** True while the player captains a stolen military vessel — the navy holds a grudge. */
   private navalAlert = false;
+  private heatLevel = 0;
 
   private shells: Shell[] = [];
   private splashes: Splash[] = [];
@@ -99,6 +100,11 @@ export class ReturnFireSystem {
     this.navalAlert = active;
   }
 
+  /** Piracy heat (0–3) — two stars and up extends engagement range. */
+  setHeatLevel(stars: number): void {
+    this.heatLevel = stars;
+  }
+
   update(dt: number, boat: Transform, rb: RigidBody, ctrl: BoatControl): void {
     if (this.baseEnginePower === 0) this.baseEnginePower = ctrl.enginePower;
 
@@ -119,7 +125,10 @@ export class ReturnFireSystem {
       const dist = Math.hypot(dx, dz);
 
       let timer = this.fireTimers.get(e) ?? 2 + Math.random() * 3;
-      const range = this.navalAlert ? ReturnFireSystem.RANGE * 1.3 : ReturnFireSystem.RANGE;
+      let rangeMult = 1;
+      if (this.navalAlert) rangeMult = 1.3;
+      if (this.heatLevel >= 2) rangeMult = Math.max(rangeMult, 1.4);
+      const range = ReturnFireSystem.RANGE * rangeMult;
       if (dist < range) {
         timer -= dt;
         if (timer <= 0) {
