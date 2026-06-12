@@ -134,10 +134,11 @@ Feature tracking for the boat simulator. See [ARCHITECTURE.md](ARCHITECTURE.md) 
 Jane approved these 2026-06-11 alongside the shipped Outlaw pack. Design notes in
 `docs/superpowers/specs/2026-06-11-karma-outlaw-pack-design.md`.
 
-### Pack B — Myth
-- [ ] Mermaid questline: found *by ear* via stereo panning on rare calm nights near sea arches; three encounters; gifts include a permanent soundtrack motif; only appears at karma ≥ 0
-- [ ] Leviathan: deep-water storm boss — witnessed spectacle first (takes an NPC ship down), then a strike-zone fight; legendary journal page
-- [ ] Treasure maps: hand-drawn coastline silhouettes of real islands (navigate by recognition) + bottled messages with coordinates and stories
+### Pack B — Myth ✅ shipped (PR #7, branch `myth-pack`)
+Design notes in `docs/superpowers/specs/2026-06-12-myth-pack-design.md`.
+- [x] Mermaid questline: found *by ear* via stereo panning on clear calm nights near sea arches; three encounters; gifts are pearls → permanent soundtrack motif → dolphin wake-affinity; karma ≥ 0 only
+- [x] Leviathan: deep-water storm boss — witnessed spectacle first (takes an NPC ship down), then a five-tentacle strike-zone fight; +200cr/+15 karma bounty; journal pages
+- [x] Treasure maps: hand-drawn coastline silhouettes of real islands (navigate by recognition, V to view) + bottled messages with coordinates and stories
 
 ### Pack C — Harbor Life
 - [ ] Fishing: cast/bobber on real waves, tension reel minigame, species by biome/time/weather, fish ledger, rod upgrades
