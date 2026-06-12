@@ -12,6 +12,7 @@ import { journalCount, JOURNAL_TOTAL } from './state/JournalTracker';
 import { getCredits } from './state/Wallet';
 import { applyBoatUpgrades, buyUpgrade, hasUpgrade, upgradeCost, UPGRADE_CATALOG } from './state/Upgrades';
 import { getKarma, karmaTitle, karmaPriceFactor } from './state/Karma';
+import { ledgerCount, FISH_TOTAL } from './state/Fishing';
 
 // SVG boat silhouette icons (no emojis)
 const BOAT_ICONS: Record<string, string> = {
@@ -172,6 +173,8 @@ function showSelector(): void {
     if (discovered > 0) parts.push(`${discovered} island${discovered === 1 ? '' : 's'} discovered`);
     if (stats.contracts > 0) parts.push(`${stats.contracts} contract${stats.contracts === 1 ? '' : 's'} hauled`);
     if (journal > 0) parts.push(`journal ${journal}/${JOURNAL_TOTAL}`);
+    const fish = ledgerCount();
+    if (fish > 0) parts.push(`fish ${fish}/${FISH_TOTAL}`);
     line.textContent = parts.join(' · ');
     loadingText.parentElement!.appendChild(line);
   }

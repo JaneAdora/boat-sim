@@ -52,6 +52,7 @@ import { BottleSystem } from './systems/BottleSystem';
 import { TreasureChart } from './ui/TreasureChart';
 import { LeviathanSystem } from './systems/LeviathanSystem';
 import { MermaidSystem } from './systems/MermaidSystem';
+import { FishingSystem } from './systems/FishingSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
@@ -103,6 +104,7 @@ export class Engine {
   private treasureChart: TreasureChart;
   private leviathan: LeviathanSystem;
   private mermaid: MermaidSystem;
+  private fishing: FishingSystem;
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
@@ -476,6 +478,23 @@ export class Engine {
     });
     this.treasureChart.setMap(this.bottles.getMap()); // resume a persisted hunt
 
+    // Fishing — the calm verb (C to cast/reel)
+    this.fishing = new FishingSystem(this.sceneManager.scene, this.ocean, this.chunkManager, localStorage, {
+      onPrompt: (text) => this.hud.setFishing(text),
+      onMeter: (state) => this.hud.setFishingMeter(state),
+      onLanded: (species, value, weight, firstOfSpecies) => {
+        addCredits(value);
+        this.soundEffects.playDiscovery();
+        const note = firstOfSpecies ? ' · new species!' : '';
+        this.hud.setFishing(`🐟 Landed a ${species.name} (${weight}kg) · +${value} cr${note}`);
+        const text = this.journal.log('angler');
+        if (text) {
+          addCredits(15);
+          this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+        }
+      },
+    });
+
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyX') {
@@ -594,6 +613,13 @@ export class Engine {
         dt, boatTransform.position.x, boatTransform.position.z,
         new THREE.Euler().setFromQuaternion(boatTransform.quaternion, 'YXZ').y,
         sunDir.y, this.weather.getRainIntensity(),
+      );
+
+      // Fishing — cast/bite/fight state machine
+      this.fishing.update(
+        dt, boatTransform.position.x, boatTransform.position.z,
+        boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0,
+        sunDir.y < -0.1, this.weather.getRainIntensity() > 0.5,
       );
 
       // Time-trials (start detection, gates, ghost replay)
@@ -820,6 +846,7 @@ export class Engine {
     this.treasureChart.dispose();
     this.leviathan.dispose();
     this.mermaid.dispose();
+    this.fishing.dispose();
     this.waypoint.dispose();
     this.aurora.dispose();
     this.photoMode.dispose();

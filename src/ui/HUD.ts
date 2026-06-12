@@ -245,6 +245,36 @@ export class HUD {
     this.setMissionBanner('leviathan-banner', text);
   }
 
+  /** Fishing prompt banner (cast / bite / reel feedback). */
+  setFishing(text: string | null): void {
+    this.setMissionBanner('fishing-banner', text);
+  }
+
+  /** The catch (progress) and tension (line) bars during a fish fight. */
+  setFishingMeter(state: { catch: number; tension: number } | null): void {
+    let el = document.getElementById('fishing-meter');
+    if (!state) {
+      el?.remove();
+      return;
+    }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'fishing-meter';
+      el.append(
+        fishingBarRow('Catch', 'fm-catch'),
+        fishingBarRow('Line', 'fm-tension'),
+      );
+      document.body.appendChild(el);
+    }
+    const c = el.querySelector('.fm-catch') as HTMLElement | null;
+    const t = el.querySelector('.fm-tension') as HTMLElement | null;
+    if (c) c.style.width = `${Math.round(Math.min(1, state.catch) * 100)}%`;
+    if (t) {
+      t.style.width = `${Math.round(Math.min(1, state.tension) * 100)}%`;
+      t.classList.toggle('fm-danger', state.tension > 0.75);
+    }
+  }
+
   /** Naval heat stars (piracy response level 0–3). */
   setHeat(stars: number): void {
     let el = document.getElementById('heat-stars');
@@ -319,5 +349,22 @@ export class HUD {
     document.getElementById('heat-stars')?.remove();
     document.getElementById('damage-flash')?.remove();
     document.getElementById('race-timer')?.remove();
+    document.getElementById('fishing-meter')?.remove();
   }
+}
+
+/** One labelled bar (track + fill) for the fishing meter. */
+function fishingBarRow(label: string, fillClass: string): HTMLDivElement {
+  const row = document.createElement('div');
+  row.className = 'fm-row';
+  const lbl = document.createElement('span');
+  lbl.className = 'fm-label';
+  lbl.textContent = label;
+  const track = document.createElement('div');
+  track.className = 'fm-track';
+  const fill = document.createElement('div');
+  fill.className = `fm-fill ${fillClass}`;
+  track.appendChild(fill);
+  row.append(lbl, track);
+  return row;
 }

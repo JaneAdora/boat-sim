@@ -277,6 +277,34 @@
       text-transform: uppercase;
     }
     body.photo-mode #treasure-chart { display: none; }
+    #fishing-meter {
+      position: fixed;
+      left: 50%;
+      bottom: 120px;
+      transform: translateX(-50%);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 14px;
+      background: rgba(10, 22, 40, 0.72);
+      border-radius: 10px;
+      backdrop-filter: blur(4px);
+    }
+    #fishing-meter .fm-row { display: flex; align-items: center; gap: 8px; }
+    #fishing-meter .fm-label {
+      width: 42px; font-size: 11px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: rgba(255,255,255,0.7);
+    }
+    #fishing-meter .fm-track {
+      width: 180px; height: 9px; border-radius: 5px;
+      background: rgba(255,255,255,0.14); overflow: hidden;
+    }
+    #fishing-meter .fm-fill { height: 100%; width: 0%; transition: width 0.08s linear; }
+    #fishing-meter .fm-catch { background: #5fd08a; }
+    #fishing-meter .fm-tension { background: #e8c14d; }
+    #fishing-meter .fm-tension.fm-danger { background: #e8553d; }
+    body.photo-mode #fishing-meter { display: none; }
     #damage-flash {
       position: fixed;
       inset: 0;
@@ -930,6 +958,7 @@
       <tr><td>B</td><td>Board vessel</td></tr>
       <tr><td>F</td><td>Plunder cargo</td></tr>
       <tr><td>V</td><td>Treasure chart</td></tr>
+      <tr><td>C</td><td>Cast / reel</td></tr>
       <tr><td>X</td><td>Mute audio</td></tr>
       <tr><td>H</td><td>Toggle HUD</td></tr>
       <tr><td>N</td><td>Toggle map</td></tr>
