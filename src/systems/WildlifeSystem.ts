@@ -257,6 +257,8 @@ export class WildlifeSystem extends System {
   private entities: WildlifeEntity[] = [];
   private spawnTimer = 0;
   private time = 0;
+  private boatX = 0;
+  private boatZ = 0;
 
   private static readonly MAX_DOLPHINS = 8;
   private static readonly MAX_WHALES = 2;
@@ -279,6 +281,9 @@ export class WildlifeSystem extends System {
     this.chunkManager = cm;
   }
 
+  /** The mermaid's third gift: dolphins forever bias toward the player's wake. */
+  dolphinAffinity = false;
+
   update(world: World, dt: number): void {
     this.time += dt;
     this.spawnTimer -= dt;
@@ -287,6 +292,8 @@ export class WildlifeSystem extends System {
     if (!boatTransform) return;
     const bx = boatTransform.position.x;
     const bz = boatTransform.position.z;
+    this.boatX = bx;
+    this.boatZ = bz;
 
     // Spawn new wildlife periodically
     if (this.spawnTimer <= 0) {
@@ -785,6 +792,19 @@ export class WildlifeSystem extends System {
         e.mesh.rotation.x = jumpDerivative * 0.35;
         // Gentle heading weave — reduced amplitude to prevent zigzag appearance
         e.heading += Math.sin(t * 0.5 + e.phase) * 0.12 * dt;
+        // Her blessing: pods drift toward the boat's wake (never crowding it)
+        if (this.dolphinAffinity) {
+          const adx = this.boatX - e.mesh.position.x;
+          const adz = this.boatZ - e.mesh.position.z;
+          const adist = Math.hypot(adx, adz);
+          if (adist > 25 && adist < 150) {
+            const want = Math.atan2(adx, adz);
+            let diff = want - e.heading;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            e.heading += Math.sign(diff) * Math.min(Math.abs(diff), 0.25 * dt);
+          }
+        }
         e.mesh.rotation.y = e.heading;
         // Only show during rising/airborne part of jump (hide early on descent to avoid backward look)
         e.mesh.visible = jumpCycle > -0.1 && e.mesh.position.y > waveY - 0.15;

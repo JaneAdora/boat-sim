@@ -25,6 +25,8 @@ export class GenerativeMusic {
   private chordIndex = 0;
   private noteTimer = 6;
   private pulseTimer = 0;
+  private mermaidMotif = false;
+  private motifTimer = 30;
 
   private storm = 0;       // 0..1
   private night = false;
@@ -80,6 +82,11 @@ export class GenerativeMusic {
     this.applyChord(true);
   }
 
+  /** Her gift: the mermaid's phrase recurs in the soundtrack, forever. */
+  enableMermaidMotif(): void {
+    this.mermaidMotif = true;
+  }
+
   /** Mood comes from the engine at ~2Hz; cheap to call. */
   setMood(storm: number, night: boolean, danger: boolean): void {
     this.storm = storm;
@@ -107,6 +114,14 @@ export class GenerativeMusic {
       const base = this.storm > 0.5 ? 9 : this.night ? 7 : 4.5;
       this.noteTimer = base + Math.random() * base;
       this.playBell();
+    }
+
+    if (this.mermaidMotif) {
+      this.motifTimer -= dt;
+      if (this.motifTimer <= 0) {
+        this.motifTimer = 50 + Math.random() * 30;
+        this.playMermaidMotif();
+      }
     }
 
     if (this.pulseGain) {
@@ -138,6 +153,29 @@ export class GenerativeMusic {
       const drifted = freq * (1 + (Math.random() - 0.5) * 0.0023);
       this.padOscs[i].frequency.setTargetAtTime(drifted, now, immediate ? 0.01 : 4.0);
       this.padGains[i].gain.setTargetAtTime(0.05 - i * 0.012, now, immediate ? 0.5 : 4.0);
+    }
+  }
+
+  /** Four rising notes over the current root — her signature, in bell voice. */
+  private playMermaidMotif(): void {
+    if (!this.ctx || !this.master || this.muted) return;
+    const now = this.ctx.currentTime;
+    const root = this.currentRoot();
+    const steps = [16, 19, 21, 24]; // E–G–A–C above the root, octave up
+    for (let i = 0; i < steps.length; i++) {
+      const freq = GenerativeMusic.BASE * Math.pow(2, (root + steps[i] + 12) / 12);
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const gain = this.ctx.createGain();
+      const at = now + i * 0.5;
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(0.05, at + 0.25);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 3.5);
+      osc.connect(gain);
+      gain.connect(this.master);
+      osc.start(at);
+      osc.stop(at + 4);
     }
   }
 

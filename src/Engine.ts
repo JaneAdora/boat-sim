@@ -51,6 +51,7 @@ import { TrickSystem } from './systems/TrickSystem';
 import { BottleSystem } from './systems/BottleSystem';
 import { TreasureChart } from './ui/TreasureChart';
 import { LeviathanSystem } from './systems/LeviathanSystem';
+import { MermaidSystem } from './systems/MermaidSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
@@ -101,6 +102,7 @@ export class Engine {
   private bottles: BottleSystem;
   private treasureChart: TreasureChart;
   private leviathan: LeviathanSystem;
+  private mermaid: MermaidSystem;
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
@@ -417,6 +419,37 @@ export class Engine {
       this.awardKarma(15, 'Slew the Leviathan', 'leviathan-slain');
     };
 
+    // The Mermaid of the Arches — heard before she's seen, karma ≥ 0 only
+    this.mermaid = new MermaidSystem(
+      this.sceneManager.scene, this.ocean, this.chunkManager,
+      {
+        onSongBegins: () => this.hud.showToast('🎶', 'A strange song drifts over the water…'),
+        onGift: (level) => {
+          this.soundEffects.playDiscovery();
+          if (level === 1) {
+            addCredits(120);
+            this.hud.showToast('🧜 The mermaid', 'She presses pearls into your hands · +120 cr');
+            const text = this.journal.log('mermaid');
+            if (text) {
+              addCredits(15);
+              this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+            }
+          } else if (level === 2) {
+            this.music.enableMermaidMotif();
+            this.hud.showToast('🧜 The mermaid', 'Her melody joins your soundtrack, for good');
+          } else {
+            this.wildlifeSystem.dolphinAffinity = true;
+            this.hud.showToast('🧜 Her blessing', 'Dolphins will seek your bow wake, always');
+          }
+        },
+      },
+    );
+    // Past gifts persist across sessions
+    if (this.mermaid.getLevel() >= 2) this.music.enableMermaidMotif();
+    if (this.mermaid.getLevel() >= 3) this.wildlifeSystem.dolphinAffinity = true;
+    this.mermaid.song.setMasterVolume(this.audioVolume);
+    this.mermaid.song.setMuted(this.audioMuted);
+
     // Bottled messages + treasure hunts — the chart is the puzzle, no waypoint
     this.treasureChart = new TreasureChart();
     this.bottles = new BottleSystem(this.sceneManager.scene, this.ocean, this.chunkManager, {
@@ -555,6 +588,13 @@ export class Engine {
 
       // The Leviathan stirs in deep-water storms
       this.leviathan.update(dt, boatTransform.position.x, boatTransform.position.z, this.weather.getRainIntensity());
+
+      // The mermaid sings on clear calm nights; her pan/gain track per frame
+      this.mermaid.update(
+        dt, boatTransform.position.x, boatTransform.position.z,
+        new THREE.Euler().setFromQuaternion(boatTransform.quaternion, 'YXZ').y,
+        sunDir.y, this.weather.getRainIntensity(),
+      );
 
       // Time-trials (start detection, gates, ghost replay)
       this.races.update(dt, boatTransform);
@@ -713,6 +753,7 @@ export class Engine {
     this.soundscape.suspend();
     this.soundEffects.suspend();
     this.music.suspend();
+    this.mermaid.song.suspend();
   }
 
   resume(): void {
@@ -720,6 +761,7 @@ export class Engine {
     this.soundscape.resume();
     this.soundEffects.resume();
     this.music.resume();
+    this.mermaid.song.resume();
   }
 
   /** 0..1 master volume; persisted and applied to both audio engines. */
@@ -729,6 +771,7 @@ export class Engine {
     this.soundscape.setMasterVolume(this.audioVolume);
     this.soundEffects.setMasterVolume(this.audioVolume);
     this.music.setMasterVolume(this.audioVolume);
+    this.mermaid.song.setMasterVolume(this.audioVolume);
   }
 
   setMuted(muted: boolean): void {
@@ -737,6 +780,7 @@ export class Engine {
     this.soundscape.setMuted(muted);
     this.soundEffects.setMuted(muted);
     this.music.setMuted(muted);
+    this.mermaid.song.setMuted(muted);
   }
 
   toggleMute(): boolean {
@@ -775,6 +819,7 @@ export class Engine {
     this.bottles.dispose();
     this.treasureChart.dispose();
     this.leviathan.dispose();
+    this.mermaid.dispose();
     this.waypoint.dispose();
     this.aurora.dispose();
     this.photoMode.dispose();
