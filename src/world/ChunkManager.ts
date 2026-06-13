@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CHUNK_SIZE, CHUNK_LOAD_RADIUS } from './WorldSeed';
 import { generateIsland, IslandData, Biome } from './IslandGenerator';
 import { chunkHash } from './IslandNames';
+import { harborEligible } from '../state/Harbor';
 import { createTerrainMesh, createTreeInstances, createShoreRocks, createLighthouse } from './TerrainGenerator';
 
 interface LoadedChunk {
@@ -16,6 +17,7 @@ interface LoadedChunk {
   buoys: THREE.Group | null;
   buoyPositions: { x: number; z: number }[];
   landmark: THREE.Group | null;
+  harbor: THREE.Group | null;
 }
 
 export type LandmarkType = 'wrecks' | 'arch';
@@ -25,6 +27,7 @@ export class ChunkManager {
   private scene: THREE.Scene;
   private islandPositions: { chunkX: number; chunkZ: number; x: number; z: number; radius: number; biome: Biome }[] = [];
   private landmarkPositions: { key: string; type: LandmarkType; x: number; z: number }[] = [];
+  private harborPositions: { key: string; chunkX: number; chunkZ: number; biome: Biome; x: number; z: number }[] = [];
 
   // Streaming state. The immediate 3x3 ring loads synchronously (terrain under
   // and adjacent to the boat must exist for collision/buoyancy every frame);
@@ -129,6 +132,7 @@ export class ChunkManager {
     let buoys: THREE.Group | null = null;
     let buoyPositions: { x: number; z: number }[] = [];
     let landmark: THREE.Group | null = null;
+    let harbor: THREE.Group | null = null;
 
     // Rare deterministic landmarks: a sea arch off big islands, or a wreck
     // graveyard in otherwise-empty water. Hash-placed, so they're the same
@@ -174,9 +178,24 @@ export class ChunkManager {
         radius: island.radius,
         biome: island.biome,
       });
+
+      // Harbour town: a working dock + cabins on ~half of the big islands.
+      // Services (rod shop, rumours) unlock only once the island is discovered.
+      if (harborEligible(island.radius, cx, cz)) {
+        harbor = createHarbor(island, cx, cz);
+        this.scene.add(harbor);
+        this.harborPositions.push({
+          key,
+          chunkX: island.chunkX,
+          chunkZ: island.chunkZ,
+          biome: island.biome,
+          x: harbor.userData.dockX as number,
+          z: harbor.userData.dockZ as number,
+        });
+      }
     }
 
-    this.chunks.set(key, { key, chunkX: cx, chunkZ: cz, island, terrainMesh, treeGroup, rockGroup, lighthouse, buoys, buoyPositions, landmark });
+    this.chunks.set(key, { key, chunkX: cx, chunkZ: cz, island, terrainMesh, treeGroup, rockGroup, lighthouse, buoys, buoyPositions, landmark, harbor });
   }
 
   private createBuoys(island: IslandData): THREE.Group {
@@ -244,8 +263,12 @@ export class ChunkManager {
     disposeGroup(chunk.lighthouse);
     disposeGroup(chunk.buoys);
     disposeGroup(chunk.landmark);
+    disposeGroup(chunk.harbor);
     if (chunk.landmark) {
       this.landmarkPositions = this.landmarkPositions.filter((l) => l.key !== chunk.key);
+    }
+    if (chunk.harbor) {
+      this.harborPositions = this.harborPositions.filter((h) => h.key !== chunk.key);
     }
 
     if (chunk.island) {
@@ -290,6 +313,11 @@ export class ChunkManager {
   /** Loaded rare landmarks (for field-journal proximity checks). */
   getLandmarks(): { type: LandmarkType; x: number; z: number }[] {
     return this.landmarkPositions;
+  }
+
+  /** Loaded harbours — dock head (x,z) plus the island chunk for discovery/naming. */
+  getHarbors(): { chunkX: number; chunkZ: number; biome: Biome; x: number; z: number }[] {
+    return this.harborPositions;
   }
 
   /** Time-trial courses: buoy rings of loaded islands with enough gates. */
@@ -380,6 +408,17 @@ export class ChunkManager {
 const rockMat = new THREE.MeshStandardMaterial({ color: 0x6f6a62, roughness: 1.0, metalness: 0.0 });
 const wreckMat = new THREE.MeshStandardMaterial({ color: 0x3a3027, roughness: 0.95, metalness: 0.05 });
 
+// Harbour materials (shared like rockMat/wreckMat above).
+const plankMat = new THREE.MeshStandardMaterial({ color: 0x8a6240, roughness: 0.85, metalness: 0.0 });
+const postMat = new THREE.MeshStandardMaterial({ color: 0x4f3a28, roughness: 0.9, metalness: 0.0 });
+const cabinWallMat = new THREE.MeshStandardMaterial({ color: 0xcdb892, roughness: 0.8 });
+const cabinWall2Mat = new THREE.MeshStandardMaterial({ color: 0xb39a74, roughness: 0.8 });
+const roofMat = new THREE.MeshStandardMaterial({ color: 0x9c4b3b, roughness: 0.7 });
+const roof2Mat = new THREE.MeshStandardMaterial({ color: 0x3f6f6a, roughness: 0.7 });
+const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a2c20, roughness: 0.85 });
+const barrelMat = new THREE.MeshStandardMaterial({ color: 0x6b4a30, roughness: 0.85 });
+const lampMat = new THREE.MeshStandardMaterial({ color: 0xffe6a8, emissive: 0xffcf6e, emissiveIntensity: 0.9, roughness: 0.5 });
+
 /** Two weathered pillars and a lintel — sail under it. */
 function createSeaArch(x: number, z: number, angle: number): THREE.Group {
   const group = new THREE.Group();
@@ -424,4 +463,108 @@ function createWreckGraveyard(x: number, z: number, cx: number, cz: number): THR
   }
   group.position.set(x, 0, z);
   return group;
+}
+
+// ─── Harbour town ────────────────────────────────────────────
+
+/**
+ * A plank jetty reaching out over the water from an island's shore, with
+ * pilings, a couple of grounded shore cabins, a lamp post and some barrels.
+ * Built in local space with +X pointing out to sea (away from the island
+ * centre); the group is then placed at the island centre and spun to the
+ * hashed shore bearing. The seaward dock head is stashed on userData for the
+ * docking proximity check.
+ */
+function createHarbor(island: IslandData, cx: number, cz: number): THREE.Group {
+  const g = new THREE.Group();
+  const angle = chunkHash(cx, cz, 22) * Math.PI * 2;
+  const ca = Math.cos(angle);
+  const sa = Math.sin(angle);
+
+  const innerR = island.radius - 2;     // a touch onto the shore
+  const outerR = island.radius + 24;    // out over open water
+  const len = outerR - innerR;
+  const midR = (innerR + outerR) / 2;
+  const deckW = 5;
+  const deckY = 0.9;
+
+  // Plank deck.
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(len, 0.5, deckW), plankMat);
+  deck.position.set(midR, deckY, 0);
+  g.add(deck);
+
+  // Pilings under both deck edges.
+  const pileGeom = new THREE.CylinderGeometry(0.35, 0.4, 5.5, 6);
+  const piles = 5;
+  for (let i = 0; i < piles; i++) {
+    const px = innerR + (i + 0.5) * (len / piles);
+    for (const side of [-1, 1]) {
+      const pile = new THREE.Mesh(pileGeom, postMat);
+      pile.position.set(px, deckY - 2.7, side * (deckW / 2 - 0.4));
+      g.add(pile);
+    }
+  }
+
+  // Lamp post at the seaward head — emissive so it reads after dark.
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 3.2, 6), postMat);
+  post.position.set(outerR - 2.5, deckY + 1.6, deckW / 2 - 0.6);
+  g.add(post);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.34, 8, 8), lampMat);
+  lamp.position.set(outerR - 2.5, deckY + 3.1, deckW / 2 - 0.6);
+  g.add(lamp);
+
+  // A couple of barrels for character.
+  const barrelGeom = new THREE.CylinderGeometry(0.5, 0.5, 1.2, 8);
+  for (let i = 0; i < 2; i++) {
+    const barrel = new THREE.Mesh(barrelGeom, barrelMat);
+    barrel.position.set(midR - 2 + i * 1.3, deckY + 0.85, -deckW / 2 + 0.9);
+    g.add(barrel);
+  }
+
+  // Two shore cabins, grounded on the island's real height so they sit on the
+  // beach rather than hover. Local +X toward the centre (negative offset) = land.
+  const spots = [
+    { x: innerR - 7, z: -7, wall: cabinWallMat, roof: roofMat, rot: 0.25 },
+    { x: innerR - 12, z: 6, wall: cabinWall2Mat, roof: roof2Mat, rot: -0.3 },
+  ];
+  for (const s of spots) {
+    const wx = island.centerX + s.x * ca - s.z * sa;
+    const wz = island.centerZ + s.x * sa + s.z * ca;
+    const groundY = Math.max(0.5, islandHeightAt(island, wx, wz));
+    const cabin = createCabin(s.wall, s.roof);
+    cabin.position.set(s.x, groundY, s.z);
+    cabin.rotation.y = s.rot;
+    g.add(cabin);
+  }
+
+  g.position.set(island.centerX, 0, island.centerZ);
+  g.rotation.y = -angle;
+  g.userData.dockX = island.centerX + ca * outerR;
+  g.userData.dockZ = island.centerZ + sa * outerR;
+  return g;
+}
+
+function createCabin(wallMat: THREE.Material, roofMat: THREE.Material): THREE.Group {
+  const c = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 4.5), wallMat);
+  body.position.y = 1.5;
+  c.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(4.1, 2.1, 4), roofMat);
+  roof.position.y = 4.05;
+  roof.rotation.y = Math.PI / 4;
+  c.add(roof);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 0.2), doorMat);
+  door.position.set(0, 0.95, 2.28);
+  c.add(door);
+  return c;
+}
+
+/** World-space ground height of one island at a point, 0 if it's open water. */
+function islandHeightAt(island: IslandData, worldX: number, worldZ: number): number {
+  const scale = island.radius * 2.5 / island.heightmapSize;
+  const hx = (worldX - island.centerX) / scale + island.heightmapSize / 2;
+  const hz = (worldZ - island.centerZ) / scale + island.heightmapSize / 2;
+  if (hx < 0 || hx >= island.heightmapSize || hz < 0 || hz >= island.heightmapSize) return 0;
+  const h = island.heightmap[Math.floor(hz) * island.heightmapSize + Math.floor(hx)];
+  return h > 0.3 ? h : 0;
 }
