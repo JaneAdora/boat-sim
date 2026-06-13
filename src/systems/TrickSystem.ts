@@ -23,6 +23,10 @@ export class TrickSystem {
   private spinAccum = 0;
   private airborne = false;
   private elapsed = 0;
+  // Only a NEW personal best (this session) is worth a popup + ding. Starts at
+  // MIN_AIR so the first real jump counts, then you must beat your own record —
+  // no more notification on every wave-hop. Resets each game (in-memory).
+  private bestAir = MIN_AIR;
 
   constructor(
     private world: World,
@@ -53,11 +57,13 @@ export class TrickSystem {
   }
 
   private land(): void {
-    if (this.elapsed < WARMUP || this.airTime < MIN_AIR) return;
+    // Stay silent unless this beats the session's best hang time.
+    if (this.elapsed < WARMUP || this.airTime <= this.bestAir) return;
+    this.bestAir = this.airTime;
     const degrees = Math.round((this.spinAccum * 180) / Math.PI);
     const style = Math.round(this.airTime * 10) + Math.round(degrees / 180) * 8;
     const credits = Math.max(1, Math.min(MAX_CREDITS, Math.round(style / 3)));
-    const spinNote = degrees >= 120 ? ` · ${degrees}°` : '';
-    this.callbacks.onTrick(credits, `${this.airTime.toFixed(1)}s air${spinNote} · +${credits} cr`);
+    const spinNote = degrees >= 120 ? ` · ${degrees}° spin` : '';
+    this.callbacks.onTrick(credits, `${this.airTime.toFixed(1)}s airtime${spinNote} · +${credits} cr`);
   }
 }

@@ -261,7 +261,7 @@ export class Engine {
       onTrick: (credits, headline) => {
         addCredits(credits);
         this.soundEffects.playDiscovery();
-        this.hud.showToast('✨ Style', headline);
+        this.hud.showToast('✨ New best air', headline);
       },
     });
 

@@ -6,7 +6,10 @@ import { Stars } from '../rendering/Stars';
 import { Ocean } from '../rendering/Ocean';
 
 export class DayNightSystem extends System {
-  timeOfDay = 0.72; // start near sunset
+  // Start mid-morning with the sun high (~60° up), not on the horizon: a low
+  // sun sits right in your eyes when you steer toward it and washes the view
+  // out. The dramatic golden hour still arrives naturally as time advances.
+  timeOfDay = 0.42;
   cycleDuration = 360; // seconds per full day (6 minutes)
 
   private sky: SkyRenderer;
