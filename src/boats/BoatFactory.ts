@@ -765,38 +765,79 @@ function createVikingShipMesh(): BoatParts {
 function createJetSkiMesh(): BoatParts {
   const group = new THREE.Group();
 
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe8554d, roughness: 0.35, metalness: 0.15 });
-  const trimMat = new THREE.MeshStandardMaterial({ color: 0xf2ede4, roughness: 0.5 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.7 });
+  // Glossy gel-coat materials — vivid hull, cream deck, dark trim, blue flash
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe8443a, roughness: 0.28, metalness: 0.25 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xf4eee3, roughness: 0.4, metalness: 0.1 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x20242a, roughness: 0.6 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0x1d4e78, roughness: 0.35, metalness: 0.3 });
 
-  // Hull — low, narrow, nose tapered
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, 2.6), bodyMat);
-  hull.position.y = 0.15;
+  // Smooth, curved forms only — an ellipsoid is a scaled unit sphere
+  const ellipsoid = (rx: number, ry: number, rz: number, mat: THREE.Material): THREE.Mesh => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 14), mat);
+    m.scale.set(rx, ry, rz);
+    return m;
+  };
+
+  // Lower hull — a long, low planing ellipsoid (forward is +Z)
+  const hull = ellipsoid(0.5, 0.4, 1.42, bodyMat);
+  hull.position.set(0, 0.16, -0.05);
   group.add(hull);
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.9, 4), bodyMat);
-  nose.rotation.x = Math.PI / 2;
-  nose.rotation.y = Math.PI / 4;
-  nose.position.set(0, 0.15, 1.7);
-  nose.scale.set(1.0, 1.0, 0.55);
-  group.add(nose);
 
-  // Deck pad + seat
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.1, 2.2), trimMat);
-  pad.position.y = 0.45;
-  group.add(pad);
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 1.2), darkMat);
-  seat.position.set(0, 0.65, -0.5);
+  // Upswept pointed bow — a faired cone, nose tilted up
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(0.46, 1.5, 18), bodyMat);
+  bow.scale.set(1, 0.72, 1);
+  bow.rotation.x = Math.PI / 2 - 0.16;
+  bow.position.set(0, 0.34, 1.12);
+  group.add(bow);
+
+  // Molded top deck / cowl — flatter cream ellipsoid riding the hull
+  const deck = ellipsoid(0.44, 0.2, 1.2, trimMat);
+  deck.position.set(0, 0.48, 0.04);
+  group.add(deck);
+
+  // Blue racing flash down each flank
+  for (const side of [-1, 1]) {
+    const flash = ellipsoid(0.1, 0.13, 0.95, accentMat);
+    flash.position.set(side * 0.44, 0.26, 0.04);
+    group.add(flash);
+  }
+
+  // Saddle seat — a rounded capsule running down the rear deck
+  const seat = new THREE.Mesh(new THREE.CapsuleGeometry(0.23, 0.85, 6, 12), darkMat);
+  seat.rotation.x = Math.PI / 2;
+  seat.position.set(0, 0.64, -0.4);
   group.add(seat);
 
-  // Steering column + handlebars
-  const column = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.6, 6), darkMat);
-  column.position.set(0, 0.75, 0.7);
-  column.rotation.x = -0.5;
+  // Front console swelling up to the bars
+  const consolePod = ellipsoid(0.25, 0.22, 0.32, trimMat);
+  consolePod.position.set(0, 0.6, 0.6);
+  group.add(consolePod);
+
+  // Raked steering column + handlebar with grips
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.42, 8), darkMat);
+  column.rotation.x = -0.55;
+  column.position.set(0, 0.84, 0.7);
   group.add(column);
-  const bars = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6), darkMat);
+  const bars = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.6, 8), darkMat);
   bars.rotation.z = Math.PI / 2;
-  bars.position.set(0, 1.0, 0.85);
+  bars.position.set(0, 0.99, 0.6);
   group.add(bars);
+  for (const side of [-1, 1]) {
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.13, 8), bodyMat);
+    grip.rotation.z = Math.PI / 2;
+    grip.position.set(side * 0.26, 0.99, 0.6);
+    group.add(grip);
+  }
+
+  // Rear grab handle (half torus) and a jet nozzle hint at the transom
+  const grab = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.035, 8, 14, Math.PI), darkMat);
+  grab.rotation.x = Math.PI / 2;
+  grab.position.set(0, 0.5, -1.12);
+  group.add(grab);
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 0.2, 12), darkMat);
+  nozzle.rotation.x = Math.PI / 2;
+  nozzle.position.set(0, 0.1, -1.32);
+  group.add(nozzle);
 
   return { group, sailPivot: null, rudderPivot: null };
 }
