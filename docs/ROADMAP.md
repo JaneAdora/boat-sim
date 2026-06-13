@@ -140,11 +140,11 @@ Design notes in `docs/superpowers/specs/2026-06-12-myth-pack-design.md`.
 - [x] Leviathan: deep-water storm boss — witnessed spectacle first (takes an NPC ship down), then a five-tentacle strike-zone fight; +200cr/+15 karma bounty; journal pages
 - [x] Treasure maps: hand-drawn coastline silhouettes of real islands (navigate by recognition, V to view) + bottled messages with coordinates and stories
 
-### Pack C — Harbor Life *(part 1 shipped on `harbor-pack`)*
+### Pack C — Harbor Life *(shipped)*
 Design notes in `docs/superpowers/specs/2026-06-13-harbor-life-pack-design.md`.
 - [x] Fishing: cast/bobber on real waves (C), tension reel minigame, species by biome/time/weather, fish ledger
-- [ ] Angler's Rod upgrade — built (`buyRod`) but **no purchase point yet**; ships with harbor towns (the dock notice board)
-- [ ] Harbor towns: dock hamlets on discovered islands, named dockmasters (chunkHash-deterministic), notice board (rod purchase, catch log, tavern rumors)
+- [x] Angler's Rod upgrade — purchasable at the harbour notice board for 200 cr (wires the existing `buyRod`)
+- [x] Harbor towns: hash-gated docks + shore cabins on big islands (radius>55), chunkHash-named dockmasters, notice board (press **L** stopped at a discovered dock) — rod purchase, catch log, deterministic tavern rumors
 
 Also shipped on `harbor-pack`: UI polish — gameplay text de-serifed (serif kept only for the opening title), opening selector decluttered.
 

@@ -53,6 +53,7 @@ import { TreasureChart } from './ui/TreasureChart';
 import { LeviathanSystem } from './systems/LeviathanSystem';
 import { MermaidSystem } from './systems/MermaidSystem';
 import { FishingSystem } from './systems/FishingSystem';
+import { HarborSystem } from './systems/HarborSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
@@ -105,6 +106,7 @@ export class Engine {
   private leviathan: LeviathanSystem;
   private mermaid: MermaidSystem;
   private fishing: FishingSystem;
+  private harbor: HarborSystem;
   private races: RaceSystem;
   private distress: DistressSystem;
   private waypoint = new WaypointIndicator();
@@ -495,6 +497,15 @@ export class Engine {
       },
     });
 
+    // Harbour towns — dock at a discovered island (L) to buy the rod & hear rumours
+    this.harbor = new HarborSystem(this.chunkManager, this.discovery, localStorage, {
+      onPrompt: (text) => this.hud.setDock(text),
+      onPurchase: () => {
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('Harbour', "Angler's Rod acquired · press C to fish");
+      },
+    });
+
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyX') {
@@ -620,6 +631,12 @@ export class Engine {
         dt, boatTransform.position.x, boatTransform.position.z,
         boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0,
         sunDir.y < -0.1, this.weather.getRainIntensity() > 0.5,
+      );
+
+      // Harbour towns — dock prompt + notice board
+      this.harbor.update(
+        dt, boatTransform.position.x, boatTransform.position.z,
+        boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0,
       );
 
       // Time-trials (start detection, gates, ghost replay)
@@ -847,6 +864,7 @@ export class Engine {
     this.leviathan.dispose();
     this.mermaid.dispose();
     this.fishing.dispose();
+    this.harbor.dispose();
     this.waypoint.dispose();
     this.aurora.dispose();
     this.photoMode.dispose();

@@ -255,6 +255,11 @@ export class HUD {
     this.setMissionBanner('fishing-banner', text);
   }
 
+  /** Harbour docking prompt — shown when stopped near a discovered dock. */
+  setDock(text: string | null): void {
+    this.setMissionBanner('dock-hint', text);
+  }
+
   /** The catch (progress) and tension (line) bars during a fish fight. */
   setFishingMeter(state: { catch: number; tension: number } | null): void {
     let el = document.getElementById('fishing-meter');

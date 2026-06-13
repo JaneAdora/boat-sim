@@ -191,6 +191,7 @@
     body.photo-mode #waypoint,
     body.photo-mode #race-timer,
     body.photo-mode #toast-stack,
+    body.photo-mode #harbor-panel,
     body.photo-mode #minimap-container,
     body.photo-mode #controls-help,
     body.photo-mode #hud-toggle,
@@ -351,6 +352,57 @@
       font: 400 13px 'Segoe UI', system-ui, sans-serif;
       letter-spacing: 0.3px;
     }
+
+    /* Harbour notice board — opened with L at a discovered dock */
+    #harbor-panel {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 340px;
+      max-width: calc(100vw - 32px);
+      padding: 20px 22px;
+      background: rgba(8, 16, 28, 0.84);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      color: var(--ink);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+      user-select: none;
+      z-index: 40;
+    }
+    #harbor-panel .hp-title { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; }
+    #harbor-panel .hp-sub {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--accent); opacity: 0.85; margin-bottom: 12px;
+    }
+    #harbor-panel .hp-greeting { font-size: 13px; line-height: 1.5; opacity: 0.92; margin-bottom: 14px; }
+    #harbor-panel .hp-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 9px 0; border-top: 1px solid var(--hairline); font-size: 13px;
+    }
+    #harbor-panel .hp-key { opacity: 0.75; }
+    #harbor-panel .hp-val { font-weight: 600; }
+    #harbor-panel button { font-family: inherit; cursor: pointer; border-radius: 9px; }
+    #harbor-panel .hp-buy {
+      background: var(--accent); color: #06121f; font-weight: 700;
+      padding: 8px 14px; font-size: 12.5px; border: 1px solid transparent;
+    }
+    #harbor-panel .hp-buy:disabled { background: var(--surface); color: var(--ink); opacity: 0.5; cursor: default; }
+    #harbor-panel .hp-owned { color: #8fe6a4; font-weight: 600; font-size: 12.5px; }
+    #harbor-panel .hp-bal { font-size: 11px; opacity: 0.6; margin-top: 4px; text-align: right; }
+    #harbor-panel .hp-rumor {
+      margin-top: 14px; padding: 11px 13px; background: var(--surface);
+      border-radius: 10px; font-size: 12.5px; line-height: 1.5;
+    }
+    #harbor-panel .hp-rumor b { color: var(--accent); font-weight: 600; }
+    #harbor-panel .hp-leave {
+      width: 100%; margin-top: 16px; padding: 9px; font-size: 12px;
+      background: var(--surface); color: var(--ink); border: 1px solid var(--hairline);
+    }
+    #harbor-panel .hp-leave:hover { background: var(--surface-hover); }
 
     /* Shipyard (upgrades shop on the selector) */
     #shipyard-btn {
@@ -994,6 +1046,7 @@
         <tr><td>B</td><td>Board vessel</td></tr>
         <tr><td>F</td><td>Plunder cargo</td></tr>
         <tr><td>C</td><td>Cast / reel</td></tr>
+        <tr><td>L</td><td>Dock at harbour</td></tr>
         <tr><td>V</td><td>Treasure chart</td></tr>
         <tr><td>P</td><td>Photo mode</td></tr>
         <tr><td>N</td><td>Toggle map</td></tr>
