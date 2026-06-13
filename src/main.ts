@@ -77,7 +77,8 @@ let escTrapHandler: ((e: KeyboardEvent) => void) | null = null;
 let selectedMode: GameMode = localStorage.getItem('tb-mode') === 'magical' ? 'magical' : 'classic';
 
 function showSelector(): void {
-  loadingBar.style.width = '100%';
+  // The progress bar has done its job — hide it so the selector reads clean
+  loadingBar.parentElement!.style.display = 'none';
   loadingText.textContent = 'Choose your vessel';
 
   // Remove previous UI if it exists (re-entry case)

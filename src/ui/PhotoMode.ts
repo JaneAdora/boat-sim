@@ -73,7 +73,7 @@ export class PhotoMode {
       ctx.textBaseline = 'middle';
       ctx.fillText('TUGBOAT BLISS', pad, img.height + strip / 2 - strip * 0.14);
       ctx.fillStyle = '#e0e8f0';
-      ctx.font = `400 ${Math.round(strip * 0.3)}px 'Playfair Display', serif`;
+      ctx.font = `400 ${Math.round(strip * 0.26)}px 'Segoe UI', system-ui, sans-serif`;
       ctx.fillText(`${place}  ·  ${Math.round(x)}, ${Math.round(z)}`, pad, img.height + strip / 2 + strip * 0.2);
 
       const a = document.createElement('a');

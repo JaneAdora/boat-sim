@@ -45,7 +45,7 @@ export class TreasureChart {
     ctx.strokeRect(7, 7, 266, 286);
 
     ctx.fillStyle = '#6b5232';
-    ctx.font = 'italic 600 15px "Playfair Display", serif';
+    ctx.font = '600 14px "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('…torn from a logbook', 140, 30);
 
@@ -88,10 +88,10 @@ export class TreasureChart {
     ctx.moveTo(245, 32); ctx.lineTo(241, 42); ctx.lineTo(249, 42);
     ctx.closePath();
     ctx.fill();
-    ctx.font = '600 11px serif';
+    ctx.font = '600 11px "Segoe UI", system-ui, sans-serif';
     ctx.fillText('N', 245, 74);
 
-    ctx.font = 'italic 12px "Playfair Display", serif';
+    ctx.font = '400 12px "Segoe UI", system-ui, sans-serif';
     ctx.fillText('the shape is the only name you get', 140, 285);
 
     const hint = document.createElement('div');

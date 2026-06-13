@@ -148,7 +148,7 @@ export class HUD {
     this.showToast('Discovered', name);
   }
 
-  /** Generic top-center toast: small uppercase label over a serif headline. */
+  /** Generic top-center toast: small uppercase label over a sans headline. */
   showToast(label: string, headline: string): void {
     const toast = document.createElement('div');
     toast.className = 'discovery-toast';
