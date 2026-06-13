@@ -15,6 +15,13 @@ const _sailForce = new THREE.Vector3();
 const _angularDelta = new THREE.Quaternion();
 const _axis = new THREE.Vector3();
 
+// Amphibious (hovercraft) over-land ride. The body is clamped to this height
+// above the terrain every frame so it can never tunnel into a hillside at speed
+// — buoyancy alone lags behind fast horizontal motion. A little extra on-land
+// drag lets it settle onto the beach instead of skating across at full tilt.
+const AMPHIB_RIDE_HEIGHT = 0.4;
+const AMPHIB_LAND_DRAG = 0.9;
+
 export class PhysicsSystem extends System {
   private chunkManager: ChunkManager | null = null;
 
@@ -116,13 +123,27 @@ export class PhysicsSystem extends System {
         transform.quaternion.normalize();
       }
 
-      // Island ground collision — push boat off land. Amphibious craft (the
-      // hovercraft) are exempt: they ride up onto the beach instead.
-      if (this.chunkManager && !(buoyancy && buoyancy.amphibious)) {
+      // Island ground collision.
+      if (this.chunkManager) {
         const terrainH = this.chunkManager.getTerrainHeight(
           transform.position.x, transform.position.z
         );
-        if (terrainH > 0.5) {
+        if (buoyancy && buoyancy.amphibious) {
+          // Amphibious (hovercraft): ride a cushion over land instead of being
+          // pushed off it. Clamp the body up to the ride height every frame so a
+          // fast run can't punch into a hillside before buoyancy lifts it, and
+          // scrub a little speed on land so it settles onto the beach.
+          if (terrainH > 0) {
+            const floor = terrainH + AMPHIB_RIDE_HEIGHT;
+            if (transform.position.y < floor) {
+              transform.position.y = floor;
+              if (rb.velocity.y < 0) rb.velocity.y = 0;
+            }
+            const k = Math.max(0, 1 - AMPHIB_LAND_DRAG * dt);
+            rb.velocity.x *= k;
+            rb.velocity.z *= k;
+          }
+        } else if (terrainH > 0.5) {
           // Find nearest island center to push away from
           const islands = this.chunkManager.getIslandPositions();
           let nearestDist = Infinity;
