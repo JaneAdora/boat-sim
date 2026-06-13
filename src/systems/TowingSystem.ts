@@ -23,8 +23,9 @@ export class TowingSystem extends System {
 
   // UI
   private towButton: HTMLButtonElement;
+  private keydownHandler: (e: KeyboardEvent) => void;
 
-  private static readonly TOW_RANGE = 80;
+  private towRange: number;
   private static readonly ROPE_SEGMENTS = 8;
   private static readonly FISHING_TOW_DISTANCE = 8;
   private static readonly CARGO_TOW_DISTANCE = 18;
@@ -34,8 +35,10 @@ export class TowingSystem extends System {
     ocean: Ocean,
     boatEntity: number,
     wildlifeSystem: WildlifeSystem,
+    towRange = 80, // tow-winch upgrade extends this
   ) {
     super(67); // after WildlifeSystem (65), before SeagullSystem (70)
+    this.towRange = towRange;
     this.scene = scene;
     this.ocean = ocean;
     this.boatEntity = boatEntity;
@@ -59,11 +62,12 @@ export class TowingSystem extends System {
       this.toggleTow();
     });
 
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyT' && !e.repeat) {
+    this.keydownHandler = (e: KeyboardEvent) => {
+      if (e.code === 'KeyG' && !e.repeat) {
         this.toggleTow();
       }
-    });
+    };
+    window.addEventListener('keydown', this.keydownHandler);
   }
 
   update(world: World, dt: number): void {
@@ -92,7 +96,7 @@ export class TowingSystem extends System {
       this.nearestTowable = this.wildlifeSystem.findNearestTowable(
         transform.position.x,
         transform.position.z,
-        TowingSystem.TOW_RANGE,
+        this.towRange,
       );
 
       if (this.nearestTowable) {
@@ -116,6 +120,23 @@ export class TowingSystem extends System {
     } else if (this.nearestTowable) {
       this.startTow(this.nearestTowable);
     }
+  }
+
+  /** Attach a specific entity to the tow line (heists auto-hook stolen cargo). */
+  towEntity(entity: WildlifeEntity): boolean {
+    if (this.towedEntity) return false;
+    this.startTow(entity);
+    return true;
+  }
+
+  /** The entity currently on the line, if any. */
+  getTowedEntity(): WildlifeEntity | null {
+    return this.towedEntity;
+  }
+
+  /** Release the line if this specific entity is on it (fencing stolen cargo). */
+  releaseEntity(entity: WildlifeEntity): void {
+    if (this.towedEntity === entity) this.releaseTow();
   }
 
   private startTow(entity: WildlifeEntity): void {
@@ -162,10 +183,10 @@ export class TowingSystem extends System {
 
     // Distance and Y offset depend on entity type
     const towDists: Record<string, number> = {
-      cargo_ship: 18, fishing_boat: 8, whale: 6, dolphin: 4,
+      cargo_ship: 18, fishing_boat: 8, whale: 6, dolphin: 4, barge: 14,
     };
     const yOffsets: Record<string, number> = {
-      cargo_ship: 0.8, fishing_boat: 0.3, whale: 0.0, dolphin: 0.0,
+      cargo_ship: 0.8, fishing_boat: 0.3, whale: 0.0, dolphin: 0.0, barge: 0.3,
     };
     const towDist = towDists[e.type] ?? 6;
 
@@ -227,5 +248,11 @@ export class TowingSystem extends System {
     }
 
     (this.towLine.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+  }
+
+  dispose(): void {
+    window.removeEventListener('keydown', this.keydownHandler);
+    this.releaseTow();
+    this.towButton.remove();
   }
 }

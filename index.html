@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Tugboat Bliss | Sail the Infinite Ocean</title>
   <meta name="description" content="Free-roam 3D boat simulator with procedural oceans, dynamic weather, and combat. Choose your vessel and explore an infinite world — in classic combat or family-friendly Magical Mode.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -14,21 +14,57 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <meta property="og:title" content="Tugboat Bliss | Sail the Infinite Ocean">
   <meta property="og:description" content="Free-roam 3D boat simulator with procedural oceans, dynamic weather, and combat.">
-  <meta property="og:image" content="https://tugboatbliss.com/og-image.png">
+  <meta property="og:image" content="https://tugboat-bliss.netlify.app/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://tugboatbliss.com">
+  <meta property="og:url" content="https://tugboat-bliss.netlify.app">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Tugboat Bliss | Sail the Infinite Ocean">
   <meta name="twitter:description" content="Free-roam 3D boat simulator with procedural oceans, dynamic weather, and combat.">
-  <meta name="twitter:image" content="https://tugboatbliss.com/og-image.png">
+  <meta name="twitter:image" content="https://tugboat-bliss.netlify.app/og-image.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1628; }
+
+    :root {
+      --ink: #e0e8f0;
+      --bg-deep: #0a1628;
+      --accent: #7db8ec;
+      --surface: rgba(255,255,255,0.06);
+      --surface-hover: rgba(255,255,255,0.12);
+      --hairline: rgba(255,255,255,0.15);
+      --panel: rgba(0,0,0,0.35);
+    }
+
+    /* Keyboard focus ring — shared across every interactive control (a11y). */
+    .boat-card:focus-visible,
+    .mode-btn:focus-visible,
+    #esc-menu-box button:focus-visible,
+    #volume-slider:focus-visible,
+    #hud-toggle:focus-visible,
+    #help-toggle:focus-visible,
+    #map-toggle:focus-visible,
+    #esc-button:focus-visible,
+    #torpedo-button:focus-visible,
+    #missile-button:focus-visible,
+    #tow-button:focus-visible,
+    #install-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Respect reduced-motion: neutralise transitions + the kill flourish. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    html, body { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--bg-deep); }
     canvas { display: block; }
 
     #hud {
@@ -40,10 +76,10 @@
       gap: 24px;
       align-items: center;
       padding: 12px 24px;
-      background: rgba(0, 0, 0, 0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
       border-radius: 12px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 14px;
       pointer-events: none;
@@ -75,6 +111,309 @@
       transition: transform 0.3s ease;
     }
 
+    /* Kill counter flourish */
+    @keyframes kill-bump {
+      0%   { transform: scale(1); }
+      35%  { transform: scale(1.4); color: #ffd479; }
+      100% { transform: scale(1); }
+    }
+    #kill-count.kill-bump { display: inline-block; animation: kill-bump 0.35s ease-out; }
+    @keyframes kill-float {
+      0%   { opacity: 0; transform: translate(-50%, 0) scale(0.8); }
+      20%  { opacity: 1; transform: translate(-50%, -10px) scale(1.1); }
+      100% { opacity: 0; transform: translate(-50%, -44px) scale(1); }
+    }
+    .kill-float {
+      position: fixed;
+      pointer-events: none;
+      color: #ffd479;
+      font: 600 18px 'Segoe UI', system-ui, sans-serif;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      z-index: 30;
+      animation: kill-float 0.9s ease-out forwards;
+    }
+
+    /* Island discovery toast */
+    @keyframes discovery-toast {
+      0%   { opacity: 0; transform: translate(-50%, -10px); }
+      8%   { opacity: 1; transform: translate(-50%, 0); }
+      85%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .discovery-toast {
+      position: fixed;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 10px 26px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      z-index: 30;
+      animation: discovery-toast 4.2s ease forwards;
+    }
+    .discovery-toast .discovery-label {
+      font: 600 10px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .discovery-toast .discovery-name {
+      font: 500 17px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 0.3px;
+      color: var(--ink);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+    /* The global reduced-motion rule zeroes animation durations, which would
+       snap this toast straight to its 100% (opacity 0) frame. Show it static
+       instead — HUD removes it on a timer. */
+    @media (prefers-reduced-motion: reduce) {
+      .discovery-toast { animation: none; }
+    }
+
+    /* Photo mode: hide every overlay, show the capture bar */
+    body.photo-mode #hud,
+    body.photo-mode #mission-banners,
+    body.photo-mode #waypoint,
+    body.photo-mode #race-timer,
+    body.photo-mode #minimap-container,
+    body.photo-mode #controls-help,
+    body.photo-mode #hud-toggle,
+    body.photo-mode #map-toggle,
+    body.photo-mode #help-toggle,
+    body.photo-mode #esc-button,
+    body.photo-mode #torpedo-button,
+    body.photo-mode #missile-button,
+    body.photo-mode #tow-button,
+    body.photo-mode #touch-controls { display: none !important; }
+    #photo-bar {
+      position: fixed;
+      bottom: calc(24px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 30;
+    }
+    #photo-bar button {
+      padding: 10px 22px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+      color: var(--ink);
+      font: 400 14px 'Segoe UI', system-ui, sans-serif;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #photo-bar button:hover { background: var(--surface-hover); }
+
+    /* Screen-space objective waypoint (contract barge / destination) */
+    #waypoint {
+      position: fixed;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      pointer-events: none;
+      z-index: 24;
+      color: #ffd479;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    }
+    #waypoint .wp-arrow { font-size: 20px; line-height: 1; }
+    #waypoint .wp-diamond { font-size: 16px; line-height: 1; }
+    #waypoint .wp-dist {
+      font: 600 11px 'Segoe UI', system-ui, sans-serif;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
+    }
+
+    /* Race timer — top-center, below where toasts appear */
+    #race-timer {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 6px 16px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+      color: var(--ink);
+      font: 600 14px 'Segoe UI', system-ui, sans-serif;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
+      pointer-events: none;
+      z-index: 25;
+    }
+
+    /* Hull pips + damage flash */
+    #hull-pips { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .hull-pip { color: #7dec9b; font-size: 11px; margin: 0 1px; }
+    .hull-pip.lost { color: rgba(255, 100, 100, 0.35); }
+    #heat-stars { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    #heat-marks { color: #ff7a5c; font-size: 12px; letter-spacing: 2px; text-shadow: 0 0 6px rgba(255, 90, 60, 0.5); }
+    #treasure-chart {
+      position: fixed;
+      top: 50%;
+      right: 24px;
+      transform: translateY(-50%) rotate(1.5deg);
+      z-index: 30;
+      filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+    }
+    #treasure-chart canvas { display: block; border-radius: 3px; }
+    #treasure-chart-hint {
+      text-align: center;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 6px;
+      text-transform: uppercase;
+    }
+    body.photo-mode #treasure-chart { display: none; }
+    #fishing-meter {
+      position: fixed;
+      left: 50%;
+      bottom: 120px;
+      transform: translateX(-50%);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 14px;
+      background: rgba(10, 22, 40, 0.72);
+      border-radius: 10px;
+      backdrop-filter: blur(4px);
+    }
+    #fishing-meter .fm-row { display: flex; align-items: center; gap: 8px; }
+    #fishing-meter .fm-label {
+      width: 42px; font-size: 11px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: rgba(255,255,255,0.7);
+    }
+    #fishing-meter .fm-track {
+      width: 180px; height: 9px; border-radius: 5px;
+      background: rgba(255,255,255,0.14); overflow: hidden;
+    }
+    #fishing-meter .fm-fill { height: 100%; width: 0%; transition: width 0.08s linear; }
+    #fishing-meter .fm-catch { background: #5fd08a; }
+    #fishing-meter .fm-tension { background: #e8c14d; }
+    #fishing-meter .fm-tension.fm-danger { background: #e8553d; }
+    body.photo-mode #fishing-meter { display: none; }
+    #damage-flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 40;
+      opacity: 0;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(200, 30, 30, 0.45) 100%);
+    }
+    #damage-flash.active { animation: damage-flash 0.5s ease-out; }
+    @keyframes damage-flash {
+      0% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* Mission banners (contract, distress) — stacked top-left under the help button */
+    #mission-banners {
+      position: fixed;
+      top: 60px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 25;
+    }
+    .mission-banner {
+      max-width: 320px;
+      padding: 8px 14px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 10px;
+      backdrop-filter: blur(8px);
+      color: var(--ink);
+      font: 400 13px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 0.3px;
+    }
+
+    /* Shipyard (upgrades shop on the selector) */
+    #shipyard-btn {
+      margin-top: 14px;
+      padding: 8px 20px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: var(--ink);
+      font: 400 13px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #shipyard-btn:hover { background: var(--surface-hover); }
+    #shipyard {
+      margin-top: 12px;
+      padding: 16px 20px;
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 640px;
+    }
+    .shipyard-header {
+      font: 600 13px 'Segoe UI', system-ui, sans-serif;
+      color: #ffd479;
+      letter-spacing: 1px;
+    }
+    .shipyard-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .shipyard-boat {
+      width: 92px;
+      text-align: left;
+      font: 600 12px 'Segoe UI', system-ui, sans-serif;
+      color: var(--ink);
+    }
+    .shipyard-upgrade {
+      padding: 5px 12px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: var(--ink);
+      font: 400 12px 'Segoe UI', system-ui, sans-serif;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .shipyard-upgrade:hover:not(:disabled) { background: var(--surface-hover); }
+    .shipyard-upgrade:disabled { opacity: 0.45; cursor: default; }
+    .shipyard-upgrade.owned { border-color: rgba(125, 236, 155, 0.4); color: #7dec9b; opacity: 1; }
+    .shipyard-close {
+      align-self: center;
+      margin-top: 4px;
+      padding: 5px 18px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: var(--ink);
+      font: 400 12px 'Segoe UI', system-ui, sans-serif;
+      cursor: pointer;
+    }
+
+    #voyage-stats {
+      margin-top: 18px;
+      font: 400 13px 'Segoe UI', system-ui, sans-serif;
+      color: var(--ink);
+      opacity: 0.55;
+      letter-spacing: 0.5px;
+    }
+
     #loading-screen {
       position: fixed;
       inset: 0;
@@ -82,8 +421,8 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      background: #0a1628;
-      color: #e0e8f0;
+      background: var(--bg-deep);
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       z-index: 100;
       transition: opacity 0.8s ease;
@@ -126,13 +465,16 @@
     #loading-bar {
       width: 0%;
       height: 100%;
-      background: #5b9bd5;
+      background: var(--accent);
       transition: width 0.3s ease;
     }
 
     #loading-text {
-      margin-top: 20px;
-      font-size: 13px;
+      margin-top: 22px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
       opacity: 0.5;
     }
 
@@ -145,7 +487,7 @@
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(8px);
       border-radius: 12px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 12px;
       pointer-events: none;
@@ -176,9 +518,9 @@
     /* Mode toggle pill */
     #mode-pill {
       display: flex;
-      margin-top: 24px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.15);
+      margin-top: 8px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
       border-radius: 24px;
       overflow: hidden;
       width: 336px;
@@ -187,6 +529,10 @@
 
     .mode-btn {
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
       padding: 16px 8px;
       white-space: nowrap;
       background: transparent;
@@ -205,9 +551,11 @@
     }
 
     .mode-btn.active {
-      background: rgba(255,255,255,0.12);
-      color: #e0e8f0;
+      background: var(--surface-hover);
+      color: var(--ink);
     }
+    .mode-name { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+    .mode-desc { font-size: 10px; font-weight: 400; opacity: 0.7; letter-spacing: 0.2px; }
 
     /* Boat selector */
     #boat-selector {
@@ -230,17 +578,18 @@
       align-items: center;
       gap: 8px;
       padding: 20px 24px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.15);
+      background: var(--surface);
+      border: 1px solid var(--hairline);
       border-radius: 12px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       cursor: pointer;
+      touch-action: manipulation;
       transition: background 0.2s, border-color 0.2s, transform 0.15s;
     }
 
     .boat-card:hover, .boat-card:active {
-      background: rgba(255,255,255,0.12);
+      background: var(--surface-hover);
       border-color: rgba(255,255,255,0.35);
       transform: translateY(-2px);
     }
@@ -248,6 +597,7 @@
     .boat-icon { font-size: 32px; }
     .boat-name { font-size: 14px; font-weight: 500; letter-spacing: 0.5px; }
     .boat-desc { font-size: 11px; opacity: 0.5; }
+    .boat-card.last-played { border-color: rgba(125,184,236,0.5); box-shadow: 0 0 0 1px rgba(125,184,236,0.3); }
 
     /* Mobile HUD toggle */
     #hud-toggle {
@@ -258,9 +608,9 @@
       width: 36px;
       height: 36px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       color: rgba(255,255,255,0.6);
       font-size: 16px;
       cursor: pointer;
@@ -268,6 +618,32 @@
       padding: 0;
       line-height: 36px;
       text-align: center;
+    }
+
+    /* Help (?) button — always visible on desktop + mobile */
+    #help-toggle {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
+      background: var(--panel);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--hairline);
+      color: rgba(255,255,255,0.6);
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 20;
+      padding: 0;
+      line-height: 34px;
+      text-align: center;
+      transition: color 0.2s, background 0.2s;
+    }
+    #help-toggle:hover {
+      color: rgba(255,255,255,0.9);
+      background: rgba(0,0,0,0.5);
     }
 
     /* Minimap */
@@ -279,7 +655,7 @@
       height: 140px;
       border-radius: 50%;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       box-shadow: 0 2px 12px rgba(0,0,0,0.3);
       z-index: 10;
       pointer-events: none;
@@ -298,9 +674,9 @@
       width: 36px;
       height: 36px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       color: rgba(255,255,255,0.6);
       font-size: 14px;
       cursor: pointer;
@@ -319,7 +695,7 @@
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 16px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 12px;
       letter-spacing: 0.5px;
@@ -359,13 +735,13 @@
       align-items: center;
       justify-content: center;
       font-family: 'Segoe UI', system-ui, sans-serif;
-      color: #e0e8f0;
+      color: var(--ink);
     }
     #esc-menu.visible { display: flex; }
     #esc-menu-box {
       text-align: center;
       background: rgba(10, 22, 40, 0.9);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       border-radius: 16px;
       padding: 32px 40px;
     }
@@ -375,24 +751,62 @@
       margin-bottom: 24px;
       letter-spacing: 0.5px;
     }
+    #esc-menu-box .esc-volume {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 22px;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      opacity: 0.85;
+    }
+    #esc-menu-box .esc-volume input[type="range"] {
+      width: 170px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    #esc-menu-box .esc-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
     #esc-menu-box button {
       padding: 10px 24px;
-      margin: 0 8px;
       border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.2);
       background: rgba(255,255,255,0.08);
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: inherit;
       font-size: 14px;
       cursor: pointer;
       transition: background 0.2s;
     }
     #esc-menu-box button:hover { background: rgba(255,255,255,0.16); }
-    #esc-confirm {
+    #esc-resume {
+      background: rgba(125, 184, 236, 0.22);
+      border-color: rgba(125, 184, 236, 0.4);
+    }
+    #esc-resume:hover { background: rgba(125, 184, 236, 0.38); }
+    #esc-leave {
       background: rgba(200, 60, 60, 0.3);
       border-color: rgba(200, 60, 60, 0.4);
     }
-    #esc-confirm:hover { background: rgba(200, 60, 60, 0.5); }
+    #esc-leave:hover { background: rgba(200, 60, 60, 0.5); }
+    #esc-hint {
+      font-size: 12px;
+      opacity: 0.5;
+      margin: 18px 0 0;
+      letter-spacing: 0.3px;
+    }
+    #esc-hint kbd {
+      background: var(--surface-hover);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: inherit;
+      font-size: 11px;
+    }
 
     /* Mobile escape button */
     #esc-button {
@@ -403,9 +817,9 @@
       width: 36px;
       height: 36px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.35);
+      background: var(--panel);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--hairline);
       color: rgba(255,255,255,0.6);
       font-size: 16px;
       cursor: pointer;
@@ -425,7 +839,7 @@
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 24px;
-      color: #e0e8f0;
+      color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
       font-size: 15px;
       letter-spacing: 0.5px;
@@ -451,16 +865,14 @@
     @media (pointer: coarse) {
       #hud {
         bottom: auto;
-        top: 16px;
-        left: 16px;
+        top: calc(60px + env(safe-area-inset-top));
+        left: calc(16px + env(safe-area-inset-left));
         transform: none;
         font-size: 12px;
         gap: 16px;
         padding: 8px 16px;
       }
-      #controls-help {
-        display: none !important;
-      }
+      /* Controls card stays reachable on mobile via the help (?) button. */
       #hud-toggle {
         display: block;
       }
@@ -482,9 +894,16 @@
         padding: 7px 12px;
         z-index: 100;
       }
-      #torpedo-button { left: 16px; bottom: 85px; }
-      #missile-button { left: 60px; bottom: 85px; }
+      /* weapon buttons stack on the right, clear of the bottom-left tiller */
+      #torpedo-button { left: auto; right: calc(16px + env(safe-area-inset-right)); bottom: calc(250px + env(safe-area-inset-bottom)); }
+      #missile-button { left: auto; right: calc(16px + env(safe-area-inset-right)); bottom: calc(304px + env(safe-area-inset-bottom)); }
       #esc-button { display: block; }
+      /* top-corner buttons clear the notch / status bar / side insets */
+      #esc-button, #help-toggle, #hud-toggle, #map-toggle { top: calc(16px + env(safe-area-inset-top)); }
+      #esc-button { left: calc(16px + env(safe-area-inset-left)); }
+      #help-toggle { left: calc(56px + env(safe-area-inset-left)); }
+      #hud-toggle { right: calc(16px + env(safe-area-inset-right)); }
+      #map-toggle { right: calc(56px + env(safe-area-inset-right)); }
     }
   </style>
 </head>
@@ -527,6 +946,7 @@
   </div>
 
   <button id="hud-toggle" aria-label="Toggle gauges"></button>
+  <button id="help-toggle" aria-label="Show controls" title="Controls (press ?)">?</button>
 
   <div id="controls-help">
     <table>
@@ -536,13 +956,18 @@
       <tr><td>R/F</td><td>Zoom</td></tr>
       <tr><td>Right-drag</td><td>Look around</td></tr>
       <tr><td>Scroll</td><td>Zoom</td></tr>
-      <tr><td>M</td><td>Mute audio</td></tr>
+      <tr><td>T</td><td>Fire Torpedo</td></tr>
+      <tr><td>M</td><td>Fire Missile</td></tr>
+      <tr><td>G</td><td>Tow / Release</td></tr>
+      <tr><td>B</td><td>Board vessel</td></tr>
+      <tr><td>F</td><td>Plunder cargo</td></tr>
+      <tr><td>V</td><td>Treasure chart</td></tr>
+      <tr><td>C</td><td>Cast / reel</td></tr>
+      <tr><td>X</td><td>Mute audio</td></tr>
       <tr><td>H</td><td>Toggle HUD</td></tr>
       <tr><td>N</td><td>Toggle map</td></tr>
-      <tr><td>T</td><td>Tow / Release</td></tr>
-      <tr><td>Y</td><td>Fire Torpedo</td></tr>
-      <tr><td>U</td><td>Fire Missile</td></tr>
-      <tr><td>/</td><td>Show controls</td></tr>
+      <tr><td>P</td><td>Photo mode</td></tr>
+      <tr><td>?</td><td>Show / hide controls</td></tr>
       <tr><td>Esc</td><td>Leave game</td></tr>
     </table>
   </div>
@@ -556,9 +981,17 @@
 
   <div id="esc-menu">
     <div id="esc-menu-box">
-      <p>Leave the game?</p>
-      <button id="esc-confirm">Yes, leave</button>
-      <button id="esc-cancel">Cancel</button>
+      <p id="esc-title">Paused</p>
+      <div class="esc-volume">
+        <label for="volume-slider">Volume</label>
+        <input id="volume-slider" type="range" min="0" max="100" step="1" value="50" aria-label="Volume">
+      </div>
+      <div class="esc-actions">
+        <button id="esc-mute">Mute</button>
+        <button id="esc-resume">Resume</button>
+        <button id="esc-leave">Leave to menu</button>
+      </div>
+      <p id="esc-hint">Press <kbd>?</kbd> any time for controls</p>
     </div>
   </div>
 

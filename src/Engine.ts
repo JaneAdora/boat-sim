@@ -26,19 +26,45 @@ import { Minimap } from './ui/Minimap';
 import { TouchControls } from './ui/TouchControls';
 import { AmbientSoundscape } from './audio/AmbientSoundscape';
 import { SoundEffects } from './audio/SoundEffects';
+import { GenerativeMusic } from './audio/GenerativeMusic';
 import { PostProcessing } from './rendering/PostProcessing';
 import { WakeTrail } from './rendering/WakeTrail';
 import { BowSpray } from './rendering/BowSpray';
 import { Bioluminescence } from './rendering/Bioluminescence';
 import { Moon } from './rendering/Moon';
 import { WeatherSystem } from './rendering/WeatherSystem';
+import { Aurora } from './rendering/Aurora';
 import { BoatLights } from './rendering/BoatLights';
 import { KillTracker } from './state/KillTracker';
+import { DiscoveryTracker } from './state/DiscoveryTracker';
+import { JournalTracker, JOURNAL_TOTAL } from './state/JournalTracker';
+import { bumpBestKills, bumpContracts } from './state/VoyageLog';
+import { addCredits } from './state/Wallet';
+import { addKarma } from './state/Karma';
+import { hasUpgrade } from './state/Upgrades';
+import { islandName } from './world/IslandNames';
+import { ContractSystem } from './systems/ContractSystem';
+import { ReturnFireSystem } from './systems/ReturnFireSystem';
+import { CommandeerSystem } from './systems/CommandeerSystem';
+import { HeistSystem } from './systems/HeistSystem';
+import { TrickSystem } from './systems/TrickSystem';
+import { BottleSystem } from './systems/BottleSystem';
+import { TreasureChart } from './ui/TreasureChart';
+import { LeviathanSystem } from './systems/LeviathanSystem';
+import { MermaidSystem } from './systems/MermaidSystem';
+import { FishingSystem } from './systems/FishingSystem';
+import { RaceSystem } from './systems/RaceSystem';
+import { DistressSystem } from './systems/DistressSystem';
+import { WaypointIndicator } from './ui/WaypointIndicator';
+import { PhotoMode } from './ui/PhotoMode';
 import { MeshRenderable } from './components/MeshRenderable';
 import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
 import { BoatControl } from './components/BoatControl';
 import { GameConfig } from './state/GameConfig';
+
+// Reusable scratch vector for per-frame forward/heading math (avoids GC churn).
+const _forward = new THREE.Vector3();
 
 export class Engine {
   private world: World;
@@ -54,24 +80,50 @@ export class Engine {
   private minimap: Minimap;
   private soundscape: AmbientSoundscape;
   private soundEffects: SoundEffects;
+  private music: GenerativeMusic;
   private postProcessing: PostProcessing;
   private wakeTrail: WakeTrail;
   private bowSpray: BowSpray;
   private bioluminescence: Bioluminescence;
   private moon: Moon;
   private weather: WeatherSystem;
+  private aurora: Aurora;
   private boatLights: BoatLights;
   private wildlifeSystem: WildlifeSystem;
   private weaponsSystem: WeaponsSystem;
   private killTracker: KillTracker;
+  private discovery = new DiscoveryTracker();
+  private journal = new JournalTracker();
+  private discoveryTimer = 0;
+  private contracts: ContractSystem;
+  private returnFire: ReturnFireSystem;
+  private commandeer: CommandeerSystem;
+  private heists: HeistSystem;
+  private tricks: TrickSystem;
+  private bottles: BottleSystem;
+  private treasureChart: TreasureChart;
+  private leviathan: LeviathanSystem;
+  private mermaid: MermaidSystem;
+  private fishing: FishingSystem;
+  private races: RaceSystem;
+  private distress: DistressSystem;
+  private waypoint = new WaypointIndicator();
+  private photoMode: PhotoMode;
   private boatEntity: number;
   private elapsedTime = 0;
   private keydownHandler: (e: KeyboardEvent) => void;
 
   private readonly config: GameConfig;
+  private audioVolume = 0.5;
+  private audioMuted = false;
 
   constructor(boatDef: BoatDefinition, config: GameConfig = { mode: 'classic' }) {
     this.config = config;
+
+    // Restore persisted audio preferences (set by the pause menu / mute key).
+    const storedVol = parseFloat(localStorage.getItem('tb-volume') ?? '');
+    this.audioVolume = Number.isFinite(storedVol) ? Math.max(0, Math.min(1, storedVol)) : 0.5;
+    this.audioMuted = localStorage.getItem('tb-muted') === '1';
     // Core
     this.world = new World();
     this.input = new InputManager();
@@ -145,15 +197,18 @@ export class Engine {
     this.wildlifeSystem.setChunkManager(this.chunkManager);
     this.world.addSystem(this.wildlifeSystem);
 
-    // Towing (tugboat only)
+    // Towing (tow-winch upgrade extends hook range)
     const towingSystem = new TowingSystem(
       this.sceneManager.scene, this.ocean, this.boatEntity,
       this.wildlifeSystem,
+      hasUpgrade(boatDef.name, 'winch') ? 140 : 80,
     );
     this.world.addSystem(towingSystem);
 
     // Sound effects (weapon SFX)
     this.soundEffects = new SoundEffects();
+    this.soundEffects.setMasterVolume(this.audioVolume);
+    this.soundEffects.setMuted(this.audioMuted);
 
     // Weapons (torpedoes & missiles)
     this.weaponsSystem = new WeaponsSystem(
@@ -171,9 +226,127 @@ export class Engine {
     this.hud = new HUD(this.input, this.killTracker, this.config);
     this.minimap = new Minimap(this.chunkManager);
 
+    // Sinking innocents and darkening beacons stains the permanent ledger
+    this.weaponsSystem.onKarma = (delta, reason, journalKey) => this.awardKarma(delta, reason, journalKey);
+
+    // Battleship return fire + limp-home hull damage
+    const ownMaxHp = hasUpgrade(boatDef.name, 'hull') ? 4 : ReturnFireSystem.BASE_HP;
+    this.returnFire = new ReturnFireSystem(
+      this.sceneManager.scene, this.wildlifeSystem, this.soundEffects, this.config,
+      {
+        onHull: (hp, max) => this.hud.setHull(hp, max),
+        onHit: () => this.hud.flashDamage(),
+        isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
+      },
+      ownMaxHp,
+    );
+    if (this.config.mode === 'classic') {
+      this.hud.setHull(this.returnFire.maxHp, this.returnFire.maxHp);
+    }
+
+    // Commandeering — pull alongside, press B, sail off with it
+    this.commandeer = new CommandeerSystem(
+      this.world, this.boatEntity, this.wildlifeSystem, this.ocean,
+      boatDef, ownMaxHp,
+      {
+        onKarma: (delta, reason, journalKey) => this.awardKarma(delta, reason, journalKey),
+        onHint: (text) => this.hud.setBoardHint(text),
+        setHull: (maxHp) => this.returnFire.setHull(maxHp),
+        onNavalAlert: (active) => this.returnFire.setNavalAlert(active),
+      },
+    );
+
+    // Airtime trick scoring — the wave field is a skate park
+    this.tricks = new TrickSystem(this.world, this.boatEntity, this.ocean, {
+      onTrick: (credits, headline) => {
+        addCredits(credits);
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('✨ Style', headline);
+      },
+    });
+
+    // Cargo heists — F plunders a container; fence it far from the crime
+    this.heists = new HeistSystem(this.wildlifeSystem, towingSystem, {
+      onKarma: (delta, reason, journalKey) => this.awardKarma(delta, reason, journalKey),
+      onBanner: (text) => this.hud.setHeist(text),
+      onFence: (payout) => {
+        addCredits(payout);
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('Cargo fenced', `No questions asked · +${payout} cr`);
+        const text = this.journal.log('pirate');
+        if (text) {
+          addCredits(15);
+          this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+        }
+      },
+      onHeat: (stars) => {
+        this.hud.setHeat(stars);
+        this.returnFire.setHeatLevel(stars);
+      },
+      isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
+    });
+
+    // Buoy time-trials — gold buoy starts the course, ghost replays your best
+    this.races = new RaceSystem(
+      this.sceneManager.scene, this.chunkManager,
+      boatMesh!.object3D as THREE.Group,
+      {
+        onTimer: (text) => this.hud.setRaceTimer(text),
+        onFinish: (label, headline, reward) => {
+          addCredits(reward);
+          this.hud.showToast(label, `${headline} · +${reward} cr`);
+          this.soundEffects.playDiscovery();
+        },
+      },
+    );
+
+    // Distress calls — rescue burning vessels, tow them to a discovered harbor
+    this.distress = new DistressSystem(
+      this.sceneManager.scene, this.wildlifeSystem, this.chunkManager,
+      {
+        onBanner: (text) => this.hud.setDistress(text),
+        onComplete: (reward) => {
+          addCredits(reward);
+          addKarma(15);
+          this.hud.showToast('Rescue complete', `Survivor safe · +${reward} cr · ⚖️ +15 karma`);
+          this.soundEffects.playDiscovery();
+          const text = this.journal.log('rescue');
+          if (text) {
+            addCredits(15);
+            this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+          }
+        },
+        onWhaleFreed: () => {
+          this.soundEffects.playDiscovery();
+          this.awardKarma(20, 'Freed a tangled whale', 'whale-freed');
+        },
+        isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
+        nearestHarbor: (x, z) => this.nearestDiscoveredHarbor(x, z),
+      },
+    );
+
+    // Salvage contracts (tow the barge to a named island)
+    this.contracts = new ContractSystem(this.wildlifeSystem, this.chunkManager, {
+      onBanner: (text) => this.hud.setContract(text),
+      onComplete: (destName, payout) => {
+        addCredits(payout);
+        this.hud.showToast('Contract complete', `${destName} · +${payout} cr`);
+        this.soundEffects.playDiscovery();
+        bumpContracts();
+      },
+    });
+
     // Audio
     this.soundscape = new AmbientSoundscape(boatDef.meshType);
+    this.soundscape.setMasterVolume(this.audioVolume);
+    this.soundscape.setMuted(this.audioMuted);
     this.soundscape.start();
+
+    // Generative ambient soundtrack (starts inside the launch gesture)
+    this.music = new GenerativeMusic();
+    this.music.setMasterVolume(this.audioVolume);
+    this.music.setMuted(this.audioMuted);
+    this.music.start();
 
     // Post-processing (subtle bloom for sun reflections)
     this.postProcessing = new PostProcessing(
@@ -192,17 +365,149 @@ export class Engine {
     this.bioluminescence = new Bioluminescence(this.sceneManager.scene);
     this.moon = new Moon(this.sceneManager.scene);
 
-    // Weather (rain, fog, lightning)
+    // Weather (rain, fog, lightning) + rare aurora nights
     this.weather = new WeatherSystem(this.sceneManager.scene);
+    this.aurora = new Aurora(this.sceneManager.scene);
+
+    // Photo mode — postcards with the place name and shareable coordinates
+    this.photoMode = new PhotoMode({
+      capture: () => {
+        // Render and read back in the same task (no preserveDrawingBuffer)
+        this.postProcessing.render();
+        return this.sceneManager.renderer.domElement.toDataURL('image/png');
+      },
+      getPlaceName: () => {
+        const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
+        if (!t) return 'Open Ocean';
+        let best: { name: string; d: number } | null = null;
+        for (const isl of this.chunkManager.getIslandPositions()) {
+          const d = Math.hypot(t.position.x - isl.x, t.position.z - isl.z);
+          if (d < 300 && (!best || d < best.d)) {
+            best = { name: islandName(isl.chunkX, isl.chunkZ, isl.biome), d };
+          }
+        }
+        return best?.name ?? 'Open Ocean';
+      },
+      getCoords: () => {
+        const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
+        return { x: t?.position.x ?? 0, z: t?.position.z ?? 0 };
+      },
+    });
+
+    // The Leviathan — spectacle first, then a storm boss for those who've seen it
+    this.leviathan = new LeviathanSystem(
+      this.sceneManager.scene, this.ocean, this.wildlifeSystem, this.chunkManager,
+      {
+        onWitnessed: () => {
+          const text = this.journal.log('leviathan');
+          if (text) {
+            addCredits(15);
+            this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+          }
+        },
+        onBanner: (text) => this.hud.setLeviathan(text),
+        onSlam: () => {
+          this.returnFire.applyExternalDamage();
+          this.soundEffects.playExplosion();
+        },
+        groan: () => this.soundEffects.playLeviathanGroan(),
+      },
+    );
+    this.weaponsSystem.onLeviathanSlain = () => {
+      addCredits(200);
+      this.hud.setLeviathan(null);
+      this.soundEffects.playDiscovery();
+      this.hud.showToast('🐙 The Leviathan is slain', 'Bounty · +200 cr');
+      this.awardKarma(15, 'Slew the Leviathan', 'leviathan-slain');
+    };
+
+    // The Mermaid of the Arches — heard before she's seen, karma ≥ 0 only
+    this.mermaid = new MermaidSystem(
+      this.sceneManager.scene, this.ocean, this.chunkManager,
+      {
+        onSongBegins: () => this.hud.showToast('🎶', 'A strange song drifts over the water…'),
+        onGift: (level) => {
+          this.soundEffects.playDiscovery();
+          if (level === 1) {
+            addCredits(120);
+            this.hud.showToast('🧜 The mermaid', 'She presses pearls into your hands · +120 cr');
+            const text = this.journal.log('mermaid');
+            if (text) {
+              addCredits(15);
+              this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+            }
+          } else if (level === 2) {
+            this.music.enableMermaidMotif();
+            this.hud.showToast('🧜 The mermaid', 'Her melody joins your soundtrack, for good');
+          } else {
+            this.wildlifeSystem.dolphinAffinity = true;
+            this.hud.showToast('🧜 Her blessing', 'Dolphins will seek your bow wake, always');
+          }
+        },
+      },
+    );
+    // Past gifts persist across sessions
+    if (this.mermaid.getLevel() >= 2) this.music.enableMermaidMotif();
+    if (this.mermaid.getLevel() >= 3) this.wildlifeSystem.dolphinAffinity = true;
+    this.mermaid.song.setMasterVolume(this.audioVolume);
+    this.mermaid.song.setMuted(this.audioMuted);
+
+    // Bottled messages + treasure hunts — the chart is the puzzle, no waypoint
+    this.treasureChart = new TreasureChart();
+    this.bottles = new BottleSystem(this.sceneManager.scene, this.ocean, this.chunkManager, {
+      onMap: (map) => {
+        this.treasureChart.setMap(map);
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('🗺️ A torn chart', 'Press V — find the island by its shape');
+      },
+      onStory: (story) => {
+        this.hud.showToast('📜 Message in a bottle', story);
+        this.soundEffects.playDiscovery();
+      },
+      onTreasure: (reward) => {
+        this.treasureChart.setMap(null);
+        addCredits(reward);
+        this.soundEffects.playDiscovery();
+        this.hud.showToast('⚒️ Treasure', `The chest surfaces · +${reward} cr`);
+        const text = this.journal.log('treasure');
+        if (text) {
+          addCredits(15);
+          this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+        }
+      },
+    });
+    this.treasureChart.setMap(this.bottles.getMap()); // resume a persisted hunt
+
+    // Fishing — the calm verb (C to cast/reel)
+    this.fishing = new FishingSystem(this.sceneManager.scene, this.ocean, this.chunkManager, localStorage, {
+      onPrompt: (text) => this.hud.setFishing(text),
+      onMeter: (state) => this.hud.setFishingMeter(state),
+      onLanded: (species, value, weight, firstOfSpecies) => {
+        addCredits(value);
+        this.soundEffects.playDiscovery();
+        const note = firstOfSpecies ? ' · new species!' : '';
+        this.hud.setFishing(`🐟 Landed a ${species.name} (${weight}kg) · +${value} cr${note}`);
+        const text = this.journal.log('angler');
+        if (text) {
+          addCredits(15);
+          this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+        }
+      },
+    });
 
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
-      if (e.code === 'KeyM') {
-        this.soundscape.toggleMute();
-        this.soundEffects.toggleMute();
+      if (e.code === 'KeyX') {
+        this.toggleMute();
       }
       if (e.code === 'KeyN') {
         this.minimap.toggle();
+      }
+      if (e.code === 'KeyP') {
+        this.photoMode.toggle();
+      }
+      if (e.code === 'KeyV') {
+        this.treasureChart.toggle();
       }
       if (e.key === '/' || e.key === '?') {
         this.hud.toggleControls();
@@ -231,6 +536,9 @@ export class Engine {
     const fog = this.sceneManager.scene.fog as THREE.FogExp2;
     if (fog) {
       this.weather.update(dt, this.sceneManager.camera.position, fog);
+
+      // Storms raise the sea state — rendering and physics together
+      this.ocean.setStormScale(1 + this.weather.getRainIntensity() * 0.9);
 
       // Fog color based on time of day + weather darkness
       const sunElev = sunDir.y;
@@ -262,8 +570,7 @@ export class Engine {
 
       // Update wake trail
       if (boatRb) {
-        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(boatTransform.quaternion);
-        const speed = Math.abs(boatRb.velocity.dot(forward));
+        const speed = Math.abs(boatRb.velocity.dot(_forward.set(0, 0, 1).applyQuaternion(boatTransform.quaternion)));
         this.wakeTrail.update(boatTransform.position, boatTransform.quaternion, speed, dt);
         this.bowSpray.update(dt, boatTransform.position, boatTransform.quaternion, speed);
         this.bioluminescence.update(dt, boatTransform.position, boatTransform.quaternion, speed, sunDir.y);
@@ -271,28 +578,111 @@ export class Engine {
 
       // Update weapon effects (torpedo wakes, explosions)
       this.weaponsSystem.updateEffects(dt);
+
+      // Salvage contracts (generation, banner, delivery detection)
+      this.contracts.update(dt, boatTransform.position.x, boatTransform.position.z);
+
+      // Distress calls (spawn, smoke, rescue detection)
+      // horizontal speed only — wave heave would read as "moving" while holding station
+      this.distress.update(dt, boatTransform.position.x, boatTransform.position.z,
+        boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0);
+
+      // Battleship return fire + hull repair
+      const ctrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
+      if (boatRb && ctrl) {
+        this.returnFire.update(dt, boatTransform, boatRb, ctrl);
+      }
+
+      // Boarding prompts + hull swaps
+      this.commandeer.update(dt);
+
+      // Heists: plunder requests, fence detection, naval heat
+      this.heists.update(dt, boatTransform.position.x, boatTransform.position.z);
+
+      // Airtime tricks
+      this.tricks.update(dt);
+
+      // Bottles bob, get collected, and the dig check
+      this.bottles.update(dt, boatTransform.position.x, boatTransform.position.z);
+
+      // The Leviathan stirs in deep-water storms
+      this.leviathan.update(dt, boatTransform.position.x, boatTransform.position.z, this.weather.getRainIntensity());
+
+      // The mermaid sings on clear calm nights; her pan/gain track per frame
+      this.mermaid.update(
+        dt, boatTransform.position.x, boatTransform.position.z,
+        new THREE.Euler().setFromQuaternion(boatTransform.quaternion, 'YXZ').y,
+        sunDir.y, this.weather.getRainIntensity(),
+      );
+
+      // Fishing — cast/bite/fight state machine
+      this.fishing.update(
+        dt, boatTransform.position.x, boatTransform.position.z,
+        boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0,
+        sunDir.y < -0.1, this.weather.getRainIntensity() > 0.5,
+      );
+
+      // Time-trials (start detection, gates, ghost replay)
+      this.races.update(dt, boatTransform);
+
+      // Island discovery + best-kills high-water mark, throttled to 2Hz —
+      // neither needs frame-rate precision and both touch localStorage.
+      this.discoveryTimer += dt;
+      if (this.discoveryTimer >= 0.5) {
+        this.discoveryTimer = 0;
+        const found = this.discovery.check(
+          boatTransform.position.x,
+          boatTransform.position.z,
+          this.chunkManager.getIslandPositions(),
+        );
+        if (found) {
+          addCredits(10);
+          this.hud.showToast('Discovered', `${islandName(found.chunkX, found.chunkZ, found.biome)} · +10 cr`);
+          this.soundEffects.playDiscovery();
+        }
+        bumpBestKills(this.killTracker.total);
+
+        // Field journal sightings (same 2Hz cadence)
+        if (boatRb) this.checkJournal(boatTransform, boatRb, sunDir.y);
+
+        // Soundtrack mood: storm darkens, night thins, battleships add a pulse
+        const dangerNear = this.wildlifeSystem.getBattleships().some((b) =>
+          Math.hypot(b.mesh.position.x - boatTransform.position.x, b.mesh.position.z - boatTransform.position.z) < 300);
+        this.music.setMood(this.weather.getRainIntensity(), sunDir.y < -0.05, dangerNear);
+      }
     }
 
-    // Update moon and boat lights
+    // Update moon, boat lights, and aurora
     this.moon.update(sunDir, sunDir.y);
     this.boatLights.update(sunDir.y);
+    this.aurora.update(dt, this.sceneManager.camera.position, sunDir.y, this.weather.getRainIntensity());
 
     // Update HUD
     this.hud.update(this.world, this.boatEntity, this.windSystem, dt);
 
     // Update minimap — compute heading from forward vector (immune to pitch/roll)
     if (boatTransform) {
-      const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(boatTransform.quaternion);
-      const heading = Math.atan2(fwd.x, fwd.z);
+      _forward.set(0, 0, 1).applyQuaternion(boatTransform.quaternion);
+      const heading = Math.atan2(_forward.x, _forward.z);
       this.minimap.update(
         boatTransform.position.x,
         boatTransform.position.z,
         heading,
         this.wildlifeSystem.getWildlifePositions(),
+        this.distress.getMarker() ?? this.contracts.getMarker(),
+      );
+
+      // Screen-space waypoint to the active objective (rescue first, then contract)
+      this.waypoint.update(
+        this.sceneManager.camera,
+        this.distress.getMarker() ?? this.contracts.getMarker(),
+        boatTransform.position.x,
+        boatTransform.position.z,
       );
     }
 
-    // Update ambient audio
+    // Update ambient audio + soundtrack timers
+    this.music.update(dt);
     this.soundscape.update(this.windSystem.strength, false, dt, this.weather.getRainIntensity());
     const boatCtrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
     if (boatCtrl) {
@@ -301,6 +691,76 @@ export class Engine {
 
     // Render with post-processing
     this.postProcessing.render();
+  }
+
+  /** Safe harbor = the calm shallows of any *discovered* island. */
+  private isSafeHarbor(x: number, z: number): boolean {
+    for (const isl of this.chunkManager.getIslandPositions()) {
+      if (!this.discovery.isDiscovered(isl.chunkX, isl.chunkZ)) continue;
+      if (Math.hypot(x - isl.x, z - isl.z) < isl.radius + 80) return true;
+    }
+    return false;
+  }
+
+  private nearestDiscoveredHarbor(x: number, z: number): { x: number; z: number } | null {
+    let best: { x: number; z: number } | null = null;
+    let bestDist = Infinity;
+    for (const isl of this.chunkManager.getIslandPositions()) {
+      if (!this.discovery.isDiscovered(isl.chunkX, isl.chunkZ)) continue;
+      const d = Math.hypot(x - isl.x, z - isl.z);
+      if (d < bestDist) {
+        bestDist = d;
+        best = { x: isl.x, z: isl.z };
+      }
+    }
+    return best;
+  }
+
+  /** First-time wildlife/moment sightings → field journal toast + bell. */
+  /** Apply a karma change with a toast; optionally log a journal entry (good or shameful). */
+  private awardKarma(delta: number, reason: string, journalKey?: string): void {
+    addKarma(delta);
+    this.hud.showToast(`⚖️ Karma ${delta > 0 ? '+' : ''}${delta}`, reason);
+    if (journalKey) {
+      const text = this.journal.log(journalKey);
+      if (text) {
+        addCredits(15);
+        this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+      }
+    }
+  }
+
+  private checkJournal(boatTransform: Transform, boatRb: RigidBody, sunY: number): void {
+    const bx = boatTransform.position.x;
+    const bz = boatTransform.position.z;
+    const speed = boatRb.velocity.length();
+    const hits: string[] = [];
+
+    for (const w of this.wildlifeSystem.getWildlifePositions()) {
+      const dist = Math.hypot(w.x - bx, w.z - bz);
+      if (w.type === 'dolphin' && dist < 15 && speed > 3) hits.push('dolphins');
+      else if (w.type === 'whale' && dist < 60) hits.push('whale');
+      else if (w.type === 'fishing_boat' && dist < 60) hits.push('fishing');
+      else if (w.type === 'cargo_ship' && dist < 80) hits.push('cargo');
+      else if (w.type === 'battleship' && dist < 150) hits.push('battleship');
+    }
+    if (sunY < -0.1) hits.push('night');
+    if (this.weather.getRainIntensity() > 0.8) hits.push('storm');
+    if (this.aurora.isActive()) hits.push('aurora');
+    for (const lm of this.chunkManager.getLandmarks()) {
+      const dist = Math.hypot(lm.x - bx, lm.z - bz);
+      if (lm.type === 'wrecks' && dist < 70) hits.push('wrecks');
+      else if (lm.type === 'arch' && dist < 30) hits.push('arch');
+    }
+
+    for (const key of hits) {
+      const text = this.journal.log(key);
+      if (text) {
+        addCredits(15);
+        this.hud.showToast(`Field Journal · ${this.journal.count()}/${JOURNAL_TOTAL}`, `${text} · +15 cr`);
+        this.soundEffects.playDiscovery();
+      }
+    }
   }
 
   start(): void {
@@ -316,10 +776,50 @@ export class Engine {
 
   pause(): void {
     this.gameLoop.pause();
+    this.soundscape.suspend();
+    this.soundEffects.suspend();
+    this.music.suspend();
+    this.mermaid.song.suspend();
   }
 
   resume(): void {
     this.gameLoop.resume();
+    this.soundscape.resume();
+    this.soundEffects.resume();
+    this.music.resume();
+    this.mermaid.song.resume();
+  }
+
+  /** 0..1 master volume; persisted and applied to both audio engines. */
+  setVolume(v: number): void {
+    this.audioVolume = Math.max(0, Math.min(1, v));
+    localStorage.setItem('tb-volume', String(this.audioVolume));
+    this.soundscape.setMasterVolume(this.audioVolume);
+    this.soundEffects.setMasterVolume(this.audioVolume);
+    this.music.setMasterVolume(this.audioVolume);
+    this.mermaid.song.setMasterVolume(this.audioVolume);
+  }
+
+  setMuted(muted: boolean): void {
+    this.audioMuted = muted;
+    localStorage.setItem('tb-muted', muted ? '1' : '0');
+    this.soundscape.setMuted(muted);
+    this.soundEffects.setMuted(muted);
+    this.music.setMuted(muted);
+    this.mermaid.song.setMuted(muted);
+  }
+
+  toggleMute(): boolean {
+    this.setMuted(!this.audioMuted);
+    return this.audioMuted;
+  }
+
+  getVolume(): number {
+    return this.audioVolume;
+  }
+
+  isMuted(): boolean {
+    return this.audioMuted;
   }
 
   dispose(): void {
@@ -329,23 +829,49 @@ export class Engine {
     // Remove keyboard handler
     window.removeEventListener('keydown', this.keydownHandler);
 
+    // Tear down ECS systems — each removes its own listeners + GPU resources
+    // (WeaponsSystem/TowingSystem keydown handlers, weapon effect buffers, etc.)
+    this.world.dispose();
+
+    // Tear down non-ECS managers that hold window listeners / render targets
+    this.input.dispose();
+    this.postProcessing.dispose();
+    this.hud.dispose();
+    this.returnFire.dispose();
+    this.races.dispose();
+    this.distress.dispose();
+    this.commandeer.dispose();
+    this.heists.dispose();
+    this.bottles.dispose();
+    this.treasureChart.dispose();
+    this.leviathan.dispose();
+    this.mermaid.dispose();
+    this.fishing.dispose();
+    this.waypoint.dispose();
+    this.aurora.dispose();
+    this.photoMode.dispose();
+
     // Stop audio
     this.soundscape.stop();
     this.soundEffects.stop();
+    this.music.stop();
 
-    // Dispose Three.js scene
+    // Dispose every remaining renderable in the scene — NOT just Mesh.
+    // Points / Line / Sprite (particles, wakes, stars, moon, rain) are not Mesh
+    // subclasses, so a Mesh-only filter would leak all of their geometry + shaders.
     this.sceneManager.scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
-        obj.geometry.dispose();
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach((m: THREE.Material) => m.dispose());
-        } else if (obj.material) {
-          (obj.material as THREE.Material).dispose();
-        }
-      }
+      const o = obj as unknown as {
+        geometry?: THREE.BufferGeometry;
+        material?: THREE.Material | THREE.Material[];
+      };
+      o.geometry?.dispose();
+      const mat = o.material;
+      if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+      else mat?.dispose();
     });
 
-    // Remove dynamically created DOM elements
+    // Remove dynamically created DOM elements (idempotent safety net; systems
+    // already remove their own buttons in dispose()).
     document.getElementById('torpedo-button')?.remove();
     document.getElementById('missile-button')?.remove();
     document.getElementById('tow-button')?.remove();
@@ -355,7 +881,7 @@ export class Engine {
     const canvas = this.sceneManager.renderer.domElement;
     canvas.parentElement?.removeChild(canvas);
 
-    // Dispose renderer
-    this.sceneManager.renderer.dispose();
+    // Dispose renderer + remove SceneManager's own resize listener
+    this.sceneManager.dispose();
   }
 }

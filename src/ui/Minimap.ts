@@ -24,6 +24,7 @@ const WILDLIFE_COLORS: Record<string, string> = {
   fishing_boat: '#e8d06a',
   cargo_ship: '#e87a5a',
   battleship: '#ff4444',
+  barge: '#d8b35a',
 };
 
 export class Minimap {
@@ -70,6 +71,7 @@ export class Minimap {
     boatZ: number,
     boatHeading: number,
     wildlife: WildlifeInfo[],
+    marker: { x: number; z: number } | null = null,
   ): void {
     if (!this.visible) return;
 
@@ -150,6 +152,31 @@ export class Minimap {
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
       ctx.arc(mx, mz, dotSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+    }
+
+    // Contract destination beacon — gold diamond, pinned to the rim when the
+    // destination is beyond minimap range so it still points the way.
+    if (marker) {
+      let [mx, mz] = toMap(marker.x, marker.z);
+      const ox = mx - HALF;
+      const oz = mz - HALF;
+      const offCenter = Math.sqrt(ox * ox + oz * oz);
+      const rim = HALF * 0.88;
+      if (offCenter > rim) {
+        mx = HALF + (ox / offCenter) * rim;
+        mz = HALF + (oz / offCenter) * rim;
+      }
+      const pulse = 0.75 + Math.sin(performance.now() / 300) * 0.25;
+      ctx.fillStyle = '#ffd479';
+      ctx.globalAlpha = pulse;
+      ctx.beginPath();
+      ctx.moveTo(mx, mz - 7);
+      ctx.lineTo(mx + 5, mz);
+      ctx.lineTo(mx, mz + 7);
+      ctx.lineTo(mx - 5, mz);
+      ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 1.0;
     }

@@ -58,4 +58,14 @@ export class World {
       system.update(this, dt);
     }
   }
+
+  /** Tear down every system that defines a dispose(), then clear all state. */
+  dispose(): void {
+    for (const system of this.systems) {
+      system.dispose?.();
+    }
+    this.systems.length = 0;
+    this.components.clear();
+    this.entities.clear();
+  }
 }

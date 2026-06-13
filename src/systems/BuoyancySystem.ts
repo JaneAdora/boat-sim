@@ -63,7 +63,11 @@ export class BuoyancySystem extends System {
       const forwardSpeed = rb.velocity.dot(forward);
       const lateralSpeed = rb.velocity.dot(right);
 
-      rb.force.addScaledVector(forward, -forwardSpeed * buoyancy.dampingLinear * 0.12 * rb.mass);
+      // Forward drag: linear term for coasting feel + quadratic term that
+      // balances full thrust exactly at the boat's declared top speed.
+      const forwardDrag = buoyancy.dragLinear * forwardSpeed
+        + buoyancy.dragQuad * forwardSpeed * Math.abs(forwardSpeed);
+      rb.force.addScaledVector(forward, -forwardDrag * rb.mass);
       rb.force.addScaledVector(right, -lateralSpeed * buoyancy.dampingLinear * 3.0 * rb.mass);
       // Heavier vessels get stronger vertical damping to prevent bobbing
       const verticalDampScale = rb.mass > 10000 ? 5.0 : 2.0;

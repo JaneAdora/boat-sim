@@ -24,8 +24,8 @@ export const SPEEDBOAT: BoatDefinition = {
   ],
   sailArea: 0,
   enginePower: 8000,
-  rudderEffectiveness: 4.0,
-  dragForward: 0.06,
-  dragLateral: 2.0,
-  dragAngular: 1.0,
+  maxSpeedKnots: 40,
+  turnRadius: 35,
+  rudderSlew: 3.0,
+  propWash: 0.15,
 };

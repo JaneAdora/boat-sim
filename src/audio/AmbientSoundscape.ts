@@ -1,4 +1,3 @@
-import { AudioManager } from './AudioManager';
 import { clamp, lerp } from '../utils/math';
 
 /**
@@ -23,6 +22,8 @@ export class AmbientSoundscape {
   private masterGain: GainNode | null = null;
   private started = false;
   private muted = false;
+  private userVolume = 0.5; // 0..1 master level, driven by the volume slider
+  private suspendTimer: number | null = null;
 
   private targetOceanVolume = 0.15;
   private targetWindVolume = 0.05;
@@ -50,7 +51,7 @@ export class AmbientSoundscape {
 
     this.audioCtx = new AudioContext();
     this.masterGain = this.audioCtx.createGain();
-    this.masterGain.gain.value = 0.5;
+    this.masterGain.gain.value = this.muted ? 0 : this.userVolume;
     this.masterGain.connect(this.audioCtx.destination);
 
     // Ocean: filtered brown noise
@@ -299,15 +300,14 @@ export class AmbientSoundscape {
     return buffer;
   }
 
+  /** Called from within the user gesture that launches the game, so the
+   *  AudioContext is allowed to start right away — no missed-first-gesture gap
+   *  and no leaked one-shot window listeners. */
   start(): void {
-    const initOnInteraction = () => {
-      this.initSynthetic();
-      if (this.audioCtx?.state === 'suspended') {
-        this.audioCtx.resume();
-      }
-    };
-    window.addEventListener('click', initOnInteraction, { once: true });
-    window.addEventListener('keydown', initOnInteraction, { once: true });
+    this.initSynthetic();
+    if (this.audioCtx?.state === 'suspended') {
+      this.audioCtx.resume();
+    }
   }
 
   update(windStrength: number, nearIsland: boolean, dt: number, rainIntensity: number = 0): void {
@@ -360,15 +360,51 @@ export class AmbientSoundscape {
     }
   }
 
-  toggleMute(): boolean {
-    this.muted = !this.muted;
-    if (this.masterGain) {
-      this.masterGain.gain.value = this.muted ? 0 : 0.5;
+  /** 0..1 master volume (the slider). Ramped to avoid clicks. */
+  setMasterVolume(v: number): void {
+    this.userVolume = Math.max(0, Math.min(1, v));
+    this.applyMasterGain();
+  }
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    this.applyMasterGain();
+  }
+
+  private applyMasterGain(): void {
+    if (!this.masterGain || !this.audioCtx) return;
+    const target = this.muted ? 0 : this.userVolume;
+    this.masterGain.gain.setTargetAtTime(target, this.audioCtx.currentTime, 0.02);
+  }
+
+  /** Ramp to silence then suspend the context (called when the game pauses). */
+  suspend(): void {
+    if (!this.audioCtx || this.audioCtx.state !== 'running') return;
+    const ctx = this.audioCtx;
+    if (this.masterGain) this.masterGain.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
+    if (this.suspendTimer !== null) clearTimeout(this.suspendTimer);
+    this.suspendTimer = window.setTimeout(() => {
+      if (this.audioCtx === ctx && ctx.state === 'running') ctx.suspend();
+    }, 80);
+  }
+
+  resume(): void {
+    if (!this.audioCtx) return;
+    if (this.suspendTimer !== null) {
+      clearTimeout(this.suspendTimer);
+      this.suspendTimer = null;
     }
-    return this.muted;
+    const ctx = this.audioCtx;
+    ctx.resume().then(() => {
+      if (this.audioCtx === ctx) this.applyMasterGain();
+    }).catch(() => {});
   }
 
   stop(): void {
+    if (this.suspendTimer !== null) {
+      clearTimeout(this.suspendTimer);
+      this.suspendTimer = null;
+    }
     if (this.audioCtx) {
       this.audioCtx.close();
       this.audioCtx = null;

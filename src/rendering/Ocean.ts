@@ -24,10 +24,14 @@ export class Ocean {
   mesh: THREE.Mesh;
   private material: THREE.ShaderMaterial;
   private waves: WaveParams[];
+  private baseAmplitudes: number[];
+  private stormScale = 1;
   private time = 0;
 
   constructor(waves: WaveParams[] = DEFAULT_WAVES) {
-    this.waves = waves;
+    // Clone: storm scaling mutates amplitudes, and the defaults are shared
+    this.waves = waves.map((w) => ({ ...w }));
+    this.baseAmplitudes = waves.map((w) => w.amplitude);
 
     const geometry = new THREE.PlaneGeometry(600, 600, 256, 256);
     geometry.rotateX(-Math.PI / 2);
@@ -64,6 +68,21 @@ export class Ocean {
 
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.mesh.frustumCulled = false;
+  }
+
+  /**
+   * Scale wave amplitudes with the weather (1 = calm baseline). Updates the
+   * shader uniform and the CPU mirror together so rendering, buoyancy, and
+   * collision all see the same sea state.
+   */
+  setStormScale(scale: number): void {
+    if (Math.abs(scale - this.stormScale) < 0.002) return;
+    this.stormScale = scale;
+    const amps = this.material.uniforms.uWaveAmplitudes.value as number[];
+    for (let i = 0; i < this.waves.length; i++) {
+      this.waves[i].amplitude = this.baseAmplitudes[i] * scale;
+      amps[i] = this.waves[i].amplitude;
+    }
   }
 
   /**

@@ -7,19 +7,60 @@ import { clamp } from '../utils/math';
 export class SoundEffects {
   private audioCtx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
   private muted = false;
+  private userVolume = 0.5; // 0..1, shared with the volume slider
+  private static readonly GAIN_SCALE = 1.2; // SFX sit slightly above ambient
 
   private ensureContext(): AudioContext {
     if (!this.audioCtx) {
       this.audioCtx = new AudioContext();
+
+      // Limiter so overlapping explosions don't sum past 1.0 and hard-clip.
+      this.compressor = this.audioCtx.createDynamicsCompressor();
+      this.compressor.threshold.value = -6;
+      this.compressor.knee.value = 6;
+      this.compressor.ratio.value = 12;
+      this.compressor.attack.value = 0.003;
+      this.compressor.release.value = 0.25;
+      this.compressor.connect(this.audioCtx.destination);
+
       this.masterGain = this.audioCtx.createGain();
-      this.masterGain.gain.value = 0.8;
-      this.masterGain.connect(this.audioCtx.destination);
+      this.masterGain.gain.value = this.effectiveGain();
+      this.masterGain.connect(this.compressor);
     }
     if (this.audioCtx.state === 'suspended') {
       this.audioCtx.resume();
     }
     return this.audioCtx;
+  }
+
+  private effectiveGain(): number {
+    return this.muted ? 0 : Math.min(1, this.userVolume * SoundEffects.GAIN_SCALE);
+  }
+
+  /** 0..1 master volume (the slider). Ramped to avoid clicks. */
+  setMasterVolume(v: number): void {
+    this.userVolume = Math.max(0, Math.min(1, v));
+    this.applyMasterGain();
+  }
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    this.applyMasterGain();
+  }
+
+  private applyMasterGain(): void {
+    if (!this.masterGain || !this.audioCtx) return;
+    this.masterGain.gain.setTargetAtTime(this.effectiveGain(), this.audioCtx.currentTime, 0.02);
+  }
+
+  suspend(): void {
+    if (this.audioCtx?.state === 'running') this.audioCtx.suspend();
+  }
+
+  resume(): void {
+    this.audioCtx?.resume().catch(() => {});
   }
 
   private createNoiseBuffer(ctx: AudioContext, durationSec: number, white = false): AudioBuffer {
@@ -282,12 +323,105 @@ export class SoundEffects {
     shimmerSource.stop(now + 0.5);
   }
 
-  toggleMute(): boolean {
-    this.muted = !this.muted;
-    if (this.masterGain) {
-      this.masterGain.gain.value = this.muted ? 0 : 0.8;
+  /** A vast groan from beneath (~2.6s) — the leviathan announcing itself. */
+  playLeviathanGroan(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(55, now);
+    osc.frequency.exponentialRampToValueAtTime(26, now + 2.2);
+
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(220, now);
+    lp.frequency.exponentialRampToValueAtTime(80, now + 2.2);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 2.6);
+
+    osc.connect(lp);
+    lp.connect(gain);
+    gain.connect(this.masterGain!);
+    osc.start(now);
+    osc.stop(now + 2.7);
+  }
+
+  /**
+   * Muffled distant gun report (~0.8s) — battleship return fire.
+   * Low sine thump through a lowpass, much quieter than a local explosion.
+   */
+  playDistantGun(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(70, now);
+    osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 120;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+    osc.connect(lp);
+    lp.connect(gain);
+    gain.connect(this.masterGain!);
+    osc.start(now);
+    osc.stop(now + 0.8);
+  }
+
+  /**
+   * Soft two-note ship's bell for island discovery (~1.5s).
+   * Rising perfect fourth (E5 → A5), gentle attack, long decay — meant to
+   * feel like a reward without breaking the soothing mood.
+   */
+  playDiscovery(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const notes = [659.3, 880]; // E5, A5
+    for (let i = 0; i < notes.length; i++) {
+      const at = now + i * 0.22;
+
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(notes[i], at);
+
+      // Quiet upper partial gives it a bell-like timbre instead of a pure beep
+      const partial = ctx.createOscillator();
+      partial.type = 'sine';
+      partial.frequency.setValueAtTime(notes[i] * 2.76, at);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(0.18, at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 1.3);
+
+      const partialGain = ctx.createGain();
+      partialGain.gain.setValueAtTime(0, at);
+      partialGain.gain.linearRampToValueAtTime(0.04, at + 0.01);
+      partialGain.gain.exponentialRampToValueAtTime(0.001, at + 0.5);
+
+      osc.connect(gain);
+      partial.connect(partialGain);
+      gain.connect(this.masterGain!);
+      partialGain.connect(this.masterGain!);
+      osc.start(at);
+      osc.stop(at + 1.4);
+      partial.start(at);
+      partial.stop(at + 0.6);
     }
-    return this.muted;
   }
 
   stop(): void {
@@ -295,6 +429,7 @@ export class SoundEffects {
       this.audioCtx.close();
       this.audioCtx = null;
       this.masterGain = null;
+      this.compressor = null;
     }
   }
 }
