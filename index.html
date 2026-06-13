@@ -134,39 +134,47 @@
     }
 
     /* Island discovery toast */
-    @keyframes discovery-toast {
-      0%   { opacity: 0; transform: translate(-50%, -10px); }
-      8%   { opacity: 1; transform: translate(-50%, 0); }
-      85%  { opacity: 1; }
-      100% { opacity: 0; }
-    }
-    .discovery-toast {
+    /* Toast stack — top-right, tucked under the eye toggle, out of the sightline */
+    #toast-stack {
       position: fixed;
-      top: 64px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 62px;
+      right: 16px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: 10px 26px;
+      align-items: flex-end;
+      gap: 8px;
+      z-index: 30;
+      pointer-events: none;
+      max-width: 300px;
+    }
+    @keyframes discovery-toast {
+      0%   { opacity: 0; transform: translateX(18px); }
+      9%   { opacity: 1; transform: translateX(0); }
+      85%  { opacity: 1; transform: translateX(0); }
+      100% { opacity: 0; transform: translateX(18px); }
+    }
+    .discovery-toast {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+      padding: 8px 15px;
       background: var(--panel);
       border: 1px solid var(--hairline);
-      border-radius: 14px;
+      border-radius: 11px;
       backdrop-filter: blur(8px);
-      pointer-events: none;
-      z-index: 30;
+      text-align: right;
       animation: discovery-toast 4.2s ease forwards;
     }
     .discovery-toast .discovery-label {
-      font: 600 10px 'Segoe UI', system-ui, sans-serif;
-      letter-spacing: 3px;
+      font: 600 9px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 2.5px;
       text-transform: uppercase;
       color: var(--accent);
     }
     .discovery-toast .discovery-name {
-      font: 500 17px 'Segoe UI', system-ui, sans-serif;
-      letter-spacing: 0.3px;
+      font: 500 14px 'Segoe UI', system-ui, sans-serif;
+      letter-spacing: 0.2px;
       color: var(--ink);
       text-shadow: 0 1px 4px rgba(0,0,0,0.5);
     }
@@ -182,6 +190,7 @@
     body.photo-mode #mission-banners,
     body.photo-mode #waypoint,
     body.photo-mode #race-timer,
+    body.photo-mode #toast-stack,
     body.photo-mode #minimap-container,
     body.photo-mode #controls-help,
     body.photo-mode #hud-toggle,
@@ -480,16 +489,17 @@
 
     #controls-help {
       position: fixed;
-      bottom: 40%;
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%);
-      padding: 16px 24px;
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(8px);
-      border-radius: 12px;
+      transform: translate(-50%, -50%);
+      padding: 22px 30px;
+      background: rgba(0, 0, 0, 0.58);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
       color: var(--ink);
       font-family: 'Segoe UI', system-ui, sans-serif;
-      font-size: 12px;
+      font-size: 12.5px;
       pointer-events: none;
       user-select: none;
       z-index: 10;
@@ -501,18 +511,35 @@
       opacity: 1;
     }
 
+    #controls-help .controls-cols {
+      display: flex;
+      gap: 36px;
+    }
+
     #controls-help table {
       border-collapse: collapse;
     }
 
     #controls-help td {
-      padding: 2px 12px;
+      padding: 3px 14px;
     }
 
     #controls-help td:first-child {
       font-weight: 600;
       text-align: right;
       opacity: 0.7;
+    }
+
+    /* Column header — after td:first-child so its left-align/colour win the tie */
+    #controls-help td.controls-head {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      opacity: 0.85;
+      padding-bottom: 8px;
+      text-align: left;
     }
 
     /* Mode toggle pill */
@@ -949,27 +976,33 @@
   <button id="help-toggle" aria-label="Show controls" title="Controls (press ?)">?</button>
 
   <div id="controls-help">
-    <table>
-      <tr><td>W/S</td><td>Throttle</td></tr>
-      <tr><td>A/D</td><td>Rudder</td></tr>
-      <tr><td>Q/E</td><td>Camera orbit</td></tr>
-      <tr><td>R/F</td><td>Zoom</td></tr>
-      <tr><td>Right-drag</td><td>Look around</td></tr>
-      <tr><td>Scroll</td><td>Zoom</td></tr>
-      <tr><td>T</td><td>Fire Torpedo</td></tr>
-      <tr><td>M</td><td>Fire Missile</td></tr>
-      <tr><td>G</td><td>Tow / Release</td></tr>
-      <tr><td>B</td><td>Board vessel</td></tr>
-      <tr><td>F</td><td>Plunder cargo</td></tr>
-      <tr><td>V</td><td>Treasure chart</td></tr>
-      <tr><td>C</td><td>Cast / reel</td></tr>
-      <tr><td>X</td><td>Mute audio</td></tr>
-      <tr><td>H</td><td>Toggle HUD</td></tr>
-      <tr><td>N</td><td>Toggle map</td></tr>
-      <tr><td>P</td><td>Photo mode</td></tr>
-      <tr><td>?</td><td>Show / hide controls</td></tr>
-      <tr><td>Esc</td><td>Leave game</td></tr>
-    </table>
+    <div class="controls-cols">
+      <table>
+        <tr><td class="controls-head" colspan="2">Sail &amp; fight</td></tr>
+        <tr><td>W/S</td><td>Throttle</td></tr>
+        <tr><td>A/D</td><td>Rudder</td></tr>
+        <tr><td>Q/E</td><td>Camera orbit</td></tr>
+        <tr><td>R/F</td><td>Zoom</td></tr>
+        <tr><td>Right-drag</td><td>Look around</td></tr>
+        <tr><td>Scroll</td><td>Zoom</td></tr>
+        <tr><td>T</td><td>Fire torpedo</td></tr>
+        <tr><td>M</td><td>Fire missile</td></tr>
+        <tr><td>G</td><td>Tow / release</td></tr>
+      </table>
+      <table>
+        <tr><td class="controls-head" colspan="2">Actions &amp; view</td></tr>
+        <tr><td>B</td><td>Board vessel</td></tr>
+        <tr><td>F</td><td>Plunder cargo</td></tr>
+        <tr><td>C</td><td>Cast / reel</td></tr>
+        <tr><td>V</td><td>Treasure chart</td></tr>
+        <tr><td>P</td><td>Photo mode</td></tr>
+        <tr><td>N</td><td>Toggle map</td></tr>
+        <tr><td>H</td><td>Toggle HUD</td></tr>
+        <tr><td>X</td><td>Mute audio</td></tr>
+        <tr><td>?</td><td>Show / hide controls</td></tr>
+        <tr><td>Esc</td><td>Leave game</td></tr>
+      </table>
+    </div>
   </div>
 
   <div id="minimap-container">

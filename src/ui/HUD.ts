@@ -65,8 +65,7 @@ export class HUD {
       this.helpToggle.addEventListener('click', this.onHelpToggle);
     }
 
-    // Show controls briefly at start
-    this.showControls(5);
+    // No auto-show — the controls card opens only on demand (? button or key).
   }
 
   showControls(duration: number): void {
@@ -148,8 +147,14 @@ export class HUD {
     this.showToast('Discovered', name);
   }
 
-  /** Generic top-center toast: small uppercase label over a sans headline. */
+  /** Toast: small uppercase label over a sans headline, stacked top-right. */
   showToast(label: string, headline: string): void {
+    let stack = document.getElementById('toast-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'toast-stack';
+      document.body.appendChild(stack);
+    }
     const toast = document.createElement('div');
     toast.className = 'discovery-toast';
     const labelSpan = document.createElement('span');
@@ -159,7 +164,7 @@ export class HUD {
     nameSpan.className = 'discovery-name';
     nameSpan.textContent = headline;
     toast.append(labelSpan, nameSpan);
-    document.body.appendChild(toast);
+    stack.appendChild(toast);
     // Timer removal (not animationend) so the toast still shows and clears
     // under prefers-reduced-motion, where the fade animation is disabled.
     setTimeout(() => toast.remove(), 4500);
@@ -350,6 +355,7 @@ export class HUD {
     document.getElementById('damage-flash')?.remove();
     document.getElementById('race-timer')?.remove();
     document.getElementById('fishing-meter')?.remove();
+    document.getElementById('toast-stack')?.remove();
   }
 }
 
