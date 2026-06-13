@@ -42,6 +42,7 @@ import { bumpBestKills, bumpContracts } from './state/VoyageLog';
 import { addCredits } from './state/Wallet';
 import { addKarma } from './state/Karma';
 import { hasUpgrade } from './state/Upgrades';
+import { loadCombatSettings } from './state/CombatSettings';
 import { islandName } from './world/IslandNames';
 import { ContractSystem } from './systems/ContractSystem';
 import { ReturnFireSystem } from './systems/ReturnFireSystem';
@@ -121,6 +122,8 @@ export class Engine {
 
   constructor(boatDef: BoatDefinition, config: GameConfig = { mode: 'classic' }) {
     this.config = config;
+    // Opt-in calm, chosen on the selector and read once here.
+    const combatSettings = loadCombatSettings();
 
     // Restore persisted audio preferences (set by the pause menu / mute key).
     const storedVol = parseFloat(localStorage.getItem('tb-volume') ?? '');
@@ -167,6 +170,7 @@ export class Engine {
     this.world.addSystem(this.windSystem);
 
     const buoyancySystem = new BuoyancySystem(this.ocean);
+    buoyancySystem.setChunkManager(this.chunkManager); // amphibious hulls hover over land
     this.world.addSystem(buoyancySystem);
 
     const physicsSystem = new PhysicsSystem(this.windSystem);
@@ -216,7 +220,7 @@ export class Engine {
     this.weaponsSystem = new WeaponsSystem(
       this.sceneManager.scene, this.ocean, this.boatEntity,
       this.wildlifeSystem, this.chunkManager,
-      this.killTracker, this.soundEffects, this.config,
+      this.killTracker, this.soundEffects, this.config, combatSettings,
     );
     this.world.addSystem(this.weaponsSystem);
 
@@ -240,6 +244,7 @@ export class Engine {
         onHit: () => this.hud.flashDamage(),
         isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
       },
+      combatSettings,
       ownMaxHp,
     );
     if (this.config.mode === 'classic') {

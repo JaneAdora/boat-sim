@@ -842,6 +842,74 @@ function createJetSkiMesh(): BoatParts {
   return { group, sailPivot: null, rudderPivot: null };
 }
 
+function createHovercraftMesh(): BoatParts {
+  const group = new THREE.Group();
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xef7d2a, roughness: 0.45, metalness: 0.15 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xf4efe3, roughness: 0.5 });
+  const skirtMat = new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.9 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x20242a, roughness: 0.6 });
+  const ductMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ab, roughness: 0.4, metalness: 0.6 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x9fd4e8, roughness: 0.2, metalness: 0.1 });
+
+  const ellipsoid = (rx: number, ry: number, rz: number, mat: THREE.Material): THREE.Mesh => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 14), mat);
+    m.scale.set(rx, ry, rz);
+    return m;
+  };
+
+  // The skirt — a wide, low rubber cushion the whole craft rides on (forward +Z)
+  const skirt = ellipsoid(1.18, 0.34, 1.7, skirtMat);
+  skirt.position.y = 0.2;
+  group.add(skirt);
+  const skirtRing = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.2, 10, 24), skirtMat);
+  skirtRing.rotation.x = Math.PI / 2;
+  skirtRing.scale.set(1, 1.5, 1); // oval — longer fore-and-aft
+  skirtRing.position.y = 0.12;
+  group.add(skirtRing);
+
+  // Orange body sitting on the cushion, with a cream deck stripe
+  const body = ellipsoid(0.86, 0.42, 1.36, bodyMat);
+  body.position.y = 0.64;
+  group.add(body);
+  const deck = ellipsoid(0.6, 0.18, 1.05, trimMat);
+  deck.position.set(0, 0.94, -0.06);
+  group.add(deck);
+
+  // Cockpit bubble + a seat
+  const cockpit = ellipsoid(0.42, 0.36, 0.52, glassMat);
+  cockpit.position.set(0, 1.02, 0.52);
+  group.add(cockpit);
+  const seat = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.5, 6, 10), darkMat);
+  seat.rotation.x = Math.PI / 2;
+  seat.position.set(0, 0.98, 0.02);
+  group.add(seat);
+
+  // Twin ducted lift/thrust fans at the stern — the hovercraft signature.
+  // A TorusGeometry lies in the XY plane (axis along Z), so the rings face aft.
+  for (const side of [-1, 1]) {
+    const duct = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.075, 10, 20), ductMat);
+    duct.position.set(side * 0.48, 0.98, -1.45);
+    group.add(duct);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.12, 8), darkMat);
+    hub.rotation.x = Math.PI / 2;
+    hub.position.set(side * 0.48, 0.98, -1.45);
+    group.add(hub);
+    for (let b = 0; b < 4; b++) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.11, 0.02), darkMat);
+      blade.position.set(side * 0.48, 0.98, -1.46);
+      blade.rotation.z = (b * Math.PI) / 4;
+      group.add(blade);
+    }
+    // Vertical rudder vane behind each fan
+    const vane = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 0.42), trimMat);
+    vane.position.set(side * 0.48, 1.0, -1.78);
+    group.add(vane);
+  }
+
+  return { group, sailPivot: null, rudderPivot: null };
+}
+
 // ─── Entity spawner ─────────────────────────────────────────
 
 export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefinition): EntityId {
@@ -857,7 +925,7 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     localOffset: p.offset.clone(),
     area: p.area,
   }));
-  world.addComponent(entity, 'Buoyancy', createBuoyancy(samplePoints, deriveDragQuad(definition)));
+  world.addComponent(entity, 'Buoyancy', createBuoyancy(samplePoints, deriveDragQuad(definition), definition.amphibious ?? false));
 
   world.addComponent(entity, 'BoatControl', createBoatControl(
     definition.enginePower,
@@ -878,6 +946,7 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     speedboat: createSpeedboatMesh,
     vikingship: createVikingShipMesh,
     jetski: createJetSkiMesh,
+    hovercraft: createHovercraftMesh,
   };
   const parts = (meshCreators[definition.meshType] || createTugboatMesh)();
   scene.add(parts.group);

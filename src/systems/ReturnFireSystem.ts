@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WildlifeSystem, WildlifeEntity } from './WildlifeSystem';
 import { SoundEffects } from '../audio/SoundEffects';
 import { GameConfig } from '../state/GameConfig';
+import { CombatSettings } from '../state/CombatSettings';
 import { Transform } from '../components/Transform';
 import { RigidBody } from '../components/RigidBody';
 import { BoatControl } from '../components/BoatControl';
@@ -71,6 +72,7 @@ export class ReturnFireSystem {
     private soundEffects: SoundEffects,
     private config: GameConfig,
     private callbacks: ReturnFireCallbacks,
+    private combatSettings: CombatSettings,
     maxHp = ReturnFireSystem.BASE_HP, // reinforced-hull upgrade raises this
   ) {
     this.maxHp = maxHp;
@@ -130,6 +132,8 @@ export class ReturnFireSystem {
   }
 
   private updateBattleships(dt: number, boat: Transform): void {
+    // Calm seas: no incoming fire. Disarmed: the battleship's cannon is gone too.
+    if (this.combatSettings.peaceful || this.combatSettings.disarmed) return;
     for (const e of this.wildlife.getBattleships()) {
       const dx = boat.position.x - e.mesh.position.x;
       const dz = boat.position.z - e.mesh.position.z;

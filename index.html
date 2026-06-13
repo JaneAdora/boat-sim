@@ -678,6 +678,58 @@
     .boat-desc { font-size: 11px; opacity: 0.5; }
     .boat-card.last-played { border-color: rgba(125,184,236,0.5); box-shadow: 0 0 0 1px rgba(125,184,236,0.3); }
 
+    /* Comfort toggles — calmer combat, chosen on the opening screen */
+    #comfort-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+      width: 336px;
+      max-width: 90vw;
+    }
+    .comfort-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 11px 16px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 12px;
+      color: var(--ink);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .comfort-toggle:hover { background: var(--surface-hover); }
+    .ct-text { display: flex; flex-direction: column; gap: 2px; }
+    .ct-label { font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
+    .ct-desc { font-size: 10.5px; opacity: 0.55; }
+    .ct-switch {
+      flex: none;
+      width: 42px;
+      height: 24px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid var(--hairline);
+      position: relative;
+      transition: background 0.25s;
+    }
+    .ct-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #cdd6df;
+      transition: transform 0.25s, background 0.25s;
+    }
+    .comfort-toggle.on { border-color: rgba(125,184,236,0.55); }
+    .comfort-toggle.on .ct-switch { background: var(--accent); }
+    .comfort-toggle.on .ct-knob { transform: translateX(18px); background: #06121f; }
+
     /* Mobile HUD toggle */
     #hud-toggle {
       display: none;

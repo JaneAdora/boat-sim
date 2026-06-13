@@ -13,6 +13,7 @@ import { RainbowTorpedoWake } from '../rendering/RainbowTorpedoWake';
 import { RainbowMissileTrail } from '../rendering/RainbowMissileTrail';
 import { createTorpedoMesh, createMissileMesh } from '../rendering/ProjectileMesh';
 import { KillTracker } from '../state/KillTracker';
+import { CombatSettings } from '../state/CombatSettings';
 import { SoundEffects } from '../audio/SoundEffects';
 import { GameConfig } from '../state/GameConfig';
 
@@ -99,6 +100,7 @@ export class WeaponsSystem extends System {
     killTracker: KillTracker,
     soundEffects: SoundEffects,
     config: GameConfig = { mode: 'classic' },
+    private readonly combatSettings: CombatSettings = { peaceful: false, disarmed: false },
   ) {
     super(68);
     this.scene = scene;
@@ -144,6 +146,12 @@ export class WeaponsSystem extends System {
       this.fireMissileAction();
     });
 
+    // Disarmed: no player weapons at all — hide the fire buttons too.
+    if (this.combatSettings.disarmed) {
+      this.torpedoButton.style.display = 'none';
+      this.missileButton.style.display = 'none';
+    }
+
     // Keyboard shortcuts
     this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyT' && !e.repeat) this.fireTorpedoAction();
@@ -155,11 +163,13 @@ export class WeaponsSystem extends System {
   private lastTransform: Transform | null = null;
 
   private fireTorpedoAction(): void {
+    if (this.combatSettings.disarmed) return;
     if (this.torpedoCooldown > 0 || this.torpedoes.length >= MAX_TORPEDOES || !this.lastTransform) return;
     this.fireTorpedo(this.lastTransform);
   }
 
   private fireMissileAction(): void {
+    if (this.combatSettings.disarmed) return;
     if (this.missileCooldown > 0 || this.missiles.length >= MAX_MISSILES || !this.lastTransform) return;
     this.fireMissile(this.lastTransform);
   }
