@@ -17,14 +17,15 @@ Feature tracking for the boat simulator. See [ARCHITECTURE.md](ARCHITECTURE.md) 
 - [x] Cruise Ship — large, slow-turning
 - [x] Viking Ship — wind-powered, gust ambient sound (fastest in fleet — the sleeper)
 - [x] Jet Ski — tiny, agile, airtime trick scoring
-- [x] Boat selector screen with SVG icons
+- [x] Hovercraft — amphibious: rides a cushion over shallows and up onto island beaches (loose, floaty handling, 40 kn)
+- [x] Boat selector screen with SVG icons + "Calm seas" / "No weapons" comfort toggles
 
 ### Physics
 - [x] Multi-point buoyancy sampling (7-9 hull points per boat)
 - [x] Engine thrust + rudder steering
 - [x] Wind force on sail area
 - [x] Forward/lateral/angular drag
-- [x] Island ground collision (push away from terrain)
+- [x] Island ground collision (push away from terrain; amphibious hulls ride over it)
 
 ### World
 - [x] Infinite chunk-based world (300x300 chunks)

@@ -5,6 +5,7 @@ import { CRUISE_SHIP } from './boats/CruiseShip';
 import { SPEEDBOAT } from './boats/Speedboat';
 import { VIKING_SHIP } from './boats/VikingShip';
 import { JETSKI } from './boats/JetSki';
+import { HOVERCRAFT } from './boats/Hovercraft';
 import { GameMode } from './state/GameConfig';
 import { loadStats, recordVoyageStart } from './state/VoyageLog';
 import { discoveredCount } from './state/DiscoveryTracker';
@@ -50,6 +51,15 @@ const BOAT_ICONS: Record<string, string> = {
     <path d="M8 33 Q4 31 2 27" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" fill="none"/>
     <path d="M10 35 Q6 35 3 33" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" fill="none"/>
   </svg>`,
+  hovercraft: `<svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="30">
+    <ellipse cx="30" cy="30" rx="26" ry="6" fill="rgba(255,255,255,0.28)"/>
+    <path d="M10 30 Q12 22 22 21 H40 Q48 22 50 28 L50 30 Z" fill="rgba(255,255,255,0.7)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+    <path d="M24 21 Q26 16 32 17 L34 21 Z" fill="rgba(255,255,255,0.4)"/>
+    <circle cx="50" cy="24" r="6" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+    <line x1="50" y1="18" x2="50" y2="30" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
+    <line x1="44" y1="24" x2="56" y2="24" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
+    <path d="M8 34 Q14 36 20 34 M26 35 Q32 36 38 35" stroke="rgba(255,255,255,0.22)" stroke-width="1.2" fill="none"/>
+  </svg>`,
 };
 
 const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
@@ -58,6 +68,7 @@ const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
   { def: CRUISE_SHIP, desc: 'Huge & majestic', iconKey: 'cruiseship' },
   { def: VIKING_SHIP, desc: 'Ancient & humble', iconKey: 'vikingship' },
   { def: JETSKI, desc: 'Tiny & airborne', iconKey: 'jetski' },
+  { def: HOVERCRAFT, desc: 'Land & sea', iconKey: 'hovercraft' },
 ];
 
 // Shared DOM refs
@@ -84,6 +95,7 @@ function showSelector(): void {
   // Remove previous UI if it exists (re-entry case)
   document.getElementById('mode-pill')?.remove();
   document.getElementById('boat-selector')?.remove();
+  document.getElementById('comfort-options')?.remove();
   document.getElementById('voyage-stats')?.remove();
   document.getElementById('shipyard-btn')?.remove();
   document.getElementById('shipyard')?.remove();
@@ -159,6 +171,43 @@ function showSelector(): void {
   }
 
   loadingText.parentElement!.appendChild(selector);
+
+  // Comfort toggles — dial combat down without leaving a mode. The engine reads
+  // these (CombatSettings) when it starts, so set them before picking a boat.
+  const comfort = document.createElement('div');
+  comfort.id = 'comfort-options';
+  const makeToggle = (key: string, label: string, desc: string): HTMLButtonElement => {
+    const on = localStorage.getItem(key) === '1';
+    const row = document.createElement('button');
+    row.className = `comfort-toggle${on ? ' on' : ''}`;
+    row.setAttribute('role', 'switch');
+    row.setAttribute('aria-checked', String(on));
+    const text = document.createElement('span');
+    text.className = 'ct-text';
+    const l = document.createElement('span');
+    l.className = 'ct-label';
+    l.textContent = label;
+    const d = document.createElement('span');
+    d.className = 'ct-desc';
+    d.textContent = desc;
+    text.append(l, d);
+    const sw = document.createElement('span');
+    sw.className = 'ct-switch';
+    const knob = document.createElement('span');
+    knob.className = 'ct-knob';
+    sw.appendChild(knob);
+    row.append(text, sw);
+    row.addEventListener('click', () => {
+      const next = !row.classList.contains('on');
+      row.classList.toggle('on', next);
+      row.setAttribute('aria-checked', String(next));
+      localStorage.setItem(key, next ? '1' : '');
+    });
+    return row;
+  };
+  comfort.appendChild(makeToggle('tb-peaceful', 'Calm seas', "Other boats won't fire on you"));
+  comfort.appendChild(makeToggle('tb-disarmed', 'No weapons', 'No torpedoes, missiles or cannon fire'));
+  loadingText.parentElement!.appendChild(comfort);
 
   // Lifetime voyage stats — only once there's something to show
   const stats = loadStats();

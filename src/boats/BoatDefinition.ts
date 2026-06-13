@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export interface BoatDefinition {
   name: string;
-  meshType: 'sailboat' | 'tugboat' | 'cruiseship' | 'speedboat' | 'vikingship' | 'jetski';
+  meshType: 'sailboat' | 'tugboat' | 'cruiseship' | 'speedboat' | 'vikingship' | 'jetski' | 'hovercraft';
   mass: number;
   hullSamplePoints: { offset: THREE.Vector3; area: number }[];
   sailArea: number;       // 0 for motorboats
@@ -11,6 +11,9 @@ export interface BoatDefinition {
   turnRadius: number;     // meters — radius of the circle carved at full rudder
   rudderSlew: number;     // how fast the rudder reaches full deflection (per second)
   propWash: number;       // rad/s of yaw authority from throttle at near-standstill
+  /** Rides a cushion of air: floats over its support — wave OR land — so it can
+   *  skim shallows and climb onto beaches, and is not pushed back by terrain. */
+  amphibious?: boolean;
 }
 
 export const KNOTS_TO_MS = 1 / 1.94;

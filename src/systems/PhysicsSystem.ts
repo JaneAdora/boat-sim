@@ -3,6 +3,7 @@ import { System } from '../ecs/System';
 import { World } from '../ecs/World';
 import { Transform } from '../components/Transform';
 import { RigidBody } from '../components/RigidBody';
+import { Buoyancy } from '../components/Buoyancy';
 import { BoatControl } from '../components/BoatControl';
 import { WindReceiver } from '../components/WindReceiver';
 import { WindSystem } from './WindSystem';
@@ -31,6 +32,7 @@ export class PhysicsSystem extends System {
       const rb = world.getComponent<RigidBody>(entity, 'RigidBody')!;
       const ctrl = world.getComponent<BoatControl>(entity, 'BoatControl');
       const wind = world.getComponent<WindReceiver>(entity, 'WindReceiver');
+      const buoyancy = world.getComponent<Buoyancy>(entity, 'Buoyancy');
 
       // Boat-local directions
       _forward.set(0, 0, 1).applyQuaternion(transform.quaternion);
@@ -114,8 +116,9 @@ export class PhysicsSystem extends System {
         transform.quaternion.normalize();
       }
 
-      // Island ground collision — push boat off land
-      if (this.chunkManager) {
+      // Island ground collision — push boat off land. Amphibious craft (the
+      // hovercraft) are exempt: they ride up onto the beach instead.
+      if (this.chunkManager && !(buoyancy && buoyancy.amphibious)) {
         const terrainH = this.chunkManager.getTerrainHeight(
           transform.position.x, transform.position.z
         );

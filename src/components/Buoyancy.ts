@@ -12,14 +12,21 @@ export interface Buoyancy {
   dampingLinear: number; // lateral/vertical water resistance
   dragLinear: number;    // forward low-speed drag
   dragQuad: number;      // forward speed² drag — sets the top-speed plateau
+  /** Hovercraft: float on a cushion above land as well as water. */
+  amphibious: boolean;
 }
 
-export function createBuoyancy(samplePoints: BuoyancySamplePoint[], dragQuad: number = 0.02): Buoyancy {
+export function createBuoyancy(
+  samplePoints: BuoyancySamplePoint[],
+  dragQuad: number = 0.02,
+  amphibious: boolean = false,
+): Buoyancy {
   return {
     samplePoints,
     waterDensity: 1025, // seawater kg/m^3
     dampingLinear: 0.8,
     dragLinear: DRAG_LINEAR,
     dragQuad,
+    amphibious,
   };
 }

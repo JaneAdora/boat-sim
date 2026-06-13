@@ -5,16 +5,25 @@ import { Transform } from '../components/Transform';
 import { RigidBody } from '../components/RigidBody';
 import { Buoyancy } from '../components/Buoyancy';
 import { Ocean } from '../rendering/Ocean';
+import { ChunkManager } from '../world/ChunkManager';
 
 const GRAVITY = 9.81;
+const HOVER_GAP = 0.45;     // cushion height an amphibious hull floats above land
+const MAX_LAND_LIFT = 1.0;  // cap on over-land lift depth — climb steep shores, don't launch
 const _worldPoint = new THREE.Vector3();
 const _force = new THREE.Vector3();
 const _leverArm = new THREE.Vector3();
 const _torque = new THREE.Vector3();
 
 export class BuoyancySystem extends System {
+  private chunkManager: ChunkManager | null = null;
+
   constructor(private ocean: Ocean) {
     super(30); // priority
+  }
+
+  setChunkManager(cm: ChunkManager): void {
+    this.chunkManager = cm;
   }
 
   update(world: World, dt: number): void {
@@ -37,9 +46,21 @@ export class BuoyancySystem extends System {
         _worldPoint.applyQuaternion(transform.quaternion);
         _worldPoint.add(transform.position);
 
-        // Get wave height at this point
-        const waterHeight = this.ocean.getWaveHeight(_worldPoint.x, _worldPoint.z);
-        const depth = waterHeight - _worldPoint.y;
+        // Support height under this point. A hovercraft rides a cushion above
+        // whatever is higher — the wave or the land — so it climbs onto beaches.
+        let supportHeight = this.ocean.getWaveHeight(_worldPoint.x, _worldPoint.z);
+        let onLand = false;
+        if (buoyancy.amphibious && this.chunkManager) {
+          const terrainH = this.chunkManager.getTerrainHeight(_worldPoint.x, _worldPoint.z);
+          if (terrainH > 0 && terrainH + HOVER_GAP > supportHeight) {
+            supportHeight = terrainH + HOVER_GAP;
+            onLand = true;
+          }
+        }
+        // Cap the cushion's lift over land so a steep shore is climbed, not
+        // launched off of. Water buoyancy is left untouched.
+        let depth = supportHeight - _worldPoint.y;
+        if (onLand) depth = Math.min(depth, MAX_LAND_LIFT);
 
         if (depth > 0) {
           // Buoyancy force proportional to submersion depth
