@@ -1,312 +1,332 @@
 # Story Mode — "The Vanishing Tide" (Act 1) — Design Spec
 
 **Date:** 2026-06-14
-**Status:** Draft for review (Codex gate → plan)
+**Status:** Revised after Codex gate (→ implementation plan)
 **Author:** Jane + Claude
 
 ## 1. Vision
 
-A second way to play Tugboat Bliss: an **authored narrative campaign** that sits alongside
-the existing open-world Free Roam. You are a nobody tug captain out of a fog-bound home
-harbor; ships are vanishing on the eastern run; you follow a trail of clues — derelicts,
-bottled messages, sonar wrecks, a coastguard rescue, the mermaid's song — to the truth: the
-**Leviathan**, driven up from the deep. You level up by **completing missions**, not by
-free roaming: credits, reputation, journal clues, and **unlocked vessels** are the
-progression. Act 1 is a self-contained vertical slice (8 beats) that ends on a hook for Act 2.
+A second way to play Tugboat Bliss: an **authored narrative campaign** alongside the existing
+open-world Free Roam. You are a nobody tug captain out of a fog-bound home harbor; ships are
+vanishing on the eastern run; you follow a trail of clues — a crewless derelict, a bottled
+message, sonar wrecks, a coastguard rescue, the mermaid's song — to the truth: the
+**Leviathan**, driven up from the deep. You level up by **completing missions**, not by free
+roaming: credits, reputation, journal clues, and **unlocked vessels** are the progression.
+Act 1 is a self-contained vertical slice (8 beats) ending on a hook for Act 2.
 
-**Core design principle:** Story Mode invents almost no new *content*. It imposes a
-narrative **order** on encounters already in the game (towing, bottled messages, wreck
-fields, fishing, submarine + sonar, coastguard heli maydays, the mermaid, the Leviathan),
-driving them at **fixed, deterministic world locations** so the trail is reliable and
-resume-safe. The new code is the *spine* — a campaign state machine, a mission runtime, a
-quest UI, and small "arming" hooks on existing systems — not new gameplay verbs.
+**Core principle (revised after review):** Story Mode adds little new *content* — it sequences
+encounters already in the game — but it does **not** drive them through "small hooks" into the
+ambient systems. The ambient systems (Leviathan storm-rolls, mermaid night/karma gates,
+distress cooldowns, sonar's loaded-chunk dedupe, reward callbacks) actively fight scripted
+placement. So the campaign owns a **scripted-encounter layer**: mission-owned entities spawned
+at fixed spots, tagged by `instanceId`, protected from ambient despawn/quota, with the
+conflicting ambient behavior suspended while a scripted instance is live, and a **single reward
+path**. The new code is this layer + a campaign state machine + a quest UI — not new verbs.
 
 ## 2. The Act 1 arc (player experience)
 
-Home base: **Greyharbor**, a fixed home dock near the world origin. You start locked to the
-tugboat. Each beat reuses shipped content, drops a clue pointing at the next, and the trail
-tightens toward the deep.
+Home base: **Greyharbor**, the nearest hash-eligible harbor to the world origin, pre-discovered
+and used as the campaign spawn. You start locked to the tugboat.
 
-| # | Beat | Player action (reuses) | Reward / clue → next |
-|---|------|------------------------|----------------------|
-| 1 | **The Empty Berth** | Tow the crewless *Marigold* home (towing). | First contract pay; note: "quiet water out east." |
-| 2 | **Message in the Swell** | Recover a bottled message at the eastern drift (bottled messages). | Chart fragment → a reef. |
-| 3 | **The Reef of Wrecks** | A wreck graveyard; *fish up* a torn net + a dinner-plate scale (wreck field + fishing). | Too deep to read — you need to go down. |
-| 4 | **Souls in the Water** ⭐ | A live mayday: race in, assist the coastguard **heli** rescue, tow the foundering ship clear / pull a survivor aboard (DistressSystem + AircraftSystem heli + towing). The survivor is the first human eyewitness. | Credits + **coastguard goodwill** (flag). |
-| 5 | **Down to the Dark** | The grateful coastguard **loans you a submarine** (*unlock*); dive the reef, sonar finds a contact too big for a whale and a clawed hull (submarine + sonar + underwater). | A song on the hydrophone → the trench. |
-| 6 | **The Mermaid's Warning** | Follow the song by ear; the mermaid names what woke in the trench, and (good karma) gives a charm (mermaid). | Trench coordinates. |
-| 7 | **Witness** | At the trench edge, witness the Leviathan take a ship; survive and run (Leviathan spectacle phase). | Credits → buy an upgrade for the fight. |
-| 8 | **The Vanishing Tide** *(finale)* | The Leviathan rises in a storm; fight it — the coastguard heli returns to draw its attention (Leviathan boss + heli callback). | Title + "Slew the Leviathan." **Hook:** it was *fleeing something deeper.* → Act 2. |
+| # | Beat | Player action (reuses, **scripted**) | Reward / clue → next |
+|---|------|---------------------------------------|----------------------|
+| 1 | **The Empty Berth** | Tow the crewless *Marigold* (a mission-owned derelict) home (scripted tow). | First contract pay; "quiet water out east." |
+| 2 | **Message in the Swell** | Recover a bottled message at the eastern drift (scripted floating pickup). | Chart fragment → a reef. |
+| 3 | **The Reef of Wrecks** | A wreck graveyard; **recover floating wreckage** — a torn net + a dinner-plate scale (scripted pickup; *no fishing*). | Too deep to read — you need to go down. |
+| 4 | **Souls in the Water** ⭐ | A scripted mayday: the coastguard **heli** is on scene (ambiance); you tow the foundering vessel clear (scripted rescue, player-driven completion). | Credits + **coastguard goodwill** (flag). |
+| 5 | **Down to the Dark** | The grateful coastguard **loans you a submarine** (*unlock*); dive the reef, **sonar** picks up a scripted contact too big for a whale + a clawed hull (scripted landmark). | A song on the hydrophone → the trench. |
+| 6 | **The Mermaid's Warning** | Follow the song by ear; the **scripted mermaid** (ignores night/karma/lifetime gates) names what woke in the trench. | Trench coordinates. |
+| 7 | **Witness** | At the trench, witness the **scripted Leviathan** (spectacle phase, ambient rolls suspended) take a ship; survive and run. | Credits → upgrade for the fight. |
+| 8 | **The Vanishing Tide** *(finale)* | The **scripted Leviathan** (boss phase, non-storm lifetime) rises; defeat it — or, if disarmed, **lure** it into the trench (heli distracting; deterministic counter). | Title + "Slew the Leviathan." **Hook:** it was *fleeing something deeper.* → Act 2. |
 
-The coastguard heli appears as its own rescue beat (4) **and** pays off at the climax (8).
-Beat 5's submarine unlock is *caused* by the beat-4 rescue.
+The heli appears at beat 4 (ambiance) and returns at the finale (ambiance/distraction). Beat 5's
+sub unlock is *caused* by the beat-4 rescue.
 
-## 3. Scope
+## 3. Codex gate — outcome
+
+An adversarial review (Codex, gpt-5.5, read-only over the real source) produced 15 findings.
+**Adopted:** the central correction — a campaign-owned **scripted-encounter layer** (not small
+hooks); a **single reward path** (suppress ambient rewards for scripted instances); **mission
+`instanceId` identity** validation; **Greyharbor at origin** so relaunch == "return to harbor",
+plus a wrong-boat launch guard; per-system **scripted modes** that bypass ambient gates
+(Leviathan storm/roll, mermaid night/karma/lifetime, distress cooldown, sonar dedupe);
+coordinate validation via direct `generateIsland` sampling (live `getTerrainHeight` lies for
+unloaded chunks); pre-discovering an existing eligible harbor; a priority **objective-marker
+provider**. **Diverged (simpler, my call):** cut fishing from beat 3 → reach/pickup; the heli is
+ambiance, not completion-critical; **beat-granularity resume** via clean re-arm-on-load rather
+than persisting live entity state; "New Game" = "Restart story only" (shared lifetime stats are
+harmless since progression is beat-gated, not credit-gated).
+
+## 4. Scope
 
 **In (v1 vertical slice):**
-- Top-level **Story vs Free Roam** choice at startup, with **Continue / New Game** for Story.
-- `CampaignState` persistence (one save slot, `tb-story`), pure + unit-tested.
+- Top-level **Story vs Free Roam** at startup; **Continue / New Game** for Story.
+- `CampaignState` (one save slot, `tb-story`), pure + unit-tested; beat-granularity resume.
 - All **8 beats** as declarative data.
-- `MissionSystem` runtime: arm active beat, place waypoint, trigger the relevant existing
-  encounter at a fixed spot, detect completion, grant rewards, advance, persist.
-- `QuestLog` UI + an on-screen **waypoint** (compass chevron + minimap marker).
-- Boat progression: **start tug, unlock submarine** at beat 5 (the one required unlock);
-  boat picked from unlocked set at the Story launch screen.
-- Reuse of existing encounters via minimal "arming" hooks.
-- **No-weapons finale path** so the comfort toggle still completes the campaign.
-- Greyharbor fixed home dock used for briefings / return objectives.
-- Tests: `CampaignState` + beat-graph validation.
+- The **scripted-encounter layer**: `MissionSystem` (sequencing + rewards) + per-system scripted
+  modes (Leviathan, mermaid, distress/rescue, scripted sonar landmark, floating pickups, tow
+  identity), with ambient suspension and a single reward path.
+- `QuestLog` UI + an `ObjectiveMarkerProvider` waypoint (compass chevron + minimap, priority).
+- Boat progression: **start tug, unlock submarine** at beat 5; boat chosen from the unlocked set
+  at the Story launch screen; **Greyharbor spawn** makes relaunch the swap mechanism.
+- No-weapons finale **lure** controller.
+- Tests: `CampaignState` + beat-graph validation + the pure pieces of the encounter layer
+  (instance registry, reward-once guard, marker priority).
 
-**Out (deferred, not v1):**
-- Act 2+ content.
-- Branching dialogue trees / voice / cutscenes; beats use the existing toast stack for
-  narration.
-- Elaborate shipyard UI; v1 swaps boats at the launch screen (+ existing HarborPanel for
-  briefings). Mid-voyage hot-swap of the player vessel is **not** required.
-- Extra unlockable vessels beyond the submarine (e.g. a speedboat "chase" beat) — optional
-  stretch, not required for the slice.
-- Multiple save slots; new bespoke art/meshes.
+**Staging (the plan formalizes this).** The encounter-layer + machine + beats 1–4 (tow,
+pickup, rescue) is an **independently testable milestone** (proves mode-select → quest log →
+waypoint → scripted spawn/identity/complete → save) before the heavier beats 5–8 (sub unlock,
+scripted sonar, mermaid, Leviathan spectacle + finale). If the full slice can't land in one
+pass, milestone-1 ships first with a clear note.
 
-## 4. Architecture
+**Out (deferred):** Act 2+; dialogue trees / voice / cutscenes (narration via the toast stack);
+elaborate shipyard UI; mid-voyage hot-swap; extra unlockable vessels beyond the sub; multiple
+save slots; new art; sandboxed story economy.
 
-Follows the codebase's established pattern: **pure, tested state modules** (`src/state/*`)
-+ **ECS systems** (`src/systems/*`) + **DOM UI** (`src/ui/*`), wired in `Engine.ts`,
-selected in `main.ts`.
+## 5. Architecture
 
-### 4.1 Startup / mode selection (`main.ts`, `GameConfig.ts`)
+Follows the codebase pattern: pure tested state (`src/state/*`) + ECS systems (`src/systems/*`)
++ DOM UI (`src/ui/*`), wired in `Engine.ts`, selected in `main.ts`.
 
-Current flow: loading screen → classic/magical mode pill → boat selector →
-`startGame(def, mode)` → `new Engine(def, { mode }).start()`.
+### 5.1 Startup / mode selection (`main.ts`, `GameConfig.ts`)
 
-New top-level choice **before** the existing selector:
-- **Free Roam** → existing flow, unchanged.
-- **Story** → campaign launch screen: shows the current objective (or "New Voyage"), a
-  **Continue** button if a save exists, **New Game** (with confirm if it overwrites), and a
-  picker over **unlocked boats** (tug only at first). Launching calls
-  `new Engine(boatDef, { mode: 'classic', campaign: true }).start()`.
-
-`GameConfig` gains a campaign flag (keeps the existing union intact):
+`GameConfig` gains a campaign flag:
 ```ts
 export type GameMode = 'classic' | 'magical';
 export interface GameConfig { mode: GameMode; campaign?: boolean; }
 ```
-`campaign: true` is the single switch Engine reads to construct the campaign systems. Story
-uses `mode: 'classic'` (no magical VFX). Free Roam never constructs the MissionSystem, so it
-is provably unaffected.
+New top-level choice before the existing selector: **Free Roam** (existing flow, unchanged) vs
+**Story**. Story opens a campaign launch screen: current objective (or "New Voyage"),
+**Continue** (if `tb-story` exists), **New Game** (confirm; resets `tb-story` only — labeled
+"Restart story"), and a picker over **unlocked boats** (tug only at first). Launch →
+`new Engine(boatDef, { mode: 'classic', campaign: true, spawn: greyharborDock }).start()`.
 
-### 4.2 `CampaignState` (new pure module, `src/state/CampaignState.ts`)
+**Greyharbor spawn & boat swap.** Campaign launches spawn at the Greyharbor dock (not origin
+`(0,1,0)`). ESC already disposes the engine and returns to the selector; in campaign mode it
+returns to the **campaign launch screen**, so "return to harbor and take another boat out" is
+just relaunch. **Wrong-boat guard:** if `currentBeat.requiresBoat` is set, the launch screen
+disables launch for any other boat (with a hint), or pre-selects the required boat. Free Roam
+never constructs campaign systems → provably unaffected.
 
-localStorage key `tb-story`. Injectable `Storage` for tests (same pattern as `Karma`,
-`Wallet`, `Harbor`).
+### 5.2 `CampaignState` (new pure module, `src/state/CampaignState.ts`)
+
+localStorage `tb-story`, injectable `Storage` (pattern of `Karma`/`Wallet`/`Harbor`):
 ```ts
 export interface CampaignState {
   started: boolean;
-  beat: number;               // index into STORY_BEATS (0-based)
-  completed: string[];        // completed beat ids (idempotency)
-  unlockedBoats: string[];    // registry keys; seeds to ['TUGBOAT']
+  beat: number;                 // index into STORY_BEATS
+  armedBeat: number | null;     // beat currently armed (for clean re-arm on load)
+  completed: string[];          // completed beat ids — reward-once + never re-arm
+  unlockedBoats: string[];      // registry keys; seeds ['TUGBOAT']
   flags: Record<string, boolean>;
-  lastBoat: string;           // last sailed boat key (for Continue)
+  lastBoat: string;             // for Continue
 }
 ```
-Functions (all pure, storage-injectable): `loadCampaign`, `saveCampaign`, `newCampaign`,
-`currentBeat(state)`, `advanceBeat(state)`, `unlockBoat(state, key)`, `setFlag`, `isComplete`.
-Corrupt/missing JSON → safe default (not started). Credits, karma, journal, and upgrades
-continue to live in their **existing** modules (`Wallet`, `Karma`, `JournalTracker`,
-`Upgrades`); CampaignState does not duplicate them — it orchestrates them.
+Pure fns: `loadCampaign`, `saveCampaign`, `newCampaign`, `currentBeat`, `advanceBeat`,
+`unlockBoat`, `setFlag`, `isComplete`, `markCompleted`. Corrupt/missing → safe default.
+Credits/karma/journal/upgrades stay in their existing modules (shared lifetime stats);
+CampaignState orchestrates, never duplicates them.
 
-### 4.3 Beat data model (new, `src/state/StoryBeats.ts`)
+**Resume model (beat granularity).** On Continue/refresh: `disarmAll()` (despawn any stray
+scripted instances) then `armBeat(currentBeat)` **fresh**. Partial in-beat progress is
+intentionally discarded (beats are short). A beat in `completed[]` never re-arms or re-rewards.
+This gives refresh-safety without persisting live entity state.
 
-A declarative, ordered list — adding Act 2 is appending entries.
+### 5.3 Beat data (new, `src/state/StoryBeats.ts`)
+
+Ordered, declarative — Act 2 is appended entries.
 ```ts
 export interface StoryBeat {
   id: string;
   title: string;
-  brief: string;              // narration toast when the beat begins
-  objective: string;          // short imperative for the quest log
-  waypoint?: { x: number; z: number; label: string }; // omit ⇒ home harbor / no marker
-  requiresBoat?: string;      // e.g. 'SUBMARINE' — quest log nudges if mismatched
-  trigger: TriggerSpec;       // how completion is detected (tagged union)
+  brief: string;                // narration toast on begin
+  objective: string;            // quest-log imperative
+  waypoint?: { x: number; z: number; label: string };
+  requiresBoat?: string;        // 'SUBMARINE' etc. — launch guard + quest-log nudge
+  encounter: EncounterSpec;     // what the layer spawns + how it completes
   reward: {
-    credits?: number;
-    karma?: number;
-    unlockBoat?: string;
-    journalKey?: keyof typeof JOURNAL_ENTRIES;
-    flag?: string;
-    successLine: string;      // narration toast on completion
+    credits?: number; karma?: number; unlockBoat?: string;
+    journalKey?: keyof typeof JOURNAL_ENTRIES; flag?: string; successLine: string;
   };
 }
 
-export type TriggerSpec =
-  | { kind: 'tow-to'; dock: { x: number; z: number }; radius: number }
-  | { kind: 'reach'; x: number; z: number; radius: number }
-  | { kind: 'fish-evidence'; x: number; z: number; radius: number }
-  | { kind: 'rescue-mayday'; x: number; z: number; radius: number }
-  | { kind: 'dive-sonar'; x: number; z: number; radius: number; depth: number }
-  | { kind: 'hear-mermaid'; x: number; z: number; radius: number }
-  | { kind: 'witness-leviathan'; x: number; z: number; radius: number }
-  | { kind: 'defeat-leviathan' };
+export type EncounterSpec =
+  | { kind: 'tow-derelict'; spawn: V2; dock: V2; radius: number }      // beat 1
+  | { kind: 'pickup'; spawn: V2; radius: number }                       // beats 2, 3
+  | { kind: 'rescue'; spawn: V2; safeRadius: number }                   // beat 4 (heli ambiance)
+  | { kind: 'sonar-contact'; spawn: V2; radius: number; depth: number } // beat 5
+  | { kind: 'mermaid'; spawn: V2; radius: number }                      // beat 6
+  | { kind: 'leviathan-witness'; spawn: V2; radius: number }            // beat 7
+  | { kind: 'leviathan-boss'; spawn: V2 };                              // beat 8 (armed or lure)
 ```
-The 8 beats are concrete instances of these (coordinates from §4.6).
+`V2 = { x: number; z: number }`. The 8 beats are concrete instances (coords §5.6).
 
-### 4.4 `MissionSystem` (new, `src/systems/MissionSystem.ts`)
+### 5.4 The scripted-encounter layer — `MissionSystem` + per-system scripted modes
 
-The runtime that turns the beat list into play. An ECS system (manual-update is also fine,
-matching `AircraftSystem`). Holds references injected by Engine: `World`, `CampaignState`,
-`QuestLog`, `ChunkManager`, and the systems it arms (`DistressSystem`, `AircraftSystem`,
-`LeviathanSystem`, `MermaidSystem`, plus the player entity for position).
+`MissionSystem` (`src/systems/MissionSystem.ts`) owns **beat sequencing, arming, completion,
+reward, persistence**. It delegates the *live encounter* to per-system **scripted modes** —
+each existing system gains a `beginScripted(...) / endScripted()` pair plus an
+ambient-suspend flag, so a mission instance is authoritative and never collides with ambient
+spawns. MissionSystem holds injected refs: `World`, `CampaignState`, `QuestLog`,
+`ObjectiveMarkers`, `ChunkManager`, player entity, and the systems it scripts.
 
-Lifecycle:
-1. **On start / on beat change — `armBeat()`**: read `currentBeat`; push `brief` to the toast
-   stack; set `QuestLog` objective + waypoint; and *arm* the trigger:
-   - `rescue-mayday` → `DistressSystem.addScriptedMarker(x,z)` (draws the heli) + spawn a
-     foundering ship at the spot.
-   - `witness-leviathan` → `LeviathanSystem.spawnSpectacleAt(x,z)`.
-   - `defeat-leviathan` → `LeviathanSystem.spawnBossAt(x,z)` (or, if `tb-disarmed`, the
-     lure variant — §4.8).
-   - `hear-mermaid` → `MermaidSystem.placeAt(x,z)`.
-   - `dive-sonar` / `fish-evidence` → ensure a wreck/contact exists at the spot (wreck field
-     placement) and set a flag so the next qualifying catch/sonar hit counts.
-   - `tow-to` / `reach` → waypoint only; no encounter to arm.
-2. **Each frame — completion check**: evaluate the active trigger's predicate against world
-   state (player distance, towed-entity identity, sub depth + proximity, Leviathan defeated
-   flag, mermaid-heard flag, catch flag). On success:
-   - Grant `reward` via the existing modules: `addCredits`, `addKarma`, `unlockBoat`,
-     `JournalTracker.log`, `setFlag`; push `successLine` (+ an unlock toast if any).
-   - `advanceBeat`, persist `CampaignState`, then `armBeat()` for the next, or mark complete.
-   - If the next beat `requiresBoat` and the player isn't in it, the quest log shows
-     "Return to Greyharbor and take the <boat> out."
+**`armBeat(beat)`** — toast `brief`; set quest objective + waypoint; then per `encounter.kind`:
+- `tow-derelict` → spawn a **mission-owned** derelict at `spawn` (protected from despawn/quota);
+  completion = `TowingSystem.getTowedEntity() === instanceId` **and** within `radius` of `dock`.
+- `pickup` → spawn a mission-owned floating prop at `spawn`; completion = player within `radius`.
+- `rescue` → `DistressSystem.beginScriptedRescue({id,x,z})`: mission-owned foundering vessel +
+  mayday marker, **ambient distress cooldown suspended**; the heli scrambles via the existing
+  marker (ambiance). Completion = player tows/clears the vessel beyond `safeRadius` (player-
+  driven), then `endScripted()`.
+- `sonar-contact` → register a **scripted landmark** at `spawn` consumed by sonar + journal;
+  completion = sub within `radius` **and** below `depth` **and** the contact pinged.
+- `mermaid` → `MermaidSystem.beginScripted({x,z})`: place the mermaid **ignoring**
+  night/calm/karma/lifetime (`tb-mermaid`) gates; completion = player within `radius` / heard;
+  does not touch the lifetime mermaid count.
+- `leviathan-witness` → `LeviathanSystem.beginScripted({x,z,phase:'spectacle'})`: **suspend
+  ambient deep-water/storm rolls and the global "seen" gate**, own the entity lifetime
+  independent of the storm; completion = spectacle played + player survived/withdrew.
+- `leviathan-boss` → `LeviathanSystem.beginScripted({x,z,phase:'boss',persistStorm})` → the
+  finale controller (§5.8); completion = `scriptedResolved()`.
 
-**Integration surface (hooks to add to existing systems).** Each is a small, additive method;
-exact signatures verified against the real files during the build:
-- `DistressSystem.addScriptedMarker(x, z)` — force a mayday marker the heli homes to.
-- `AircraftSystem` — already scrambles the heli to a marker; reused as-is, no change expected.
-- `LeviathanSystem.spawnSpectacleAt(x, z)` / `.spawnBossAt(x, z)` / `isDefeated()` — drive the
-  existing spectacle/boss phases at a scripted spot instead of the ambient trigger.
-- `MermaidSystem.placeAt(x, z)` / `wasHeard()` — place the scripted mermaid, expose heard flag.
-- Wreck-field placement at a scripted spot (via `ChunkManager` or a light scripted prop) for
-  beats 3 & 5; `FishingSystem`/`SubmarineSystem` expose a "what did we just catch / ping" hook.
-- `TowingSystem` — expose the currently-towed entity id so `tow-to` can verify identity.
+**Each frame:** evaluate the active encounter's completion predicate. On success →
+`grant(reward)` **once** (guarded by `completed[]`) via the existing modules (`addCredits`,
+`addKarma`, `unlockBoat`, `JournalTracker.log`, `setFlag`); toast `successLine` (+ unlock
+toast); `endScripted()`; `markCompleted` + `advanceBeat`; `saveCampaign`; `armBeat(next)` or
+`campaignComplete()`.
 
-If any hook is awkward to add cleanly, the fallback is a **proximity + flag** approximation
-(arrive at the spot + a soft condition), preserving the trail without deep coupling. The
-spec prefers real hooks; the build picks the cleanest per system.
+**Single reward path (Codex #2).** Existing `Engine` reward callbacks (rescue/mermaid/Leviathan/
+fishing/journal at `Engine.ts` ~342/465/478/534) must **not** also pay for a scripted instance.
+Rule: scripted instances carry a `scripted: true` marker; the ambient reward callbacks early-out
+for scripted instances (campaign grants the beat reward instead). Verified during build against
+the real callback sites.
 
-### 4.5 Boat progression
+**Mission-owned entity protection (Codex #3).** Scripted entities get a component/tag
+(`MissionInstance { id }`); `WildlifeSystem` despawn/quota and `findNearestTowable` skip or
+correctly type-match them; completion checks compare against the exact `instanceId`.
 
-- `CampaignState.unlockedBoats` starts `['TUGBOAT']`. Beat 5's reward is
-  `unlockBoat: 'SUBMARINE'`.
-- The Story launch screen lists only unlocked boats. The player picks one to sail; this seeds
-  the Engine's boat def. Swapping boats = return to the launch screen (via the ESC menu's
-  "to harbor") and pick again — no mid-voyage hot-swap in v1.
-- `applyBoatUpgrades` (existing) still applies owned stat upgrades. Karma still flavors
-  shipyard prices via `karmaPriceFactor` (existing).
+### 5.5 Boat progression
 
-### 4.6 Deterministic story locations (`src/state/StoryBeats.ts` constants)
+`unlockedBoats` seeds `['TUGBOAT']`; beat 5 rewards `unlockBoat: 'SUBMARINE'`. The launch screen
+lists only unlocked boats; the **Greyharbor spawn** makes relaunch the swap mechanism (§5.1).
+`applyBoatUpgrades` and `karmaPriceFactor` (existing) still apply.
 
-The world is seeded (`WORLD_SEED`), so fixed coordinates are stable across runs. Locations lie
-along +X ("east") at increasing distance, validated at build time with
-`ChunkManager.getTerrainHeight`:
-- **Greyharbor** — a forced home dock at a chosen near-origin island (override the harbor hash
-  gate for that chunk, or place a dedicated story dock). Player spawns here.
-- **Marigold drift**, **eastern reef** (wreck field for beats 3 & 5), **mayday spot** (beat 4),
-  **trench** (beats 6–8) — open-water coordinates, verified to be water (terrain height ≤ 0),
-  spaced a few chunks apart so the journey reads as a voyage, not a teleport.
+### 5.6 Deterministic story locations + validation (`StoryBeats.ts` `STORY_LOCATIONS`)
 
-Exact numbers are finalized in the build against the real generator and recorded as named
-constants (`STORY_LOCATIONS`).
+Seeded world → fixed coords are stable. Locations lie east (+X) at increasing distance.
+**Validation (Codex #10):** do **not** trust live `ChunkManager.getTerrainHeight` (returns 0 for
+unloaded chunks). Validate each coord by sampling **`generateIsland`/noise directly** for the
+target + neighbor chunks: sea beats require open water with clearance from islands/harbors/buoys;
+**Greyharbor** is chosen by scanning outward from origin for the nearest `harborEligible` island,
+then **pre-discovered** (seed `DiscoveryTracker`) and registered in `harborPositions` so the
+existing HarborSystem/UI accept it (Codex #11). Validated values recorded as named constants.
 
-### 4.7 `QuestLog` UI + waypoint (new, `src/ui/QuestLog.ts`)
+### 5.7 `QuestLog` UI + `ObjectiveMarkerProvider`
 
-- A compact panel (top-left, beneath the HUD), de-serifed to match gameplay UI: current beat
-  **title** + **objective** line + **distance/bearing** to the active waypoint. Collapsible.
-- An on-screen **waypoint indicator**: a chevron on the compass / a marker on the existing
-  `Minimap` pointing at `waypoint`. Kid-friendly: just follow the marker.
-- Narration (briefs, clues, success lines) uses the **existing toast stack** (top-right).
-- `#quest-log` DOM element added to `index.html`; instantiated in Engine when `campaign`,
-  updated each frame with the active beat + boat position. Hidden entirely in Free Roam.
+- `QuestLog` (`src/ui/QuestLog.ts`): compact top-left panel, de-serifed, beat **title** +
+  **objective** + **distance/bearing** to the waypoint; collapsible; hidden in Free Roam.
+- `ObjectiveMarkerProvider` (Codex #15): replaces the `distress.getMarker() ?? contracts.getMarker()`
+  slot (Engine ~752/760) with one priority chain; in campaign mode the campaign waypoint outranks
+  rescue/contract markers so it never silently hides on the compass/minimap.
+- Narration (briefs, clues, success lines) uses the **existing toast stack**.
 
-### 4.8 No-weapons finale path
+### 5.8 No-weapons finale controller (Codex #13)
 
-If `tb-disarmed` (No weapons) is on, beat 8 cannot be won by damaging tentacles. The
-`defeat-leviathan` trigger then resolves via a **lure**: lead the Leviathan across the trench
-marker N times (the heli distracting it) until it dives for good. Completion = lure objective
-met. With weapons on, it's the existing tentacle boss. Both grant the same reward and
-"Slew/Drove off the Leviathan" outcome. `tb-peaceful` (Calm seas) is irrelevant here (that's
-the battleship). This keeps the campaign completable for the comfort-toggle audience.
+Beat 8's `leviathan-boss` is owned by a scripted finale controller with **non-storm lifetime**
+(doesn't vanish when weather changes). Two completion paths, same reward:
+- **Armed:** destroy the strike zones (existing torpedo path).
+- **Disarmed (`tb-disarmed`):** **lure** — lead the Leviathan across the trench marker a
+  deterministic **N times** (a counter), the heli distracting it; fleeing too far resets only the
+  current pass (never a soft-lock); on the Nth pass it dives for good.
+Both → `scriptedResolved()` → beat reward + "Slew/Drove off the Leviathan".
 
-### 4.9 Save / resume & edge cases
+### 5.9 Save / resume & edge cases
 
-- Load `tb-story` at startup; **Continue** re-arms the active beat (idempotent — completed
-  beats never re-trigger). **New Game** resets `tb-story` only (credits/karma/journal are
-  lifetime and persist by design; a "reset campaign" need not wipe them — confirm in build).
-- Corrupt/missing save → safe default (not started).
-- Quitting mid-beat → save granularity is the **beat**; in-beat partial progress is not
-  persisted (beats are short). Acceptable for the slice.
-- Free Roam path constructs no campaign systems → zero behavioral change, guaranteed by the
-  `campaign` flag gate.
+- Load `tb-story` at start; **Continue** re-arms `currentBeat` fresh (§5.2). **New Game** resets
+  `tb-story` only ("Restart story"); lifetime credits/karma/journal persist (harmless — gating is
+  beat-driven). Corrupt save → safe default.
+- **Refresh mid-beat:** safe — re-arm respawns the scripted instance; `completed[]` prevents
+  re-reward; partial progress discarded.
+- **Completing an encounter "early":** impossible — the encounter only exists once armed
+  (mission-owned), and ambient equivalents don't satisfy `instanceId`.
+- **Leaving the area / despawn:** mission-owned instances are protected from ambient despawn; if
+  the player leaves, the waypoint guides them back; the instance persists until the beat completes
+  or is disarmed.
+- **Free Roam:** constructs no campaign systems → zero behavioral change.
 
-## 5. Data flow — one beat's lifecycle
+## 6. Data flow — one beat
 
 ```
-armBeat(beat)
-  → toast(beat.brief); QuestLog.set(beat.objective, beat.waypoint)
-  → arm trigger (spawn/place encounter at fixed spot)
-loop each frame:
-  → predicate(beat.trigger, world, player) ?
-       yes → grant(beat.reward) via Wallet/Karma/Journal/unlockBoat
-           → toast(beat.reward.successLine) [+ unlock toast]
-           → advanceBeat(state); saveCampaign(state)
-           → next ? armBeat(next) : campaignComplete()
+armBeat(beat):
+  toast(brief); QuestLog.set(objective, waypoint); ObjectiveMarkers.push(campaign, waypoint)
+  beginScripted(encounter)            // mission-owned spawn; ambient suspended
+loop/frame:
+  complete?(encounter, world, player, instanceId) →
+     grant(reward) once (guard: completed[])      // Wallet/Karma/Journal/unlockBoat
+     toast(successLine) [+unlock]; endScripted()   // ambient restored
+     markCompleted; advanceBeat; saveCampaign
+     next ? armBeat(next) : campaignComplete()
 ```
 
-## 6. Testing strategy
+## 7. Testing strategy
 
-- **Unit (vitest), new files:**
-  - `CampaignState`: new/advance/unlock/flags; save→load round-trip; corruption → default;
-    `isComplete` at the final beat; `advanceBeat` past the end is a no-op.
-  - `StoryBeats` graph validation: ids unique and ordered; every `requiresBoat`/`unlockBoat`
-    references a real registry key; every `reward.journalKey` exists in `JOURNAL_ENTRIES`;
-    every `waypoint`/trigger coordinate is finite; the chain reaches `defeat-leviathan`.
-- **Integration** (MissionSystem arming, encounter triggering, QuestLog, finale paths):
-  verified by `npm run build` + Jane's playtest, consistent with the project norm that
-  integration-heavy systems (aircraft, seaplane, submarine) are not unit-tested.
-- Existing 63 tests must stay green; Free Roam smoke-checked unchanged.
+- **Unit (vitest), new/pure:**
+  - `CampaignState`: new/advance/unlock/flags/markCompleted; save→load round-trip; corrupt →
+    default; `isComplete` at end; `advanceBeat` past end is a no-op; **reward-once** guard.
+  - `StoryBeats` graph: ids unique/ordered; `requiresBoat`/`unlockBoat` reference real registry
+    keys; `reward.journalKey` exists in `JOURNAL_ENTRIES`; all coords finite; chain reaches
+    `leviathan-boss`.
+  - Encounter-layer pure pieces: mission-instance registry add/identity/remove; objective-marker
+    **priority** (campaign outranks distress/contract); lure counter logic.
+- **Integration** (scripted spawns, ambient suspension, sonar/mermaid/Leviathan modes, QuestLog,
+  finale paths): `npm run build` + Jane's playtest — consistent with the project norm that
+  integration-heavy systems aren't unit-tested.
+- Existing 63 tests stay green; Free Roam smoke-checked unchanged.
 
-## 7. File-by-file change list
+## 8. File-by-file change list
 
 **New:**
 - `src/state/CampaignState.ts` — campaign save/state machine (pure).
-- `src/state/StoryBeats.ts` — beat list, `TriggerSpec`, `STORY_LOCATIONS`.
-- `src/systems/MissionSystem.ts` — runtime arming/completion/advance.
+- `src/state/StoryBeats.ts` — beats, `EncounterSpec`, `STORY_LOCATIONS`.
+- `src/systems/MissionSystem.ts` — sequencing, arming, completion, reward, persistence; owns the
+  mission-instance registry + objective-marker provider (or split into a small
+  `src/state/MissionInstances.ts` + `src/ui/ObjectiveMarkers.ts`).
 - `src/ui/QuestLog.ts` — objective panel + waypoint indicator.
-- `tests/campaign.test.ts` — CampaignState + beat-graph tests.
+- `tests/campaign.test.ts` — CampaignState + beat-graph + encounter-layer pure tests.
 
-**Modified:**
-- `src/state/GameConfig.ts` — add `campaign?: boolean`.
-- `src/main.ts` — Story vs Free Roam top-level choice; Story launch screen (Continue / New
-  Game / unlocked-boat picker); route to `Engine(..., { campaign: true })`.
-- `src/Engine.ts` — when `campaign`, construct CampaignState + MissionSystem + QuestLog, wire
-  the arming hooks, spawn at Greyharbor; update loop calls; ESC "to harbor" route.
-- `src/systems/DistressSystem.ts` — `addScriptedMarker`.
-- `src/systems/LeviathanSystem.ts` — `spawnSpectacleAt` / `spawnBossAt` / `isDefeated`.
-- `src/systems/MermaidSystem.ts` — `placeAt` / `wasHeard`.
-- `src/systems/TowingSystem.ts` — expose towed entity id.
-- `src/systems/FishingSystem.ts` / `src/systems/SubmarineSystem.ts` — catch/sonar hook (only
-  if needed; else proximity-flag fallback).
-- `src/world/ChunkManager.ts` — force the Greyharbor home dock + scripted wreck-field spots.
+**Modified (scripted modes + wiring):**
+- `src/state/GameConfig.ts` — `campaign?`, `spawn?`.
+- `src/main.ts` — Story vs Free Roam; campaign launch screen (Continue / New Game / unlocked-boat
+  picker + wrong-boat guard); ESC → campaign launch in campaign mode.
+- `src/Engine.ts` — when `campaign`: construct CampaignState + MissionSystem + QuestLog +
+  ObjectiveMarkers; spawn at Greyharbor; **suppress ambient reward callbacks for scripted
+  instances**; route the objective marker through the priority provider; update calls.
+- `src/systems/LeviathanSystem.ts` — `beginScripted({x,z,phase,persistStorm}) / endScripted /
+  scriptedResolved`; suspend ambient rolls + storm-tied despawn while scripted.
+- `src/systems/MermaidSystem.ts` — `beginScripted({x,z}) / endScripted / scriptedHeard`; bypass
+  night/calm/karma/lifetime gates for the scripted instance.
+- `src/systems/DistressSystem.ts` — `beginScriptedRescue({id,x,z}) / endScripted`; suspend ambient
+  cooldown while scripted.
+- `src/systems/WildlifeSystem.ts` + `src/systems/TowingSystem.ts` — honor `MissionInstance`
+  (despawn/quota protection; tow identity / type-match).
+- `src/systems/SubmarineSystem.ts` + `src/world/ChunkManager.ts` — scripted landmark registry for
+  sonar + journal; pre-discovered story harbor in `harborPositions`/`DiscoveryTracker`; coord
+  validation via `generateIsland`.
+- `src/systems/WeaponsSystem.ts` — finale resolution reads the scripted controller (armed path).
 - `index.html` — `#quest-log` element + styles.
 
-## 8. Risks & mitigations
+## 9. Risks & mitigations
 
-- **Coupling MissionSystem to many systems.** Mitigation: tiny additive hooks; proximity+flag
-  fallback where a clean hook is hard; MissionSystem depends on *interfaces*, not internals.
-- **Scope creep.** Mitigation: one required unlock (sub); narration via toasts not dialogue
-  trees; shipyard deferred to the launch screen; "Witness" and "chase" kept minimal.
-- **Determinism drift if worldgen changes.** Mitigation: lock `WORLD_SEED`; story coords are
-  open water chosen with margin; Greyharbor is forced, not hash-dependent.
-- **No-weapons finale.** Mitigation: explicit lure path (§4.8), tested logic where feasible.
+- **Encounter-layer breadth** (touches ~7 systems). Mitigation: one uniform `beginScripted/
+  endScripted` contract; mission-owned instances; **stage** delivery (beats 1–4 milestone first).
+- **Double-reward/desync.** Mitigation: single reward path + `scripted` marker early-out +
+  `completed[]` reward-once guard; unit-test the guard.
+- **Determinism drift.** Mitigation: lock `WORLD_SEED`; validate via `generateIsland`; Greyharbor
+  is a real eligible harbor, pre-discovered, not a forced override.
+- **Scope.** Mitigation: cut fishing (beat 3 → pickup); heli is ambiance; beat-granularity resume;
+  narration via toasts; one required unlock (sub).
 
-## 9. Act 2 hook (out of scope, recorded)
+## 10. Act 2 hook (recorded, out of scope)
 
 The Leviathan dies/retreats *fleeing something deeper* — the seed for Act 2. CampaignState's
-`flags`/`beat` model extends by appending beats; no schema change needed.
+`flags`/`beat` model extends by appending beats; no schema change.
