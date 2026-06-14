@@ -149,8 +149,8 @@ Design notes in `docs/superpowers/specs/2026-06-13-harbor-life-pack-design.md`.
 
 Also shipped on `harbor-pack`: UI polish — gameplay text de-serifed (serif kept only for the opening title), opening selector decluttered.
 
-### Pack D — Air & Deep
-- [ ] NPC aircraft first: rescue helicopter that races you to maydays; cargo seaplane that lands in coves and drops salvage
+### Pack D — Air & Deep *(in progress)*
+- [x] NPC aircraft (`src/systems/AircraftSystem.ts`): coastguard **helicopter** scrambles to a nearby active mayday, flies in, hovers with its winch down, and peels off when the call clears (or times out); cargo **seaplane** drifts in, descends into a cove beside an island, drops a **salvage crate** you collect for credits, and climbs out. Spinning rotors/props; both cull at distance. *(No aircraft sound yet — flagged for a follow-up.)*
 - [ ] Playable seaplane: endgame shipyard purchase, arcade flight model, water landings reuse buoyancy
 - [ ] Submarine / dive bell: descend to the wreck graveyards, sonar pings, underwater render pass
 
