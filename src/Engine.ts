@@ -59,6 +59,8 @@ import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { AircraftSystem } from './systems/AircraftSystem';
 import { SeaplaneSystem } from './systems/SeaplaneSystem';
+import { SubmarineSystem } from './systems/SubmarineSystem';
+import { Underwater } from './rendering/Underwater';
 import { WaypointIndicator } from './ui/WaypointIndicator';
 import { PhotoMode } from './ui/PhotoMode';
 import { MeshRenderable } from './components/MeshRenderable';
@@ -114,6 +116,8 @@ export class Engine {
   private distress: DistressSystem;
   private aircraft: AircraftSystem;
   private readonly canFly: boolean;
+  private readonly canDive: boolean;
+  private underwater: Underwater | null = null;
   private waypoint = new WaypointIndicator();
   private photoMode: PhotoMode;
   private boatEntity: number;
@@ -127,6 +131,7 @@ export class Engine {
   constructor(boatDef: BoatDefinition, config: GameConfig = { mode: 'classic' }) {
     this.config = config;
     this.canFly = boatDef.canFly === true;
+    this.canDive = boatDef.canDive === true;
     // Opt-in calm, chosen on the selector and read once here.
     const combatSettings = loadCombatSettings();
 
@@ -175,7 +180,6 @@ export class Engine {
     const seaplaneSystem = new SeaplaneSystem(this.input, this.chunkManager);
     if (touchControls) seaplaneSystem.setTouchControls(touchControls);
     this.world.addSystem(seaplaneSystem);
-    if (touchControls && this.canFly) touchControls.setFlightControlsVisible(true);
 
     this.windSystem = new WindSystem();
     this.world.addSystem(this.windSystem);
@@ -224,6 +228,18 @@ export class Engine {
 
     // Sound effects (weapon SFX)
     this.soundEffects = new SoundEffects();
+
+    // Submarine dive controller (only acts on a hull with a Dive component) +
+    // the underwater render pass. The ▲/▼ touch pad serves both the seaplane
+    // (up/down) and the submarine (dive/surface).
+    const submarineSystem = new SubmarineSystem(
+      this.sceneManager.scene, this.input, this.chunkManager, this.soundEffects,
+      { onSonarContact: (text) => this.hud.showToast('📡 Sonar', text) },
+    );
+    if (touchControls) submarineSystem.setTouchControls(touchControls);
+    this.world.addSystem(submarineSystem);
+    if (this.canDive) this.underwater = new Underwater(this.sceneManager.scene);
+    if (touchControls && (this.canFly || this.canDive)) touchControls.setFlightControlsVisible(true);
     this.soundEffects.setMasterVolume(this.audioVolume);
     this.soundEffects.setMuted(this.audioMuted);
 
@@ -566,6 +582,9 @@ export class Engine {
     if (this.canFly) {
       this.hud.showToast('✈ Seaplane', 'Open the throttle, then hold Space to lift off');
     }
+    if (this.canDive) {
+      this.hud.showToast('🤿 Submarine', 'Hold ▼ (Shift) to dive · ▲ (Space) to surface');
+    }
   }
 
   private update(dt: number): void {
@@ -614,13 +633,18 @@ export class Engine {
       this.chunkManager.update(boatTransform.position.x, boatTransform.position.z);
       this.chunkManager.updateAnimations(dt, this.elapsedTime, sunDir.y);
 
-      // Update wake trail — but not when the seaplane is airborne (no wake in
-      // the sky); the altitude check covers every surface hull too.
-      if (boatRb && boatTransform.position.y < 3) {
+      // Update wake trail — only near the surface, so there's no wake in the sky
+      // (seaplane airborne) or in the deep (submarine submerged).
+      if (boatRb && boatTransform.position.y < 3 && boatTransform.position.y > -2) {
         const speed = Math.abs(boatRb.velocity.dot(_forward.set(0, 0, 1).applyQuaternion(boatTransform.quaternion)));
         this.wakeTrail.update(boatTransform.position, boatTransform.quaternion, speed, dt);
         this.bowSpray.update(dt, boatTransform.position, boatTransform.quaternion, speed);
         this.bioluminescence.update(dt, boatTransform.position, boatTransform.quaternion, speed, sunDir.y);
+      }
+
+      // Underwater render pass — tint by the camera's depth, seabed under the sub.
+      if (this.underwater) {
+        this.underwater.update(this.sceneManager.camera.position.y, boatTransform.position.x, boatTransform.position.z);
       }
 
       // Update weapon effects (torpedo wakes, explosions)
@@ -649,8 +673,8 @@ export class Engine {
       // Heists: plunder requests, fence detection, naval heat
       this.heists.update(dt, boatTransform.position.x, boatTransform.position.z);
 
-      // Airtime tricks (not the seaplane — sustained flight isn't a wave-hop)
-      if (!this.canFly) this.tricks.update(dt);
+      // Airtime tricks (not the seaplane/sub — flight & diving aren't wave-hops)
+      if (!this.canFly && !this.canDive) this.tricks.update(dt);
 
       // Bottles bob, get collected, and the dig check
       this.bottles.update(dt, boatTransform.position.x, boatTransform.position.z);
@@ -897,6 +921,7 @@ export class Engine {
     this.races.dispose();
     this.distress.dispose();
     this.aircraft.dispose();
+    this.underwater?.dispose();
     this.commandeer.dispose();
     this.heists.dispose();
     this.bottles.dispose();

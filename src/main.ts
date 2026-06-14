@@ -7,6 +7,7 @@ import { VIKING_SHIP } from './boats/VikingShip';
 import { JETSKI } from './boats/JetSki';
 import { HOVERCRAFT } from './boats/Hovercraft';
 import { SEAPLANE } from './boats/Seaplane';
+import { SUBMARINE } from './boats/Submarine';
 import { GameMode } from './state/GameConfig';
 import { loadStats, recordVoyageStart } from './state/VoyageLog';
 import { discoveredCount } from './state/DiscoveryTracker';
@@ -71,6 +72,16 @@ const BOAT_ICONS: Record<string, string> = {
     <line x1="22" y1="22" x2="22" y2="27" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
     <line x1="38" y1="22" x2="38" y2="27" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
   </svg>`,
+  submarine: `<svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="30">
+    <path d="M10 22 Q10 18 16 18 H46 Q54 18 56 22 Q54 26 46 26 H16 Q10 26 10 22 Z" fill="rgba(255,255,255,0.7)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+    <path d="M26 18 Q26 12 30 12 H35 Q37 12 37 14 V18 Z" fill="rgba(255,255,255,0.5)"/>
+    <line x1="31" y1="12" x2="31" y2="7" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
+    <circle cx="31" cy="6.5" r="1.4" fill="rgba(255,255,255,0.4)"/>
+    <line x1="10" y1="22" x2="5" y2="18" stroke="rgba(255,255,255,0.4)" stroke-width="1.3"/>
+    <line x1="10" y1="22" x2="5" y2="26" stroke="rgba(255,255,255,0.4)" stroke-width="1.3"/>
+    <circle cx="22" cy="22" r="1.5" fill="rgba(255,255,255,0.35)"/>
+    <circle cx="42" cy="22" r="1.5" fill="rgba(255,255,255,0.35)"/>
+  </svg>`,
 };
 
 const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
@@ -81,6 +92,7 @@ const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
   { def: JETSKI, desc: 'Tiny & airborne', iconKey: 'jetski' },
   { def: HOVERCRAFT, desc: 'Land & sea', iconKey: 'hovercraft' },
   { def: SEAPLANE, desc: 'Sea & sky', iconKey: 'seaplane' },
+  { def: SUBMARINE, desc: 'Dive the deep', iconKey: 'submarine' },
 ];
 
 // Shared DOM refs
