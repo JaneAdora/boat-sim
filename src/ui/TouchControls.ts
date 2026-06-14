@@ -6,11 +6,13 @@ import { clamp } from '../utils/math';
  * Only instantiated when touch is detected.
  */
 export class TouchControls {
-  // Public state consumed by BoatControlSystem / CameraSystem
+  // Public state consumed by BoatControlSystem / CameraSystem / SeaplaneSystem
   rudder = 0;
   throttle = 0;
   cameraOrbitDelta = 0;
   cameraZoomDelta = 0;
+  climb = false; // seaplane: hold ▲
+  dive = false;  // seaplane: hold ▼
 
   private container: HTMLElement;
   private tillerTrack: HTMLElement;
@@ -18,6 +20,7 @@ export class TouchControls {
   private throttleTrack: HTMLElement;
   private throttleKnob: HTMLElement;
   private rendererCanvas: HTMLCanvasElement | null = null;
+  private flightControls: HTMLElement; // climb/dive pad, shown for the seaplane
 
   // Active touch IDs
   private tillerTouchId: number | null = null;
@@ -118,6 +121,40 @@ export class TouchControls {
     this.container.appendChild(throttleWrap);
     document.body.appendChild(this.container);
 
+    // --- Flight pad (seaplane only): hold ▲ to climb, ▼ to dive. Sits inboard
+    // of the throttle so the right thumb can dab altitude between throttle nudges
+    // (the flight model holds altitude when neither is held). Hidden by default.
+    document.getElementById('flight-touch-controls')?.remove();
+    this.flightControls = document.createElement('div');
+    this.flightControls.id = 'flight-touch-controls';
+    this.flightControls.style.cssText = `
+      position: fixed; z-index: 51; display: none; flex-direction: column; gap: 14px;
+      right: calc(84px + env(safe-area-inset-right));
+      bottom: calc(56px + env(safe-area-inset-bottom));
+      pointer-events: auto;
+    `;
+    const makeFlightBtn = (glyph: string, set: (v: boolean) => void): HTMLElement => {
+      const b = document.createElement('div');
+      b.textContent = glyph;
+      b.style.cssText = `
+        width: 58px; height: 58px; border-radius: 29px; touch-action: none; user-select: none;
+        background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
+        color: rgba(255,255,255,0.85); font-size: 24px; line-height: 58px; text-align: center;
+      `;
+      const press = (e: Event) => { e.preventDefault(); set(true); b.style.background = 'rgba(255,255,255,0.32)'; };
+      const release = () => { set(false); b.style.background = 'rgba(255,255,255,0.12)'; };
+      b.addEventListener('touchstart', press, { passive: false });
+      b.addEventListener('touchend', release);
+      b.addEventListener('touchcancel', release);
+      b.addEventListener('mousedown', press);
+      b.addEventListener('mouseup', release);
+      b.addEventListener('mouseleave', release);
+      return b;
+    };
+    this.flightControls.appendChild(makeFlightBtn('▲', (v) => { this.climb = v; }));
+    this.flightControls.appendChild(makeFlightBtn('▼', (v) => { this.dive = v; }));
+    document.body.appendChild(this.flightControls);
+
     // --- Touch event listeners ---
     this.tillerTrack.addEventListener('touchstart', this.onTillerStart, { passive: false });
     this.tillerTrack.addEventListener('touchmove', this.onTillerMove, { passive: false });
@@ -135,6 +172,8 @@ export class TouchControls {
       this.resetTiller();
       this.resetThrottle();
       this.cameraTouches.clear();
+      this.climb = false;
+      this.dive = false;
     };
     document.addEventListener('visibilitychange', () => { if (document.hidden) resetAll(); });
     window.addEventListener('blur', resetAll);
@@ -326,5 +365,10 @@ export class TouchControls {
   consumeCameraDeltas(): void {
     this.cameraOrbitDelta = 0;
     this.cameraZoomDelta = 0;
+  }
+
+  /** Show the climb/dive pad — only the seaplane needs it. */
+  setFlightControlsVisible(visible: boolean): void {
+    this.flightControls.style.display = visible ? 'flex' : 'none';
   }
 }

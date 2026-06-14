@@ -172,7 +172,10 @@ export class Engine {
     this.world.addSystem(boatControlSystem);
 
     // Seaplane flight controller (only acts on a hull with a Flight component)
-    this.world.addSystem(new SeaplaneSystem(this.input, this.chunkManager));
+    const seaplaneSystem = new SeaplaneSystem(this.input, this.chunkManager);
+    if (touchControls) seaplaneSystem.setTouchControls(touchControls);
+    this.world.addSystem(seaplaneSystem);
+    if (touchControls && this.canFly) touchControls.setFlightControlsVisible(true);
 
     this.windSystem = new WindSystem();
     this.world.addSystem(this.windSystem);

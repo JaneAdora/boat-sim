@@ -7,6 +7,7 @@ import { Flight } from '../components/Flight';
 import { MeshRenderable } from '../components/MeshRenderable';
 import { InputManager } from '../core/InputManager';
 import { ChunkManager } from '../world/ChunkManager';
+import { TouchControls } from '../ui/TouchControls';
 import { clamp } from '../utils/math';
 
 // Tunable arcade-flight feel. Water top speed is set by the boat def; these are
@@ -37,8 +38,14 @@ const _fwd = new THREE.Vector3();
  * it. Only ever touches a hull that has a Flight component (the seaplane).
  */
 export class SeaplaneSystem extends System {
+  private touch: TouchControls | null = null;
+
   constructor(private input: InputManager, private chunkManager: ChunkManager) {
     super(45); // after physics (40), before camera (80)
+  }
+
+  setTouchControls(tc: TouchControls): void {
+    this.touch = tc;
   }
 
   update(world: World, dt: number): void {
@@ -51,8 +58,8 @@ export class SeaplaneSystem extends System {
       const down = this.input.isPressed('KeyS') || this.input.isPressed('ArrowDown');
       const left = this.input.isPressed('KeyA') || this.input.isPressed('ArrowLeft');
       const right = this.input.isPressed('KeyD') || this.input.isPressed('ArrowRight');
-      const climb = this.input.isPressed('Space');
-      const dive = this.input.isPressed('ShiftLeft') || this.input.isPressed('ShiftRight');
+      const climb = this.input.isPressed('Space') || this.touch?.climb === true;
+      const dive = this.input.isPressed('ShiftLeft') || this.input.isPressed('ShiftRight') || this.touch?.dive === true;
 
       if (!f.airborne) {
         // On the water: a boat. Spin the prop slowly, and rotate off if we're
