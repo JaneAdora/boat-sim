@@ -68,6 +68,10 @@ import { Transform } from './components/Transform';
 import { RigidBody } from './components/RigidBody';
 import { BoatControl } from './components/BoatControl';
 import { GameConfig } from './state/GameConfig';
+import { MissionSystem } from './systems/MissionSystem';
+import { QuestLog } from './ui/QuestLog';
+import { CampaignState, loadCampaign, newCampaign } from './state/CampaignState';
+import { findStoryHarbor, StoryHarbor } from './state/StoryHarbor';
 
 // Reusable scratch vector for per-frame forward/heading math (avoids GC churn).
 const _forward = new THREE.Vector3();
@@ -115,6 +119,10 @@ export class Engine {
   private races: RaceSystem;
   private distress: DistressSystem;
   private aircraft: AircraftSystem;
+  // Story Mode (campaign only) — null in Free Roam.
+  private mission: MissionSystem | null = null;
+  private questLog: QuestLog | null = null;
+  private greyharbor: StoryHarbor | null = null;
   private readonly canFly: boolean;
   private readonly canDive: boolean;
   private underwater: Underwater | null = null;
@@ -208,6 +216,12 @@ export class Engine {
     // Spawn the boat
     this.boatEntity = spawnBoat(this.world, this.sceneManager.scene, boatDef);
     this.cameraSystem.setTarget(this.boatEntity);
+
+    // Story Mode spawns at the Greyharbor dock, not the world origin.
+    if (this.config.campaign && this.config.spawn) {
+      const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
+      if (t) t.position.set(this.config.spawn.x, 1, this.config.spawn.z);
+    }
 
     // Navigation lights for the player boat
     const boatMesh = this.world.getComponent<MeshRenderable>(this.boatEntity, 'MeshRenderable');
@@ -553,6 +567,40 @@ export class Engine {
       },
     });
 
+    // Story Mode — the scripted-campaign layer. Constructed ONLY when
+    // config.campaign, so a Free Roam engine hits zero of this code.
+    if (this.config.campaign) {
+      this.greyharbor = findStoryHarbor();
+      // Load chunks around the campaign spawn so Greyharbor exists in
+      // getHarbors(), and pre-discover it so it's dockable from the start.
+      const spawnX = this.config.spawn?.x ?? 0;
+      const spawnZ = this.config.spawn?.z ?? 0;
+      this.chunkManager.update(spawnX, spawnZ);
+      if (this.greyharbor) this.discovery.discover(this.greyharbor.chunkX, this.greyharbor.chunkZ);
+
+      const state: CampaignState = loadCampaign() ?? newCampaign();
+      this.questLog = new QuestLog();
+      this.mission = new MissionSystem({
+        state,
+        quest: this.questLog,
+        journal: this.journal,
+        scene: this.sceneManager.scene,
+        ocean: this.ocean,
+        greyharbor: this.greyharbor
+          ? { x: this.greyharbor.x, z: this.greyharbor.z, dock: this.greyharbor.dock }
+          : { x: spawnX, z: spawnZ, dock: { x: spawnX, z: spawnZ } },
+        hud: { showToast: (l, h) => this.hud.showToast(l, h) },
+        wildlife: this.wildlifeSystem,
+        towing: towingSystem,
+        distress: this.distress,
+        getBoatPos: () => {
+          const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
+          return { x: t?.position.x ?? 0, z: t?.position.z ?? 0, y: t?.position.y ?? 0 };
+        },
+        isInBoat: (name) => boatDef.name === name,
+      });
+    }
+
     // Keyboard toggles (stored for cleanup)
     this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'KeyX') {
@@ -576,8 +624,11 @@ export class Engine {
     // Game loop
     this.gameLoop = new GameLoop((dt) => this.update(dt));
 
-    // Initial chunk load
-    this.chunkManager.update(0, 0);
+    // Initial chunk load — around the campaign spawn if any, else the origin.
+    this.chunkManager.update(this.config.spawn?.x ?? 0, this.config.spawn?.z ?? 0);
+
+    // Arm the first story beat (after the loop + chunks are ready).
+    this.mission?.start();
 
     // Teach the non-obvious seaplane takeoff
     if (this.canFly) {
@@ -710,6 +761,11 @@ export class Engine {
       // Time-trials (start detection, gates, ghost replay)
       this.races.update(dt, boatTransform);
 
+      // Story Mode — arm/complete/advance the active beat (campaign only).
+      // After the ambient encounter systems: scripted modes never fire their
+      // own ambient callbacks, so order is safe.
+      this.mission?.update(dt);
+
       // Island discovery + best-kills high-water mark, throttled to 2Hz —
       // neither needs frame-rate precision and both touch localStorage.
       this.discoveryTimer += dt;
@@ -754,13 +810,14 @@ export class Engine {
         boatTransform.position.z,
         heading,
         this.wildlifeSystem.getWildlifePositions(),
-        this.distress.getMarker() ?? this.contracts.getMarker(),
+        this.mission?.getMarker() ?? this.distress.getMarker() ?? this.contracts.getMarker(),
       );
 
-      // Screen-space waypoint to the active objective (rescue first, then contract)
+      // Screen-space waypoint to the active objective (campaign beat first,
+      // then rescue, then contract).
       this.waypoint.update(
         this.sceneManager.camera,
-        this.distress.getMarker() ?? this.contracts.getMarker(),
+        this.mission?.getMarker() ?? this.distress.getMarker() ?? this.contracts.getMarker(),
         boatTransform.position.x,
         boatTransform.position.z,
       );
@@ -913,6 +970,12 @@ export class Engine {
 
     // Remove keyboard handler
     window.removeEventListener('keydown', this.keydownHandler);
+
+    // Story Mode teardown FIRST — MissionSystem removes its scripted entities
+    // and pickup props (which live in the scene / wildlife roster) before those
+    // subsystems are torn down below.
+    this.mission?.dispose();
+    this.questLog?.dispose();
 
     // Tear down ECS systems — each removes its own listeners + GPU resources
     // (WeaponsSystem/TowingSystem keydown handlers, weapon effect buffers, etc.)

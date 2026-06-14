@@ -46,6 +46,14 @@ export class DiscoveryTracker {
     return this.discovered.has(`${chunkX},${chunkZ}`);
   }
 
+  /** Force-mark a chunk discovered + persist (Story Mode pre-discovers Greyharbor). */
+  discover(chunkX: number, chunkZ: number): void {
+    const key = `${chunkX},${chunkZ}`;
+    if (this.discovered.has(key)) return;
+    this.discovered.add(key);
+    this.persist();
+  }
+
   /**
    * Check the boat position against loaded islands; if it just arrived at an
    * undiscovered one, record it and return that island. Null otherwise.
