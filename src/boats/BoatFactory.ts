@@ -7,6 +7,7 @@ import { createBuoyancy, BuoyancySamplePoint } from '../components/Buoyancy';
 import { createBoatControl } from '../components/BoatControl';
 import { createWindReceiver } from '../components/WindReceiver';
 import { createFlight } from '../components/Flight';
+import { createDive } from '../components/Dive';
 import { createMeshRenderable } from '../components/MeshRenderable';
 
 // ─── Shared materials ───────────────────────────────────────
@@ -997,6 +998,80 @@ function createSeaplaneMesh(): BoatParts {
   return { group, sailPivot: null, rudderPivot: null };
 }
 
+function createSubmarineMesh(): BoatParts {
+  const group = new THREE.Group();
+
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0x39414a, roughness: 0.55, metalness: 0.4 });
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0x2d333b, roughness: 0.6, metalness: 0.4 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x191c21, roughness: 0.6 });
+  const propMat = new THREE.MeshStandardMaterial({ color: 0x9a7b4f, roughness: 0.4, metalness: 0.6 });
+  const glowMat = new THREE.MeshStandardMaterial({ color: 0xffe08a, emissive: 0xffcf6e, emissiveIntensity: 0.8, roughness: 0.5 });
+
+  // Long hull (forward is +Z), pointed bow.
+  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(0.8, 3.4, 8, 16), hullMat);
+  hull.rotation.x = Math.PI / 2;
+  group.add(hull);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.0, 16), hullMat);
+  nose.rotation.x = Math.PI / 2;
+  nose.position.z = 2.9;
+  group.add(nose);
+
+  // Conning tower (sail) + rounded front + periscope.
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(0.66, 1.1, 1.5), towerMat);
+  tower.position.set(0, 0.82, 0.2);
+  group.add(tower);
+  const towerNose = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 1.1, 12, 1, false, 0, Math.PI), towerMat);
+  towerNose.position.set(0, 0.82, 0.95);
+  group.add(towerNose);
+  const periscope = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 6), darkMat);
+  periscope.position.set(0, 1.75, 0.4);
+  group.add(periscope);
+  const periEye = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), darkMat);
+  periEye.position.set(0, 2.1, 0.48);
+  group.add(periEye);
+
+  // Fairwater (sail) planes on the tower.
+  for (const side of [-1, 1]) {
+    const plane = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.1, 0.5), towerMat);
+    plane.position.set(side * 0.5, 0.95, 0.2);
+    group.add(plane);
+  }
+
+  // Stern cross: rudder (vertical) + dive planes (horizontal).
+  const rudder = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 0.7), hullMat);
+  rudder.position.set(0, 0, -2.7);
+  group.add(rudder);
+  const sternPlane = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.12, 0.7), hullMat);
+  sternPlane.position.set(0, 0, -2.7);
+  group.add(sternPlane);
+
+  // Propeller at the tail (named so the dive system can spin it).
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8), darkMat);
+  shaft.rotation.x = Math.PI / 2;
+  shaft.position.z = -3.0;
+  group.add(shaft);
+  const prop = new THREE.Group();
+  prop.name = 'prop';
+  prop.position.set(0, 0, -3.2);
+  for (let i = 0; i < 5; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.04), propMat);
+    blade.rotation.z = (i * Math.PI * 2) / 5;
+    prop.add(blade);
+  }
+  group.add(prop);
+
+  // Portholes down the flank — a little glow.
+  for (let i = -1; i <= 1; i++) {
+    for (const side of [-1, 1]) {
+      const port = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), glowMat);
+      port.position.set(side * 0.78, 0.2, i * 0.9 + 0.3);
+      group.add(port);
+    }
+  }
+
+  return { group, sailPivot: null, rudderPivot: null };
+}
+
 // ─── Entity spawner ─────────────────────────────────────────
 
 export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefinition): EntityId {
@@ -1029,6 +1104,10 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     world.addComponent(entity, 'Flight', createFlight());
   }
 
+  if (definition.canDive) {
+    world.addComponent(entity, 'Dive', createDive());
+  }
+
   // Choose mesh based on boat type
   const meshCreators: Record<string, () => BoatParts> = {
     sailboat: createSailboatMesh,
@@ -1039,6 +1118,7 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     jetski: createJetSkiMesh,
     hovercraft: createHovercraftMesh,
     seaplane: createSeaplaneMesh,
+    submarine: createSubmarineMesh,
   };
   const parts = (meshCreators[definition.meshType] || createTugboatMesh)();
   scene.add(parts.group);

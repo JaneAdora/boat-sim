@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export interface BoatDefinition {
   name: string;
-  meshType: 'sailboat' | 'tugboat' | 'cruiseship' | 'speedboat' | 'vikingship' | 'jetski' | 'hovercraft' | 'seaplane';
+  meshType: 'sailboat' | 'tugboat' | 'cruiseship' | 'speedboat' | 'vikingship' | 'jetski' | 'hovercraft' | 'seaplane' | 'submarine';
   mass: number;
   hullSamplePoints: { offset: THREE.Vector3; area: number }[];
   sailArea: number;       // 0 for motorboats
@@ -17,6 +17,9 @@ export interface BoatDefinition {
   /** Can take off from the water and fly (the seaplane). Gets a Flight component
    *  and is driven by the SeaplaneSystem when airborne. */
   canFly?: boolean;
+  /** Can dive below the surface (the submarine). Gets a Dive component and is
+   *  driven by the SubmarineSystem when submerged. */
+  canDive?: boolean;
 }
 
 export const KNOTS_TO_MS = 1 / 1.94;

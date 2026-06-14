@@ -188,6 +188,25 @@ export class SoundEffects {
     roarSource.stop(now + 2.0);
   }
 
+  /** Sonar ping — a clean sine 'pong' that drops a little and rings out. */
+  playSonarPing(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(920, now);
+    osc.frequency.exponentialRampToValueAtTime(740, now + 0.5);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+    osc.connect(gain);
+    gain.connect(this.masterGain!);
+    osc.start(now);
+    osc.stop(now + 1.3);
+  }
+
   /**
    * Low boom + crackle explosion sound (~2.5s).
    * Low sine boom + white noise crackle + sub-bass sine punch.
