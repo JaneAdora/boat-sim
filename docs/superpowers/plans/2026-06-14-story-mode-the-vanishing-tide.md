@@ -39,6 +39,25 @@
 
 ---
 
+## Codex plan-gate revisions (adopted — BINDING; override task bodies where they conflict)
+
+**Unifying rule:** scripted encounters are **fully mission-owned**. Every `beginScripted*` MUST (a) force-clear any active ambient instance first (remove the wildlife entity/mesh, clear its banner/audio), (b) NEVER fire its ambient completion or reward callback while scripted, and (c) expose explicit scripted state that `MissionSystem` polls. `MissionSystem` is the SOLE granter of credits/karma/journal for story beats. Resolves findings 1, 2, 3, 5, 13.
+
+- **R1 (Task 4 — code bug):** import `chunkHash` from `src/world/IslandNames.ts` (NOT WorldSeed). Dock/spawn use the SAME mapping as `createHarbor` (`ChunkManager.ts:556-557`): `angle = chunkHash(cx,cz,22)*2π`, `x = centerX + cos(angle)*outerR`, `z = centerZ + sin(angle)*outerR`. Add a test loading that chunk in a `ChunkManager` and asserting `findStoryHarbor().dock ≈ getHarbors()` entry. *(fixed inline in Task 4)*
+- **R2 (Task 3 data):** move `unlockBoat:'Submarine'` from beat 5 → **beat 4 (souls-water) reward**. Beat 5 keeps only `requiresBoat:'Submarine'`.
+- **R3 (Task 11):** delete the "unlock at arm" step. If beat 5 is armed and the player isn't in the sub, the objective + marker point to **Greyharbor** ("take the submarine out"), not the reef, until they relaunch in the sub.
+- **R4 (Task 9 rescue):** `DistressSystem.beginScriptedRescue(x,z)` force-removes any ambient vessel + clears banner, then spawns the mission vessel; while `scripted`, `updateActive` must NOT run the ambient `isSafeHarbor→onComplete` path. Expose `scriptedRescueCleared()` (vessel towed beyond `safeRadius` of spawn). MissionSystem polls + grants. Engine rescue `onComplete` is never used for the beat.
+- **R5 (Task 9 towing):** add `TowingSystem.setPreferredTowable(entity|null)` — returns that entity if within range regardless of closer ones; Mission sets it on arm, clears on disarm. Also filter generic `findNearestTowable` (`WildlifeSystem.ts:641`) to towable vessel types (exclude dolphins/whales).
+- **R6 (Task 9 journal):** tag mission-owned wildlife (`mission:true` field or a ref Set) so `Engine.checkJournal()` (`:828`,`:835`) skips them — no spurious `'fishing'`/`'wrecks'` +15.
+- **R7 (Task 12 mermaid):** `beginScripted` calls `depart()` first; the scripted branch runs BEFORE the night check and ignores dawn/rain; completion sets `scriptedHeardFlag` + grants via Mission, WITHOUT `recordMermaidEncounter` (no lifetime touch).
+- **R8 (Task 13 witness):** `LeviathanSystem.beginScripted` clears any active ambient spectacle/boss first; scripted spectacle must NOT call ambient `onWitnessed`/`recordLeviathanWitnessed`.
+- **R9 (Task 14 finale):** `beginBoss` early-returns if `this.entity` exists → clear first. `onLeviathanSlain` calls `leviathan.markScriptedResolved()` and SUPPRESSES the ambient 200cr+karma+journal (Mission grants the beat reward). Add `WeatherSystem.beginScriptedStorm()/endScriptedStorm()` forcing `getRainIntensity() >= 0.7`; Mission calls begin on arming beats 7 & 8, end on disarm. No-weapons **lure state machine** (pure, tested, constants): `LURE_IN=90`, `LURE_OUT=220`, `LURE_FLEE=600`; require boss alive+chasing; `outside→inside` increments `lurePass` once; must exit beyond `LURE_OUT` to re-arm a pass; `lurePass>=3` → `endScripted()` (it dives) → complete; fleeing `>LURE_FLEE` resets only the `inside` edge, never `lurePass`.
+- **R10 (Task 12/13/14 marker → heli):** marker chain = `mission?.getAircraftMarker() ?? mission?.getMarker() ?? distress.getMarker() ?? contracts.getMarker()`. `getAircraftMarker()` returns the trench during beats 7/8 so the heli scrambles (callback). Beat 4's scripted distress marker already draws it.
+- **R11 (Task 6/11 pre-discovery):** add `DiscoveryTracker.discover(chunkX,chunkZ)` (persists the key like `check()` does). In Engine's campaign branch, before the first update, initial-load chunks around `config.spawn` (not `(0,0)`) and `discovery.discover(greyharbor.chunkX, greyharbor.chunkZ)` so `HarborSystem.getHarbors()` contains Greyharbor.
+- **R12 (Task 6/15 dispose):** `MissionSystem.dispose()` removes pickup props + scripted entities + clears QuestLog; call it in `Engine.dispose()` BEFORE subsystem disposal. `endScripted()` must be idempotent. Update order: `mission.update()` after the manual systems is fine *because* scripted systems never fire ambient callbacks (unifying rule).
+
+---
+
 ## MILESTONE 1 — Machine + beats 1–4
 
 ### Task 1: GameConfig — campaign + spawn fields
@@ -416,7 +435,7 @@ describe('StoryHarbor', () => {
 // src/state/StoryHarbor.ts
 import { generateIsland } from '../world/IslandGenerator';
 import { harborEligible } from './Harbor';
-import { chunkHash } from '../world/WorldSeed'; // confirm export location
+import { chunkHash } from '../world/IslandNames'; // R1: chunkHash lives here, not WorldSeed
 import { CHUNK_SIZE } from '../world/WorldSeed';
 
 export interface StoryHarbor { chunkX: number; chunkZ: number; x: number; z: number; radius: number; dock: { x: number; z: number }; spawn: { x: number; z: number }; }
@@ -429,9 +448,9 @@ export function findStoryHarbor(): StoryHarbor | null {
         if (Math.max(Math.abs(cx), Math.abs(cz)) !== ring) continue; // ring perimeter only
         const isl = generateIsland(cx, cz, CHUNK_SIZE);
         if (!isl || !harborEligible(isl.radius, cx, cz)) continue;
-        const bearing = chunkHash(cx, cz, 22) * Math.PI * 2; // same bearing createHarbor uses
-        const dock = { x: isl.centerX + Math.sin(bearing) * (isl.radius + 24), z: isl.centerZ + Math.cos(bearing) * (isl.radius + 24) };
-        const spawn = { x: isl.centerX + Math.sin(bearing) * (isl.radius + 38), z: isl.centerZ + Math.cos(bearing) * (isl.radius + 38) };
+        const angle = chunkHash(cx, cz, 22) * Math.PI * 2; // R1: SAME salt+mapping as createHarbor (ChunkManager.ts:556-557)
+        const dock = { x: isl.centerX + Math.cos(angle) * (isl.radius + 24), z: isl.centerZ + Math.sin(angle) * (isl.radius + 24) };
+        const spawn = { x: isl.centerX + Math.cos(angle) * (isl.radius + 38), z: isl.centerZ + Math.sin(angle) * (isl.radius + 38) };
         return { chunkX: cx, chunkZ: cz, x: isl.centerX, z: isl.centerZ, radius: isl.radius, dock, spawn };
       }
     }
