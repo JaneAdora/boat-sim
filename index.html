@@ -1046,7 +1046,8 @@
       background: rgba(8, 14, 22, 0.5); backdrop-filter: blur(6px);
       border-left: 3px solid #ffd479; border-radius: 6px;
       font-family: 'Segoe UI', system-ui, sans-serif; color: #eaf2f8;
-      pointer-events: none;
+      pointer-events: auto; cursor: pointer; user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
     #quest-log .ql-title {
       font-size: 13px; font-weight: 700; letter-spacing: 0.02em; color: #ffd479;
@@ -1055,6 +1056,13 @@
     #quest-log .ql-objective { font-size: 13px; line-height: 1.35; opacity: 0.95; }
     #quest-log .ql-dist { font-size: 11px; opacity: 0.6; margin-top: 3px; }
     #quest-log .ql-hint { font-size: 9.5px; opacity: 0.4; margin-top: 2px; letter-spacing: 0.04em; }
+    #quest-log .ql-chip { display: none; font-size: 14px; line-height: 1; color: #ffd479; text-align: center; }
+    #quest-log.collapsed { padding: 6px 9px; }
+    #quest-log.collapsed .ql-chip { display: block; }
+    #quest-log.collapsed .ql-title,
+    #quest-log.collapsed .ql-objective,
+    #quest-log.collapsed .ql-dist,
+    #quest-log.collapsed .ql-hint { display: none; }
 
     /* Story Mode launch screen — reuses the selector chrome; these add the
        selected-boat highlight and the action-row buttons. */
