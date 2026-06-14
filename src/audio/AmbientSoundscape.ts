@@ -19,6 +19,10 @@ export class AmbientSoundscape {
   private engineOsc: OscillatorNode | null = null;
   private engineOsc2: OscillatorNode | null = null;
   private rainGain: GainNode | null = null;
+  private heliGain: GainNode | null = null;
+  private heliPan: StereoPannerNode | null = null;
+  private planeGain: GainNode | null = null;
+  private planePan: StereoPannerNode | null = null;
   private masterGain: GainNode | null = null;
   private started = false;
   private muted = false;
@@ -134,7 +138,113 @@ export class AmbientSoundscape {
     rainFilter2.connect(this.rainGain);
     rainSource.start();
 
+    this.initAircraftAudio();
+
     this.started = true;
+  }
+
+  /**
+   * Two looping aircraft voices for the NPC helicopter (a low rotor with a
+   * blade-chop tremolo + wash) and the cargo seaplane (a detuned prop drone).
+   * Each runs silent through its own stereo panner until the AircraftSystem
+   * fades and pans it by distance and bearing.
+   */
+  private initAircraftAudio(): void {
+    const ctx = this.audioCtx!;
+
+    // Helicopter — sawtooth rotor through a lowpass, amplitude-chopped at the
+    // blade-pass rate, plus a brown-noise rotor wash.
+    this.heliGain = ctx.createGain();
+    this.heliGain.gain.value = 0;
+    this.heliPan = ctx.createStereoPanner();
+    this.heliGain.connect(this.heliPan);
+    this.heliPan.connect(this.masterGain!);
+
+    const rotor = ctx.createOscillator();
+    rotor.type = 'sawtooth';
+    rotor.frequency.value = 46;
+    const rotorLP = ctx.createBiquadFilter();
+    rotorLP.type = 'lowpass';
+    rotorLP.frequency.value = 190;
+    rotorLP.Q.value = 1;
+    const chop = ctx.createGain();
+    chop.gain.value = 0.5;
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 13;
+    const lfoDepth = ctx.createGain();
+    lfoDepth.gain.value = 0.5;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(chop.gain);
+    rotor.connect(rotorLP);
+    rotorLP.connect(chop);
+    chop.connect(this.heliGain);
+
+    const wash = ctx.createBufferSource();
+    wash.buffer = this.createBrownNoise(ctx, 2);
+    wash.loop = true;
+    const washLP = ctx.createBiquadFilter();
+    washLP.type = 'lowpass';
+    washLP.frequency.value = 360;
+    const washGain = ctx.createGain();
+    washGain.gain.value = 0.22;
+    wash.connect(washLP);
+    washLP.connect(washGain);
+    washGain.connect(this.heliGain);
+
+    rotor.start();
+    lfo.start();
+    wash.start();
+
+    // Seaplane — two detuned sawtooths through a lowpass with a little vibrato.
+    this.planeGain = ctx.createGain();
+    this.planeGain.gain.value = 0;
+    this.planePan = ctx.createStereoPanner();
+    this.planeGain.connect(this.planePan);
+    this.planePan.connect(this.masterGain!);
+
+    const d1 = ctx.createOscillator();
+    d1.type = 'sawtooth';
+    d1.frequency.value = 92;
+    const d2 = ctx.createOscillator();
+    d2.type = 'sawtooth';
+    d2.frequency.value = 98;
+    const droneLP = ctx.createBiquadFilter();
+    droneLP.type = 'lowpass';
+    droneLP.frequency.value = 900;
+    droneLP.Q.value = 1;
+    const vib = ctx.createOscillator();
+    vib.type = 'sine';
+    vib.frequency.value = 6;
+    const vibDepth = ctx.createGain();
+    vibDepth.gain.value = 3;
+    vib.connect(vibDepth);
+    vibDepth.connect(d1.frequency);
+    vibDepth.connect(d2.frequency);
+    d1.connect(droneLP);
+    d2.connect(droneLP);
+    droneLP.connect(this.planeGain);
+
+    d1.start();
+    d2.start();
+    vib.start();
+  }
+
+  /** Helicopter voice: level 0..1, pan -1..1. */
+  setHelicopter(level: number, pan: number): void {
+    this.setAircraftVoice(this.heliGain, this.heliPan, level, pan, 0.5);
+  }
+
+  /** Seaplane voice: level 0..1, pan -1..1. */
+  setSeaplane(level: number, pan: number): void {
+    this.setAircraftVoice(this.planeGain, this.planePan, level, pan, 0.32);
+  }
+
+  private setAircraftVoice(gain: GainNode | null, panner: StereoPannerNode | null, level: number, pan: number, max: number): void {
+    if (!gain || !panner || !this.audioCtx) return;
+    const t = this.audioCtx.currentTime;
+    gain.gain.setTargetAtTime(clamp(level, 0, 1) * max, t, 0.12);
+    panner.pan.setTargetAtTime(clamp(pan, -1, 1), t, 0.12);
   }
 
   /**
@@ -415,6 +525,10 @@ export class AmbientSoundscape {
       this.engineOsc = null;
       this.engineOsc2 = null;
       this.rainGain = null;
+      this.heliGain = null;
+      this.heliPan = null;
+      this.planeGain = null;
+      this.planePan = null;
       this.vikingWindFilter = null;
       this.started = false;
     }
