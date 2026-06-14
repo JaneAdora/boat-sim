@@ -139,8 +139,7 @@ function showModeChoice(): void {
   clearStartScreens();
 
   const choice = document.createElement('div');
-  choice.id = 'mode-choice';
-  choice.className = 'mode-pill'; // reuse the two-card pill styling
+  choice.id = 'mode-choice'; // shares the #mode-pill flex styling (index.html)
 
   const makeBtn = (name: string, desc: string, onPick: () => void): HTMLButtonElement => {
     const btn = document.createElement('button');
