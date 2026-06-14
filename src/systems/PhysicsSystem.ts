@@ -17,10 +17,11 @@ const _axis = new THREE.Vector3();
 
 // Amphibious (hovercraft) over-land ride. The body is clamped to this height
 // above the terrain every frame so it can never tunnel into a hillside at speed
-// — buoyancy alone lags behind fast horizontal motion. A little extra on-land
-// drag lets it settle onto the beach instead of skating across at full tilt.
+// — buoyancy alone lags behind fast horizontal motion (that clamp is what stops
+// the sink-in, so land drag is just feel). A light on-land drag takes the edge
+// off without slowing it much — it keeps most of its speed skimming the beach.
 const AMPHIB_RIDE_HEIGHT = 0.4;
-const AMPHIB_LAND_DRAG = 0.9;
+const AMPHIB_LAND_DRAG = 0.2;
 
 export class PhysicsSystem extends System {
   private chunkManager: ChunkManager | null = null;
