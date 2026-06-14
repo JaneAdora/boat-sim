@@ -28,6 +28,11 @@ export class DistressSystem {
   private kind: 'fire' | 'whale' = 'fire';
   private cutProgress = 0;
   private cooldown = 100; // first call comes after the player has settled in
+  /** Story Mode suppresses ambient distress spawns (scripted rescues bypass). */
+  private ambientEnabled = true;
+  setAmbientEnabled(enabled: boolean): void {
+    this.ambientEnabled = enabled;
+  }
   private bannerTimer = 0;
   // Story Mode: while a scripted rescue is live, ambient spawns are suspended
   // and the ambient isSafeHarbor→onComplete reward path never fires. The
@@ -59,6 +64,7 @@ export class DistressSystem {
       this.updateActive(dt, boatX, boatZ, boatSpeed);
       return;
     }
+    if (!this.ambientEnabled) return; // Story Mode: only scripted rescues spawn
     this.cooldown -= dt;
     if (this.cooldown <= 0) {
       this.cooldown = 30; // retry cadence if no clear water found

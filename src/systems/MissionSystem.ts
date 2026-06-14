@@ -81,6 +81,8 @@ export class MissionSystem {
   private leviathanDefeated = false;
   /** Beat 8 (no-weapons path): the pure lure-pass counter. */
   private lure = new LureCounter();
+  /** Beat 1: the "press G to tow" hint shows once when first near the Marigold. */
+  private towHintShown = false;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -99,6 +101,17 @@ export class MissionSystem {
       !this.d.isInBoat(beat.requiresBoat)
     ) {
       return { x: this.d.greyharbor.dock.x, z: this.d.greyharbor.dock.z };
+    }
+    // Beat 1: once the Marigold is on the tow line, steer home to the dock;
+    // before she's hooked, track the derelict herself.
+    if (beat?.encounter.kind === 'tow-derelict') {
+      const vessel = this.instance?.ref as WildlifeEntity | undefined;
+      if (vessel) {
+        if (this.d.towing.getTowedEntity() === vessel) {
+          return { x: this.d.greyharbor.dock.x, z: this.d.greyharbor.dock.z };
+        }
+        return { x: vessel.mesh.position.x, z: vessel.mesh.position.z };
+      }
     }
     return this.marker;
   }
@@ -169,6 +182,7 @@ export class MissionSystem {
     this.rescueHooked = false;
     this.sonarPinged = false;
     this.spectacleTriggered = false;
+    this.towHintShown = false;
 
     switch (e.kind) {
       case 'tow-derelict': {
@@ -236,6 +250,19 @@ export class MissionSystem {
       this.prop.position.y = waveY;
       this.prop.rotation.z = Math.sin(this.time * 0.9) * 0.08;
       this.prop.rotation.x = Math.sin(this.time * 0.7) * 0.06;
+    }
+
+    // Beat 1: nudge the player to hook the Marigold the first time they pull
+    // alongside (the Tow button also appears, but the cue makes it obvious).
+    if (beat.encounter.kind === 'tow-derelict' && !this.towHintShown) {
+      const vessel = this.instance?.ref as WildlifeEntity | undefined;
+      if (vessel && this.d.towing.getTowedEntity() !== vessel) {
+        const b = this.d.getBoatPos();
+        if (Math.hypot(vessel.mesh.position.x - b.x, vessel.mesh.position.z - b.z) < 70) {
+          this.d.hud.showToast('The Marigold', 'Pull alongside and press G (or the Tow button), then bring her home.');
+          this.towHintShown = true;
+        }
+      }
     }
 
     if (this.complete(beat)) this.finish(beat);

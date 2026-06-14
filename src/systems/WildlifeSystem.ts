@@ -362,7 +362,7 @@ export class WildlifeSystem extends System {
     if (this.countType('whale') < WildlifeSystem.MAX_WHALES) candidates.push('whale');
     if (this.countType('fishing_boat') < WildlifeSystem.MAX_FISHING) candidates.push('fishing_boat');
     if (this.countType('cargo_ship') < WildlifeSystem.MAX_CARGO) candidates.push('cargo_ship');
-    if (this.countType('battleship') < WildlifeSystem.MAX_BATTLESHIPS) candidates.push('battleship');
+    if (this.spawnBattleships && this.countType('battleship') < WildlifeSystem.MAX_BATTLESHIPS) candidates.push('battleship');
     if (candidates.length === 0) return;
 
     const type = candidates[Math.floor(Math.random() * candidates.length)];
@@ -768,6 +768,13 @@ export class WildlifeSystem extends System {
   setMissionOwned(entity: WildlifeEntity, owned: boolean): void {
     if (owned) this.missionOwned.add(entity);
     else this.missionOwned.delete(entity);
+  }
+
+  /** Story Mode: stop ambient battleships from spawning (a warship doesn't fit
+   *  the campaign). Default true → Free Roam unchanged. */
+  private spawnBattleships = true;
+  setSpawnBattleships(enabled: boolean): void {
+    this.spawnBattleships = enabled;
   }
 
   /** Positions for the field-journal scan — excludes mission-owned vessels.

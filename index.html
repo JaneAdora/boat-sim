@@ -1040,10 +1040,12 @@
 
     /* Story Mode quest log — translucent dark card, gold accent, top-left. */
     #quest-log {
-      position: fixed; top: 16px; left: 16px; z-index: 7; max-width: 260px;
-      padding: 10px 12px;
-      background: rgba(8, 14, 22, 0.62); backdrop-filter: blur(6px);
-      border-left: 3px solid #ffd479; border-radius: 6px;
+      position: fixed; top: calc(14px + env(safe-area-inset-top, 0px));
+      left: 50%; transform: translateX(-50%); z-index: 7;
+      max-width: 380px; text-align: center;
+      padding: 8px 18px;
+      background: rgba(8, 14, 22, 0.66); backdrop-filter: blur(6px);
+      border-top: 3px solid #ffd479; border-radius: 0 0 8px 8px;
       font-family: 'Segoe UI', system-ui, sans-serif; color: #eaf2f8;
       pointer-events: none;
     }

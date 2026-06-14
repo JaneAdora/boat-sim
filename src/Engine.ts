@@ -140,8 +140,13 @@ export class Engine {
     this.config = config;
     this.canFly = boatDef.canFly === true;
     this.canDive = boatDef.canDive === true;
-    // Opt-in calm, chosen on the selector and read once here.
-    const combatSettings = loadCombatSettings();
+    // Opt-in calm, chosen on the selector and read once here. Story Mode is
+    // peaceful by default — no random warship fire breaking the mystery; the
+    // No-weapons toggle still flows through to drive the finale's lure path.
+    const loadedCombat = loadCombatSettings();
+    const combatSettings = this.config.campaign
+      ? { peaceful: true, disarmed: loadedCombat.disarmed }
+      : loadedCombat;
 
     // Restore persisted audio preferences (set by the pause menu / mute key).
     const storedVol = parseFloat(localStorage.getItem('tb-volume') ?? '');
@@ -588,6 +593,12 @@ export class Engine {
       const spawnZ = this.config.spawn?.z ?? 0;
       this.chunkManager.update(spawnX, spawnZ);
       if (this.greyharbor) this.discovery.discover(this.greyharbor.chunkX, this.greyharbor.chunkZ);
+
+      // A narrative campaign isn't interrupted by random side-content: no ambient
+      // distress, contracts, or warship. (Scripted beats still fire their own.)
+      this.wildlifeSystem.setSpawnBattleships(false);
+      this.distress.setAmbientEnabled(false);
+      this.contracts.setAmbientEnabled(false);
 
       const state: CampaignState = loadCampaign() ?? newCampaign();
       this.questLog = new QuestLog();
