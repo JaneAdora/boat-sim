@@ -2,6 +2,7 @@ import { System } from '../ecs/System';
 import { World } from '../ecs/World';
 import { InputManager } from '../core/InputManager';
 import { BoatControl } from '../components/BoatControl';
+import { Flight } from '../components/Flight';
 import { TouchControls } from '../ui/TouchControls';
 import { clamp } from '../utils/math';
 
@@ -39,6 +40,11 @@ export class BoatControlSystem extends System {
           const diff = throttleTarget - ctrl.throttle;
           ctrl.throttle += Math.sign(diff) * Math.min(Math.abs(diff), 2.0 * dt);
         }
+      }
+
+      // The seaplane's prop only pulls forward — no reverse on the water.
+      if (ctrl.throttle < 0 && world.getComponent<Flight>(entity, 'Flight')) {
+        ctrl.throttle = 0;
       }
 
       // Sail trim (for sailboats)

@@ -108,7 +108,9 @@ export class SeaplaneSystem extends System {
       f.altitude = Math.min(f.altitude, MAX_ALT);
       t.position.y = f.altitude;
 
-      f.pitch += (clamp(f.vspeed * 0.045, -0.4, 0.4) - f.pitch) * Math.min(1, 5 * dt);
+      // Nose up when climbing, down when diving (positive X-rotation pitches the
+      // nose down, so negate vertical speed).
+      f.pitch += (clamp(-f.vspeed * 0.045, -0.4, 0.4) - f.pitch) * Math.min(1, 5 * dt);
       _euler.set(f.pitch, f.heading, f.bank);
       t.quaternion.setFromEuler(_euler);
       t.rotation.copy(_euler);
