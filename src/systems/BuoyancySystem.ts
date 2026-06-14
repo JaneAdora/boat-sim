@@ -32,6 +32,8 @@ export class BuoyancySystem extends System {
       const rb = world.getComponent<RigidBody>(entity, 'RigidBody')!;
       const buoyancy = world.getComponent<Buoyancy>(entity, 'Buoyancy')!;
 
+      if (rb.kinematic) continue; // airborne seaplane drives its own transform
+
       // Reset forces
       rb.force.set(0, 0, 0);
       rb.torque.set(0, 0, 0);

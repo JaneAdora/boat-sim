@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export interface BoatDefinition {
   name: string;
-  meshType: 'sailboat' | 'tugboat' | 'cruiseship' | 'speedboat' | 'vikingship' | 'jetski' | 'hovercraft';
+  meshType: 'sailboat' | 'tugboat' | 'cruiseship' | 'speedboat' | 'vikingship' | 'jetski' | 'hovercraft' | 'seaplane';
   mass: number;
   hullSamplePoints: { offset: THREE.Vector3; area: number }[];
   sailArea: number;       // 0 for motorboats
@@ -14,6 +14,9 @@ export interface BoatDefinition {
   /** Rides a cushion of air: floats over its support — wave OR land — so it can
    *  skim shallows and climb onto beaches, and is not pushed back by terrain. */
   amphibious?: boolean;
+  /** Can take off from the water and fly (the seaplane). Gets a Flight component
+   *  and is driven by the SeaplaneSystem when airborne. */
+  canFly?: boolean;
 }
 
 export const KNOTS_TO_MS = 1 / 1.94;

@@ -6,6 +6,9 @@ export interface RigidBody {
   mass: number;
   force: THREE.Vector3;  // accumulated this frame
   torque: THREE.Vector3; // accumulated this frame
+  /** When true, buoyancy + physics integration skip this body — something else
+   *  (the seaplane flight controller) is driving its transform directly. */
+  kinematic: boolean;
 }
 
 export function createRigidBody(mass: number): RigidBody {
@@ -15,5 +18,6 @@ export function createRigidBody(mass: number): RigidBody {
     mass,
     force: new THREE.Vector3(),
     torque: new THREE.Vector3(),
+    kinematic: false,
   };
 }

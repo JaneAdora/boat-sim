@@ -37,6 +37,7 @@ export class PhysicsSystem extends System {
     for (const entity of world.query('Transform', 'RigidBody')) {
       const transform = world.getComponent<Transform>(entity, 'Transform')!;
       const rb = world.getComponent<RigidBody>(entity, 'RigidBody')!;
+      if (rb.kinematic) continue; // airborne seaplane drives its own transform
       const ctrl = world.getComponent<BoatControl>(entity, 'BoatControl');
       const wind = world.getComponent<WindReceiver>(entity, 'WindReceiver');
       const buoyancy = world.getComponent<Buoyancy>(entity, 'Buoyancy');

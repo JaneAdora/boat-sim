@@ -58,6 +58,7 @@ import { HarborSystem } from './systems/HarborSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
 import { AircraftSystem } from './systems/AircraftSystem';
+import { SeaplaneSystem } from './systems/SeaplaneSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
 import { PhotoMode } from './ui/PhotoMode';
 import { MeshRenderable } from './components/MeshRenderable';
@@ -112,6 +113,7 @@ export class Engine {
   private races: RaceSystem;
   private distress: DistressSystem;
   private aircraft: AircraftSystem;
+  private readonly canFly: boolean;
   private waypoint = new WaypointIndicator();
   private photoMode: PhotoMode;
   private boatEntity: number;
@@ -124,6 +126,7 @@ export class Engine {
 
   constructor(boatDef: BoatDefinition, config: GameConfig = { mode: 'classic' }) {
     this.config = config;
+    this.canFly = boatDef.canFly === true;
     // Opt-in calm, chosen on the selector and read once here.
     const combatSettings = loadCombatSettings();
 
@@ -167,6 +170,9 @@ export class Engine {
     const boatControlSystem = new BoatControlSystem(this.input);
     if (touchControls) boatControlSystem.setTouchControls(touchControls);
     this.world.addSystem(boatControlSystem);
+
+    // Seaplane flight controller (only acts on a hull with a Flight component)
+    this.world.addSystem(new SeaplaneSystem(this.input, this.chunkManager));
 
     this.windSystem = new WindSystem();
     this.world.addSystem(this.windSystem);
@@ -552,6 +558,11 @@ export class Engine {
 
     // Initial chunk load
     this.chunkManager.update(0, 0);
+
+    // Teach the non-obvious seaplane takeoff
+    if (this.canFly) {
+      this.hud.showToast('✈ Seaplane', 'Open the throttle, then hold Space to lift off');
+    }
   }
 
   private update(dt: number): void {
@@ -600,8 +611,9 @@ export class Engine {
       this.chunkManager.update(boatTransform.position.x, boatTransform.position.z);
       this.chunkManager.updateAnimations(dt, this.elapsedTime, sunDir.y);
 
-      // Update wake trail
-      if (boatRb) {
+      // Update wake trail — but not when the seaplane is airborne (no wake in
+      // the sky); the altitude check covers every surface hull too.
+      if (boatRb && boatTransform.position.y < 3) {
         const speed = Math.abs(boatRb.velocity.dot(_forward.set(0, 0, 1).applyQuaternion(boatTransform.quaternion)));
         this.wakeTrail.update(boatTransform.position, boatTransform.quaternion, speed, dt);
         this.bowSpray.update(dt, boatTransform.position, boatTransform.quaternion, speed);
@@ -634,8 +646,8 @@ export class Engine {
       // Heists: plunder requests, fence detection, naval heat
       this.heists.update(dt, boatTransform.position.x, boatTransform.position.z);
 
-      // Airtime tricks
-      this.tricks.update(dt);
+      // Airtime tricks (not the seaplane — sustained flight isn't a wave-hop)
+      if (!this.canFly) this.tricks.update(dt);
 
       // Bottles bob, get collected, and the dig check
       this.bottles.update(dt, boatTransform.position.x, boatTransform.position.z);
