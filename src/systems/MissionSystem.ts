@@ -20,6 +20,7 @@ import type { WildlifeSystem, WildlifeEntity } from './WildlifeSystem';
 import type { TowingSystem } from './TowingSystem';
 import type { DistressSystem } from './DistressSystem';
 import type { MermaidSystem } from './MermaidSystem';
+import type { LeviathanSystem } from './LeviathanSystem';
 
 export interface MissionDeps {
   state: CampaignState;
@@ -33,6 +34,7 @@ export interface MissionDeps {
   towing: TowingSystem;
   distress: DistressSystem;
   mermaid: MermaidSystem;
+  leviathan: LeviathanSystem;
   /** A clean sonar 'pong' on first reef contact (beat 5). */
   sonarPing(): void;
   getBoatPos(): { x: number; z: number; y: number };
@@ -66,6 +68,9 @@ export class MissionSystem {
   private rescueHooked = false;
   /** Beat 5: the sonar 'pong'/contact toast fires once on first reef contact. */
   private sonarPinged = false;
+  /** Beat 7: the scripted spectacle triggers once, when the player first reaches
+   *  the trench (it then plays out and completes on its own animation end). */
+  private spectacleTriggered = false;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -123,6 +128,7 @@ export class MissionSystem {
     if ('spawn' in e) this.marker = { x: e.spawn.x, z: e.spawn.z };
     this.rescueHooked = false;
     this.sonarPinged = false;
+    this.spectacleTriggered = false;
 
     switch (e.kind) {
       case 'tow-derelict': {
@@ -223,8 +229,21 @@ export class MissionSystem {
       }
       case 'mermaid':
         return this.d.mermaid.scriptedHeard();
+      case 'leviathan-witness': {
+        // The spectacle plays when the player reaches the trench, then completes
+        // on its own animation end (R8). Mission grants the journal + credits.
+        if (!this.spectacleTriggered) {
+          const flat = Math.hypot(boat.x - e.spawn.x, boat.z - e.spawn.z);
+          if (flat < e.radius) {
+            this.spectacleTriggered = true;
+            this.d.leviathan.beginScripted(e.spawn.x, e.spawn.z, 'spectacle');
+          }
+          return false;
+        }
+        return this.d.leviathan.scriptedSpectaclePlayed();
+      }
       default:
-        return false; // Milestone 2 encounters (leviathan)
+        return false; // beat 8 (leviathan-boss) handled in Task 14
     }
   }
 
@@ -252,6 +271,8 @@ export class MissionSystem {
     this.d.distress.endScripted();
     // Send any scripted mermaid back under (no-op if none was scripted).
     this.d.mermaid.endScripted();
+    // Tear down any scripted Leviathan spectacle/boss (no-op if none).
+    this.d.leviathan.endScripted();
     this.clearProp();
     // A mission-owned derelict (tow-derelict) still on the tow line at
     // completion rejoins ordinary traffic (finite lifetime, untagged so it

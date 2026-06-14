@@ -39,6 +39,13 @@ export class LeviathanSystem {
   private rollTimer = 20; // condition check cadence
   private stormRolled = false; // one boss roll per storm
 
+  // Story Mode (beats 7 & 8): while scripted, the ambient awaken roll is frozen
+  // and the spectacle/boss never fire their ambient witnessed/slain rewards —
+  // the MissionSystem owns them. persistStorm keeps the boss up regardless of
+  // the live weather (the forced scripted storm drives the visuals).
+  private scripted: { phase: 'spectacle' | 'boss'; persistStorm: boolean } | null = null;
+  private scriptedSpectacleDone = false;
+
   // Spectacle props
   private doomedShip: THREE.Group | null = null;
   private spectacleTentacles: THREE.Group | null = null;
@@ -83,6 +90,62 @@ export class LeviathanSystem {
     }
   }
 
+  // ── Story Mode scripted hooks ────────────────────────────────
+
+  /**
+   * Begin a mission-owned Leviathan at a fixed spot (Story beats 7 & 8). Clears
+   * any active ambient spectacle/boss first (R8/R9), then plays the spectacle or
+   * raises the boss. Neither scripted phase fires the ambient witnessed/slain
+   * reward — the MissionSystem grants the beat.
+   */
+  beginScripted(x: number, z: number, phase: 'spectacle' | 'boss', persistStorm = true): void {
+    this.clearActive();
+    this.scripted = { phase, persistStorm };
+    this.scriptedSpectacleDone = false;
+    if (phase === 'spectacle') this.beginSpectacle(x, z);
+    else this.beginBoss(x, z); // entity cleared above, so beginBoss won't early-out
+  }
+
+  /** End the scripted encounter (idempotent). Tears down any live spectacle/boss
+   *  so nothing lingers when the beat disarms. */
+  endScripted(): void {
+    if (!this.scripted) return;
+    this.scripted = null;
+    this.scriptedSpectacleDone = false;
+    this.clearActive();
+  }
+
+  /** True once a scripted spectacle has fully played out (beat 7 completion). */
+  scriptedSpectaclePlayed(): boolean {
+    return this.scriptedSpectacleDone;
+  }
+
+  /** True when the scripted boss is gone (slain or dived) and we've folded back
+   *  to lurking — beat 8's armed-resolution signal. */
+  scriptedResolved(): boolean {
+    return this.phase === 'lurking' && this.entity === null;
+  }
+
+  /** Tear down whatever ambient/scripted spectacle or boss is currently live,
+   *  returning to 'lurking' WITHOUT firing any reward callback. */
+  private clearActive(): void {
+    if (this.phase === 'spectacle') {
+      if (this.doomedShip) disposeGroup(this.scene, this.doomedShip);
+      if (this.spectacleTentacles) disposeGroup(this.scene, this.spectacleTentacles);
+      this.doomedShip = null;
+      this.spectacleTentacles = null;
+    }
+    if (this.entity) {
+      if (this.wildlife.isEntityAlive(this.entity)) this.wildlife.removeEntity(this.entity);
+      if (this.bossMesh) disposeGroup(this.scene, this.bossMesh);
+      this.entity = null;
+      this.bossMesh = null;
+      this.severed = 0;
+    }
+    this.phase = 'lurking';
+    this.callbacks.onBanner(null);
+  }
+
   /** The boss entity dissolved outside our control (slain via WeaponsSystem,
    *  or culled when the player fled). The engine's slain callback handles
    *  rewards; here we just fold the state back to lurking. */
@@ -102,6 +165,7 @@ export class LeviathanSystem {
   }
 
   private tryAwaken(boatX: number, boatZ: number, rain: number): void {
+    if (this.scripted) return; // Story Mode owns the beast; no ambient awakening
     if (rain < STORM_THRESHOLD || !this.isDeepWater(boatX, boatZ)) return;
 
     if (!this.witnessed) {
@@ -167,10 +231,17 @@ export class LeviathanSystem {
     if (this.spectacleTentacles) disposeGroup(this.scene, this.spectacleTentacles);
     this.doomedShip = null;
     this.spectacleTentacles = null;
-    this.witnessed = true;
-    recordLeviathanWitnessed(this.storage);
     this.phase = 'lurking';
     this.callbacks.onBanner(null);
+
+    if (this.scripted) {
+      // Story beat 7: the MissionSystem journals + rewards. Do NOT touch the
+      // ambient witnessed flag/lifetime or fire onWitnessed.
+      this.scriptedSpectacleDone = true;
+      return;
+    }
+    this.witnessed = true;
+    recordLeviathanWitnessed(this.storage);
     this.callbacks.onWitnessed();
   }
 
@@ -228,8 +299,9 @@ export class LeviathanSystem {
       return;
     }
 
-    // Storm blown out — it slips back under
-    if (rain < STORM_END) {
+    // Storm blown out — it slips back under. A scripted boss with persistStorm
+    // ignores the live weather (the forced scripted storm carries the visuals).
+    if (rain < STORM_END && !this.scripted?.persistStorm) {
       this.wildlife.removeEntity(e);
       disposeGroup(this.scene, this.bossMesh!);
       this.bossGone();
