@@ -6,6 +6,7 @@ import { createRigidBody } from '../components/RigidBody';
 import { createBuoyancy, BuoyancySamplePoint } from '../components/Buoyancy';
 import { createBoatControl } from '../components/BoatControl';
 import { createWindReceiver } from '../components/WindReceiver';
+import { createFlight } from '../components/Flight';
 import { createMeshRenderable } from '../components/MeshRenderable';
 
 // ─── Shared materials ───────────────────────────────────────
@@ -910,6 +911,92 @@ function createHovercraftMesh(): BoatParts {
   return { group, sailPivot: null, rudderPivot: null };
 }
 
+function createSeaplaneMesh(): BoatParts {
+  const group = new THREE.Group();
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xc8402f, roughness: 0.45, metalness: 0.2 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.5 });
+  const floatMat = new THREE.MeshStandardMaterial({ color: 0xd8dde2, roughness: 0.5, metalness: 0.2 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.6 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x9fd4e8, roughness: 0.2, metalness: 0.1 });
+
+  const ellipsoid = (rx: number, ry: number, rz: number, mat: THREE.Material): THREE.Mesh => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 14), mat);
+    m.scale.set(rx, ry, rz);
+    return m;
+  };
+
+  // Fuselage (forward is +Z) + cockpit glass + a cream spine stripe
+  const body = ellipsoid(0.72, 0.8, 2.3, bodyMat);
+  body.position.y = 0.9;
+  group.add(body);
+  const spine = ellipsoid(0.3, 0.2, 1.7, trimMat);
+  spine.position.set(0, 1.5, -0.1);
+  group.add(spine);
+  const cockpit = ellipsoid(0.6, 0.55, 0.85, glassMat);
+  cockpit.position.set(0, 1.25, 1.0);
+  group.add(cockpit);
+
+  // High wing on a pylon
+  const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.0), bodyMat);
+  pylon.position.set(0, 1.7, 0.1);
+  group.add(pylon);
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(8.6, 0.18, 1.5), trimMat);
+  wing.position.set(0, 2.0, 0.1);
+  group.add(wing);
+  for (const side of [-1, 1]) {
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.16, 1.2), bodyMat);
+    tip.position.set(side * 3.8, 2.0, 0.1);
+    group.add(tip);
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 6), darkMat);
+    strut.position.set(side * 1.6, 1.35, 0.1);
+    strut.rotation.z = side * 0.5;
+    group.add(strut);
+  }
+
+  // Twin floats on struts
+  for (const side of [-1, 1]) {
+    const float = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 3.0, 6, 12), floatMat);
+    float.rotation.x = Math.PI / 2;
+    float.position.set(side * 0.85, -0.35, 0.2);
+    group.add(float);
+    for (const zoff of [-1.0, 1.0]) {
+      const fstrut = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), darkMat);
+      fstrut.position.set(side * 0.7, 0.25, zoff + 0.2);
+      fstrut.rotation.z = side * 0.2;
+      group.add(fstrut);
+    }
+  }
+
+  // Nose cowl + spinning propeller (named so the flight system can spin it)
+  const cowl = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 0.5, 14), darkMat);
+  cowl.rotation.x = Math.PI / 2;
+  cowl.position.set(0, 0.9, 2.4);
+  group.add(cowl);
+  const prop = new THREE.Group();
+  prop.name = 'prop';
+  prop.position.set(0, 0.9, 2.7);
+  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.3, 10), trimMat);
+  spinner.rotation.x = Math.PI / 2;
+  prop.add(spinner);
+  for (let i = 0; i < 3; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.14, 2.7, 0.05), darkMat);
+    blade.rotation.z = (i * Math.PI * 2) / 3;
+    prop.add(blade);
+  }
+  group.add(prop);
+
+  // Tail
+  const vfin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.2, 0.9), bodyMat);
+  vfin.position.set(0, 1.6, -2.4);
+  group.add(vfin);
+  const hstab = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.14, 0.7), trimMat);
+  hstab.position.set(0, 1.0, -2.5);
+  group.add(hstab);
+
+  return { group, sailPivot: null, rudderPivot: null };
+}
+
 // ─── Entity spawner ─────────────────────────────────────────
 
 export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefinition): EntityId {
@@ -938,6 +1025,10 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     world.addComponent(entity, 'WindReceiver', createWindReceiver(definition.sailArea));
   }
 
+  if (definition.canFly) {
+    world.addComponent(entity, 'Flight', createFlight());
+  }
+
   // Choose mesh based on boat type
   const meshCreators: Record<string, () => BoatParts> = {
     sailboat: createSailboatMesh,
@@ -947,6 +1038,7 @@ export function spawnBoat(world: World, scene: THREE.Scene, definition: BoatDefi
     vikingship: createVikingShipMesh,
     jetski: createJetSkiMesh,
     hovercraft: createHovercraftMesh,
+    seaplane: createSeaplaneMesh,
   };
   const parts = (meshCreators[definition.meshType] || createTugboatMesh)();
   scene.add(parts.group);

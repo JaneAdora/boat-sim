@@ -151,7 +151,7 @@ Also shipped on `harbor-pack`: UI polish — gameplay text de-serifed (serif kep
 
 ### Pack D — Air & Deep *(in progress)*
 - [x] NPC aircraft (`src/systems/AircraftSystem.ts`): coastguard **helicopter** scrambles to a nearby active mayday, flies in, hovers with its winch down, and peels off when the call clears (or times out); cargo **seaplane** drifts in, descends into a cove beside an island, drops a **salvage crate** you collect for credits, and climbs out. Spinning rotors/props; both cull at distance. *(No aircraft sound yet — flagged for a follow-up.)*
-- [ ] Playable seaplane: endgame shipyard purchase, arcade flight model, water landings reuse buoyancy
+- [x] Playable seaplane (`src/systems/SeaplaneSystem.ts`): a floatplane that taxis as a boat, rotates off the water past takeoff speed (hold Space), flies an arcade model (W/S airspeed, A/D bank-turn, Space/Shift climb/dive, auto-level, stall floor, terrain floor), and sets back down on water where the floats recatch it. Rigid body goes `kinematic` airborne so buoyancy/physics release it; camera follows altitude for free. *(Selectable like the other boats — the "endgame shipyard unlock" gating is deferred.)*
 - [ ] Submarine / dive bell: descend to the wreck graveyards, sonar pings, underwater render pass
 
 ## Pitched 2026-06-11 — awaiting picks

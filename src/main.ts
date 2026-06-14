@@ -6,6 +6,7 @@ import { SPEEDBOAT } from './boats/Speedboat';
 import { VIKING_SHIP } from './boats/VikingShip';
 import { JETSKI } from './boats/JetSki';
 import { HOVERCRAFT } from './boats/Hovercraft';
+import { SEAPLANE } from './boats/Seaplane';
 import { GameMode } from './state/GameConfig';
 import { loadStats, recordVoyageStart } from './state/VoyageLog';
 import { discoveredCount } from './state/DiscoveryTracker';
@@ -60,6 +61,16 @@ const BOAT_ICONS: Record<string, string> = {
     <line x1="44" y1="24" x2="56" y2="24" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
     <path d="M8 34 Q14 36 20 34 M26 35 Q32 36 38 35" stroke="rgba(255,255,255,0.22)" stroke-width="1.2" fill="none"/>
   </svg>`,
+  seaplane: `<svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="30">
+    <rect x="14" y="12" width="32" height="2.5" rx="1" fill="rgba(255,255,255,0.5)"/>
+    <path d="M12 19 Q12 17 16 17 H46 Q52 17 54 19.5 Q52 22 46 22 H16 Q12 22 12 19 Z" fill="rgba(255,255,255,0.7)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+    <path d="M13 17 L9 11 L14 16 Z" fill="rgba(255,255,255,0.4)"/>
+    <line x1="30" y1="14.5" x2="30" y2="17" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
+    <line x1="54" y1="14" x2="54" y2="25" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+    <rect x="16" y="27" width="27" height="2.6" rx="1.3" fill="rgba(255,255,255,0.55)"/>
+    <line x1="22" y1="22" x2="22" y2="27" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+    <line x1="38" y1="22" x2="38" y2="27" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+  </svg>`,
 };
 
 const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
@@ -69,6 +80,7 @@ const BOATS: { def: BoatDefinition; desc: string; iconKey: string }[] = [
   { def: VIKING_SHIP, desc: 'Ancient & humble', iconKey: 'vikingship' },
   { def: JETSKI, desc: 'Tiny & airborne', iconKey: 'jetski' },
   { def: HOVERCRAFT, desc: 'Land & sea', iconKey: 'hovercraft' },
+  { def: SEAPLANE, desc: 'Sea & sky', iconKey: 'seaplane' },
 ];
 
 // Shared DOM refs
