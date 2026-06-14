@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Ocean } from '../rendering/Ocean';
 import { ChunkManager } from '../world/ChunkManager';
+import { AmbientSoundscape } from '../audio/AmbientSoundscape';
+import { clamp } from '../utils/math';
 
 export interface AircraftCallbacks {
   /** Active mayday location for the rescue helicopter (null = none). */
@@ -44,6 +46,8 @@ const SEAPLANE_MIN_GAP = 75;   // seconds between seaplane visits
 const SEAPLANE_MAX_GAP = 150;
 const CRATE_COLLECT_RANGE = 9;
 const CRATE_MAX_AGE = 150;
+const HELI_HEAR = 440;  // helicopter audible out to here
+const PLANE_HEAR = 400; // seaplane audible out to here
 
 function easeAngle(cur: number, target: number, maxStep: number): number {
   let d = target - cur;
@@ -66,6 +70,7 @@ export class AircraftSystem {
   private plane: Aircraft | null = null;
   private crates: Crate[] = [];
   private seaplaneTimer = 20 + Math.random() * 30; // first run comes fairly soon
+  private soundscape: AmbientSoundscape | null = null;
 
   constructor(
     private scene: THREE.Scene,
@@ -74,10 +79,33 @@ export class AircraftSystem {
     private callbacks: AircraftCallbacks,
   ) {}
 
-  update(dt: number, boatX: number, boatZ: number): void {
+  setSoundscape(s: AmbientSoundscape): void {
+    this.soundscape = s;
+  }
+
+  update(dt: number, boatX: number, boatZ: number, boatHeading: number): void {
     this.updateHelicopter(dt, boatX, boatZ);
     this.updateSeaplane(dt, boatX, boatZ);
     this.updateCrates(dt, boatX, boatZ);
+
+    // Fade + pan the looping rotor/drone by distance and bearing.
+    if (this.soundscape) {
+      const h = this.voice(this.heli, boatX, boatZ, boatHeading, HELI_HEAR);
+      this.soundscape.setHelicopter(h.level, h.pan);
+      const p = this.voice(this.plane, boatX, boatZ, boatHeading, PLANE_HEAR);
+      this.soundscape.setSeaplane(p.level, p.pan);
+    }
+  }
+
+  /** Loudness (quadratic falloff) + stereo pan of an aircraft relative to the
+   *  player's heading. Silent when there's no aircraft. */
+  private voice(a: Aircraft | null, bx: number, bz: number, bh: number, hear: number): { level: number; pan: number } {
+    if (!a) return { level: 0, pan: 0 };
+    const dx = a.pos.x - bx;
+    const dz = a.pos.z - bz;
+    let level = clamp(1 - Math.hypot(dx, dz) / hear, 0, 1);
+    level *= level;
+    return { level, pan: clamp(Math.sin(Math.atan2(dx, dz) - bh), -1, 1) };
   }
 
   // ── Helicopter: scrambles to nearby maydays ──────────────────

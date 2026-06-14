@@ -386,6 +386,7 @@ export class Engine {
 
     // Audio
     this.soundscape = new AmbientSoundscape(boatDef.meshType);
+    this.aircraft.setSoundscape(this.soundscape); // rotor/drone fade + pan with distance
     this.soundscape.setMasterVolume(this.audioVolume);
     this.soundscape.setMuted(this.audioMuted);
     this.soundscape.start();
@@ -659,7 +660,11 @@ export class Engine {
         boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0);
 
       // NPC aircraft — helicopter rides the active mayday, seaplane drops crates
-      this.aircraft.update(dt, boatTransform.position.x, boatTransform.position.z);
+      _forward.set(0, 0, 1).applyQuaternion(boatTransform.quaternion);
+      this.aircraft.update(
+        dt, boatTransform.position.x, boatTransform.position.z,
+        Math.atan2(_forward.x, _forward.z),
+      );
 
       // Battleship return fire + hull repair
       const ctrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
