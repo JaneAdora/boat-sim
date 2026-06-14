@@ -80,15 +80,16 @@ export class SeaplaneSystem extends System {
         continue;
       }
 
-      // Airborne — arcade flight.
-      if (up) f.airspeed += AIR_ACCEL * dt;
-      if (down) f.airspeed -= AIR_ACCEL * dt;
-      f.airspeed = clamp(f.airspeed - AIR_DRAG * dt, 0, MAX_AIRSPEED);
+      // Airborne — arcade flight. The touch tiller/throttle feed in alongside the
+      // keys so mobile can steer and hold airspeed without a keyboard. Heading
+      // follows the boat's rudder sign, so left/right match the surface controls.
+      const thr = clamp((up ? 1 : 0) - (down ? 1 : 0) + (this.touch?.throttle ?? 0), -1, 1);
+      f.airspeed = clamp(f.airspeed + thr * AIR_ACCEL * dt - AIR_DRAG * dt, 0, MAX_AIRSPEED);
 
-      const turn = (right ? 1 : 0) - (left ? 1 : 0); // +1 turns right, matching the boat
+      const turnInput = clamp((right ? 1 : 0) - (left ? 1 : 0) + (this.touch?.rudder ?? 0), -1, 1);
       const speedFactor = Math.min(1, f.airspeed / 18);
-      f.heading += turn * TURN_RATE * speedFactor * dt;
-      f.bank += (-turn * MAX_BANK - f.bank) * Math.min(1, 5 * dt);
+      f.heading -= turnInput * TURN_RATE * speedFactor * dt;
+      f.bank += (turnInput * MAX_BANK - f.bank) * Math.min(1, 5 * dt);
 
       if (climb) f.vspeed += VS_ACCEL * dt;
       else if (dive) f.vspeed -= VS_ACCEL * dt;
