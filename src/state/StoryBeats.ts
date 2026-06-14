@@ -47,7 +47,7 @@ export const STORY_BEATS: StoryBeat[] = [
     id: 'empty-berth',
     title: 'The Empty Berth',
     brief: 'Dockmaster: "The Marigold never came in. Find her, Captain."',
-    objective: 'Hook the Marigold (press G) and tow her home to Greyharbor.',
+    objective: 'Reach the Marigold, then tow her home to Greyharbor.',
     encounter: { kind: 'tow-derelict', spawn: { x: -240, z: 56 }, radius: 44 },
     reward: {
       credits: 60,

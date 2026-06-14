@@ -779,11 +779,15 @@ export class Engine {
         sunDir.y < -0.1, this.weather.getRainIntensity() > 0.5,
       );
 
-      // Harbour towns — dock prompt + notice board
-      this.harbor.update(
-        dt, boatTransform.position.x, boatTransform.position.z,
-        boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0,
-      );
+      // Harbour towns — dock prompt + notice board. Suppressed in Story Mode:
+      // the dock prompt would nag from the moment you spawn at Greyharbor, and
+      // campaign boat swaps go through the menu, not the dock.
+      if (!this.config.campaign) {
+        this.harbor.update(
+          dt, boatTransform.position.x, boatTransform.position.z,
+          boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0,
+        );
+      }
 
       // Time-trials (start detection, gates, ghost replay)
       this.races.update(dt, boatTransform);

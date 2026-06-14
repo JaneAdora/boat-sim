@@ -252,15 +252,17 @@ export class MissionSystem {
       this.prop.rotation.x = Math.sin(this.time * 0.7) * 0.06;
     }
 
-    // Beat 1: nudge the player to hook the Marigold the first time they pull
-    // alongside (the Tow button also appears, but the cue makes it obvious).
-    if (beat.encounter.kind === 'tow-derelict' && !this.towHintShown) {
+    // Beat 1: auto-hook the Marigold when the player pulls alongside, then the
+    // waypoint flips home — no tow-control fiddling for the very first beat.
+    if (beat.encounter.kind === 'tow-derelict') {
       const vessel = this.instance?.ref as WildlifeEntity | undefined;
       if (vessel && this.d.towing.getTowedEntity() !== vessel) {
         const b = this.d.getBoatPos();
-        if (Math.hypot(vessel.mesh.position.x - b.x, vessel.mesh.position.z - b.z) < 70) {
-          this.d.hud.showToast('The Marigold', 'Pull alongside and press G (or the Tow button), then bring her home.');
-          this.towHintShown = true;
+        if (Math.hypot(vessel.mesh.position.x - b.x, vessel.mesh.position.z - b.z) < 24) {
+          if (this.d.towing.towEntity(vessel) && !this.towHintShown) {
+            this.d.hud.showToast('The Marigold', 'Under tow — follow the marker home to Greyharbor.');
+            this.towHintShown = true;
+          }
         }
       }
     }
