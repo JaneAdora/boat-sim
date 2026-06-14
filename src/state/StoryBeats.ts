@@ -29,12 +29,17 @@ export interface StoryBeat {
   };
 }
 
-/** Open-water trail heading east (+X); validated by StoryHarbor.isOpenWater. */
+/**
+ * Open-water trail, compact and heading east from Greyharbor (dock ≈ (-540,96)),
+ * so the slow tug/sub legs stay ~300-560m. All points validated open water vs the
+ * real generator (see tests/campaign.test.ts). Re-derive with the layout helper if
+ * WORLD_SEED ever changes.
+ */
 export const STORY_LOCATIONS = {
-  drift: { x: 700, z: 40 },
-  reef: { x: 1400, z: 120 },
-  mayday: { x: 1050, z: -90 },
-  trench: { x: 2200, z: 0 },
+  drift: { x: 20, z: 56 },
+  reef: { x: 360, z: 136 },
+  mayday: { x: 200, z: -124 },
+  trench: { x: 1100, z: 86 },
 } as const;
 
 export const STORY_BEATS: StoryBeat[] = [
@@ -43,7 +48,7 @@ export const STORY_BEATS: StoryBeat[] = [
     title: 'The Empty Berth',
     brief: 'Dockmaster: "The Marigold never came in. Find her, Captain."',
     objective: 'Tow the drifting Marigold home to Greyharbor.',
-    encounter: { kind: 'tow-derelict', spawn: { x: 420, z: 60 }, radius: 44 },
+    encounter: { kind: 'tow-derelict', spawn: { x: -240, z: 56 }, radius: 44 },
     reward: {
       credits: 60,
       journalKey: 'rescue',
@@ -108,7 +113,7 @@ export const STORY_BEATS: StoryBeat[] = [
     title: "The Mermaid's Warning",
     brief: 'Follow the song toward the trench.',
     objective: 'Find the mermaid by ear near the trench.',
-    encounter: { kind: 'mermaid', spawn: { x: 1900, z: -40 }, radius: 16 },
+    encounter: { kind: 'mermaid', spawn: { x: 740, z: 16 }, radius: 16 },
     reward: {
       credits: 60,
       journalKey: 'mermaid',
