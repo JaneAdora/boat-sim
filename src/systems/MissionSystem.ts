@@ -371,18 +371,16 @@ export class MissionSystem {
     this.leviathanDefeated = false;
     this.lure.reset();
     this.clearProp();
-    // A mission-owned derelict (tow-derelict) still on the tow line at
-    // completion rejoins ordinary traffic (finite lifetime, untagged so it
-    // journals normally); one not yet hooked (disarm/dispose) is removed.
-    // (Scripted-rescue vessels are handled by distress.endScripted above.)
+    // A mission-owned vessel (the towed Marigold, or a rescued boat) is handed
+    // off at beat's end: detach the tow line so she isn't dragged into the next
+    // beat, then despawn her. (Scripted-rescue vessels are also cleared by
+    // distress.endScripted above; releasing the line here is harmless either way.)
     const ref = this.instance?.ref;
     if (ref && !(ref instanceof THREE.Group)) {
       const we = ref as WildlifeEntity;
+      this.d.towing.releaseEntity(we);
       this.d.wildlife.setMissionOwned(we, false);
-      if (this.d.wildlife.isEntityAlive(we)) {
-        if (this.d.towing.getTowedEntity() === we) this.d.wildlife.restoreVessel(we);
-        else this.d.wildlife.removeEntity(we);
-      }
+      if (this.d.wildlife.isEntityAlive(we)) this.d.wildlife.removeEntity(we);
     }
     this.instance = null;
     this.rescueHooked = false;

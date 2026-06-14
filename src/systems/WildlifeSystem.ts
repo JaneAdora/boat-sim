@@ -314,7 +314,7 @@ export class WildlifeSystem extends System {
       const dz = e.mesh.position.z - bz;
       const dist = Math.sqrt(dx * dx + dz * dz);
       // Barges are contract cargo — they never despawn on their own.
-      if ((dist > WildlifeSystem.DESPAWN_RADIUS || e.age > e.maxAge) && !e.towed && e.type !== 'barge') {
+      if ((dist > WildlifeSystem.DESPAWN_RADIUS || e.age > e.maxAge) && !e.towed && e.type !== 'barge' && !this.missionOwned.has(e)) {
         this.scene.remove(e.mesh);
         this.entities.splice(i, 1);
         continue;
