@@ -57,6 +57,7 @@ import { FishingSystem } from './systems/FishingSystem';
 import { HarborSystem } from './systems/HarborSystem';
 import { RaceSystem } from './systems/RaceSystem';
 import { DistressSystem } from './systems/DistressSystem';
+import { AircraftSystem } from './systems/AircraftSystem';
 import { WaypointIndicator } from './ui/WaypointIndicator';
 import { PhotoMode } from './ui/PhotoMode';
 import { MeshRenderable } from './components/MeshRenderable';
@@ -110,6 +111,7 @@ export class Engine {
   private harbor: HarborSystem;
   private races: RaceSystem;
   private distress: DistressSystem;
+  private aircraft: AircraftSystem;
   private waypoint = new WaypointIndicator();
   private photoMode: PhotoMode;
   private boatEntity: number;
@@ -329,6 +331,20 @@ export class Engine {
         },
         isSafeHarbor: (x, z) => this.isSafeHarbor(x, z),
         nearestHarbor: (x, z) => this.nearestDiscoveredHarbor(x, z),
+      },
+    );
+
+    // NPC aircraft — coastguard helicopter scrambles to nearby maydays; cargo
+    // seaplane drops a salvage crate in a cove now and then
+    this.aircraft = new AircraftSystem(
+      this.sceneManager.scene, this.ocean, this.chunkManager,
+      {
+        activeDistress: () => this.distress.getMarker(),
+        onCrateCollected: (credits) => {
+          addCredits(credits);
+          this.soundEffects.playDiscovery();
+          this.hud.showToast('📦 Salvage drop', `Recovered an airdrop · +${credits} cr`);
+        },
       },
     );
 
@@ -603,6 +619,9 @@ export class Engine {
       this.distress.update(dt, boatTransform.position.x, boatTransform.position.z,
         boatRb ? Math.hypot(boatRb.velocity.x, boatRb.velocity.z) : 0);
 
+      // NPC aircraft — helicopter rides the active mayday, seaplane drops crates
+      this.aircraft.update(dt, boatTransform.position.x, boatTransform.position.z);
+
       // Battleship return fire + hull repair
       const ctrl = this.world.getComponent<BoatControl>(this.boatEntity, 'BoatControl');
       if (boatRb && ctrl) {
@@ -862,6 +881,7 @@ export class Engine {
     this.returnFire.dispose();
     this.races.dispose();
     this.distress.dispose();
+    this.aircraft.dispose();
     this.commandeer.dispose();
     this.heists.dispose();
     this.bottles.dispose();
