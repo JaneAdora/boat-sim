@@ -354,6 +354,9 @@ export class Engine {
       {
         onBanner: (text) => this.hud.setDistress(text),
         onComplete: (reward) => {
+          // Story Mode grants the beat reward; never double-pay a scripted rescue.
+          // (Belt-and-suspenders: scripted mode already skips this callback.)
+          if (this.mission?.consumesRescue()) return;
           addCredits(reward);
           addKarma(15);
           this.hud.showToast('Rescue complete', `Survivor safe · +${reward} cr · ⚖️ +15 karma`);
@@ -878,7 +881,9 @@ export class Engine {
     const speed = boatRb.velocity.length();
     const hits: string[] = [];
 
-    for (const w of this.wildlifeSystem.getWildlifePositions()) {
+    // getJournalPositions excludes mission-owned vessels (Story Mode); it equals
+    // getWildlifePositions in Free Roam, so this scan is unchanged there.
+    for (const w of this.wildlifeSystem.getJournalPositions()) {
       const dist = Math.hypot(w.x - bx, w.z - bz);
       if (w.type === 'dolphin' && dist < 15 && speed > 3) hits.push('dolphins');
       else if (w.type === 'whale' && dist < 60) hits.push('whale');

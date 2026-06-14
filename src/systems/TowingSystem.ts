@@ -17,6 +17,9 @@ export class TowingSystem extends System {
   // Tow state
   private towedEntity: WildlifeEntity | null = null;
   private nearestTowable: WildlifeEntity | null = null;
+  // Story Mode: a mission-owned vessel the player should hook even if a closer
+  // towable drifts by. Set on beat arm, cleared on disarm.
+  private preferredTowable: WildlifeEntity | null = null;
   private towLine: THREE.Line | null = null;
   private towLinePositions: Float32Array;
   private time = 0;
@@ -92,12 +95,14 @@ export class TowingSystem extends System {
       this.towButton.textContent = 'Release Tow';
       this.towButton.classList.add('visible', 'towing');
     } else {
-      // Find nearest towable vessel
-      this.nearestTowable = this.wildlifeSystem.findNearestTowable(
-        transform.position.x,
-        transform.position.z,
-        this.towRange,
-      );
+      // A mission-preferred vessel within range wins over any closer towable,
+      // so a story tow can't be hijacked by passing traffic.
+      this.nearestTowable = this.preferredTowableInRange(transform.position.x, transform.position.z)
+        ?? this.wildlifeSystem.findNearestTowable(
+          transform.position.x,
+          transform.position.z,
+          this.towRange,
+        );
 
       if (this.nearestTowable) {
         const labels: Record<string, string> = {
@@ -132,6 +137,21 @@ export class TowingSystem extends System {
   /** The entity currently on the line, if any. */
   getTowedEntity(): WildlifeEntity | null {
     return this.towedEntity;
+  }
+
+  /** Story Mode: prefer this vessel for tow even if a closer one is around
+   *  (null clears). */
+  setPreferredTowable(entity: WildlifeEntity | null): void {
+    this.preferredTowable = entity;
+  }
+
+  /** The preferred vessel if it's alive and within tow range, else null. */
+  private preferredTowableInRange(x: number, z: number): WildlifeEntity | null {
+    const e = this.preferredTowable;
+    if (!e || e.towed || !this.wildlifeSystem.isEntityAlive(e)) return null;
+    const dx = e.mesh.position.x - x;
+    const dz = e.mesh.position.z - z;
+    return dx * dx + dz * dz <= this.towRange * this.towRange ? e : null;
   }
 
   /** Release the line if this specific entity is on it (fencing stolen cargo). */

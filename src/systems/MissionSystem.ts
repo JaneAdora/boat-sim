@@ -16,7 +16,7 @@ import { addCredits } from '../state/Wallet';
 import { addKarma } from '../state/Karma';
 import type { JournalTracker } from '../state/JournalTracker';
 import type { QuestLog } from '../ui/QuestLog';
-import type { WildlifeSystem } from './WildlifeSystem';
+import type { WildlifeSystem, WildlifeEntity } from './WildlifeSystem';
 import type { TowingSystem } from './TowingSystem';
 import type { DistressSystem } from './DistressSystem';
 
@@ -55,6 +55,11 @@ export class MissionSystem {
   private marker: { x: number; z: number } | null = null;
   /** The active mission-owned encounter object (vessel or prop), if any. */
   private instance: MissionInstance | null = null;
+  /** A floating pickup prop (beats 2, 3) — bobs on the ocean surface. */
+  private prop: THREE.Group | null = null;
+  /** Set once a scripted-rescue vessel has been hooked, so completion only
+   *  fires after the player tows it (not by spawning already-clear). */
+  private rescueHooked = false;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -65,6 +70,13 @@ export class MissionSystem {
 
   getMarker(): { x: number; z: number } | null {
     return this.marker;
+  }
+
+  /** True while the campaign owns an active rescue (beat 4) — the Engine's
+   *  ambient rescue onComplete early-outs so only the beat reward is paid. */
+  consumesRescue(): boolean {
+    const beat = currentBeat(this.d.state);
+    return !!beat && beat.id === 'souls-water' && this.d.state.armedBeat === this.d.state.beat;
   }
 
   /** Whether a runtime object is the active mission-owned instance (so the
@@ -90,7 +102,39 @@ export class MissionSystem {
   private arm(beat: StoryBeat): void {
     const e = beat.encounter;
     if ('spawn' in e) this.marker = { x: e.spawn.x, z: e.spawn.z };
-    // Encounter-specific spawns are added in Task 9 / Milestone 2.
+    this.rescueHooked = false;
+
+    switch (e.kind) {
+      case 'tow-derelict': {
+        // Mission-owned derelict (spawnDistressedVessel sets maxAge:Infinity, so
+        // it won't ambient-despawn). Tow it home to the Greyharbor dock.
+        const vessel = this.d.wildlife.spawnDistressedVessel(e.spawn.x, e.spawn.z);
+        this.d.wildlife.setMissionOwned(vessel, true);
+        this.instance = { beatId: beat.id, ref: vessel };
+        this.d.towing.setPreferredTowable(vessel);
+        break;
+      }
+      case 'pickup': {
+        // A small floating prop (a buoy bobbing on the swell) — reach it.
+        this.prop = this.makePickupProp(e.spawn.x, e.spawn.z);
+        this.d.scene.add(this.prop);
+        this.instance = { beatId: beat.id, ref: this.prop };
+        break;
+      }
+      case 'rescue': {
+        // Mission-owned foundering vessel; the ambient distress trigger + the
+        // ambient harbor-completion path are suspended while scripted, and the
+        // heli scrambles via the marker.
+        const vessel = this.d.distress.beginScriptedRescue(e.spawn.x, e.spawn.z);
+        this.d.wildlife.setMissionOwned(vessel, true);
+        this.instance = { beatId: beat.id, ref: vessel };
+        this.d.towing.setPreferredTowable(vessel);
+        break;
+      }
+      default:
+        // sonar-contact / mermaid / leviathan-* are Milestone 2 — marker only.
+        break;
+    }
   }
 
   /** Called each frame from Engine.update (campaign only). */
@@ -98,12 +142,49 @@ export class MissionSystem {
     this.time += dt;
     const beat = currentBeat(this.d.state);
     if (!beat) return;
+
+    // Bob the pickup prop on the swell so it reads as floating, not static.
+    if (this.prop) {
+      const waveY = this.d.ocean.getWaveHeight(this.prop.position.x, this.prop.position.z, this.time);
+      this.prop.position.y = waveY;
+      this.prop.rotation.z = Math.sin(this.time * 0.9) * 0.08;
+      this.prop.rotation.x = Math.sin(this.time * 0.7) * 0.06;
+    }
+
     if (this.complete(beat)) this.finish(beat);
     else this.d.quest.setDistance(this.distanceToMarker());
   }
 
-  private complete(_beat: StoryBeat): boolean {
-    return false; // filled in Task 9 / Milestone 2
+  private complete(beat: StoryBeat): boolean {
+    const e = beat.encounter;
+    const boat = this.d.getBoatPos();
+
+    switch (e.kind) {
+      case 'tow-derelict': {
+        const vessel = this.instance?.ref as WildlifeEntity | undefined;
+        if (!vessel || this.d.towing.getTowedEntity() !== vessel) return false;
+        const d = Math.hypot(
+          vessel.mesh.position.x - this.d.greyharbor.dock.x,
+          vessel.mesh.position.z - this.d.greyharbor.dock.z,
+        );
+        return d < e.radius;
+      }
+      case 'pickup': {
+        if (!this.prop) return false;
+        return Math.hypot(boat.x - this.prop.position.x, boat.z - this.prop.position.z) < e.radius;
+      }
+      case 'rescue': {
+        const vessel = this.d.distress.getScriptedVessel();
+        if (!vessel) return false;
+        // Require the player to actually hook it, then tow it clear of the spot.
+        if (this.d.towing.getTowedEntity() === vessel) this.rescueHooked = true;
+        if (!this.rescueHooked || this.d.towing.getTowedEntity() !== vessel) return false;
+        const d = Math.hypot(vessel.mesh.position.x - e.spawn.x, vessel.mesh.position.z - e.spawn.z);
+        return d > e.safeRadius;
+      }
+      default:
+        return false; // Milestone 2 encounters
+    }
   }
 
   private finish(beat: StoryBeat): void {
@@ -125,14 +206,58 @@ export class MissionSystem {
   /** Tear down the active scripted encounter (idempotent). */
   private disarm(): void {
     this.marker = null;
+    this.d.towing.setPreferredTowable(null);
+    // Restore/clear the scripted rescue vessel (no-op if none was scripted).
+    this.d.distress.endScripted();
+    this.clearProp();
+    // A mission-owned derelict (tow-derelict) still on the tow line at
+    // completion rejoins ordinary traffic (finite lifetime, untagged so it
+    // journals normally); one not yet hooked (disarm/dispose) is removed.
+    // (Scripted-rescue vessels are handled by distress.endScripted above.)
+    const ref = this.instance?.ref;
+    if (ref && !(ref instanceof THREE.Group)) {
+      const we = ref as WildlifeEntity;
+      this.d.wildlife.setMissionOwned(we, false);
+      if (this.d.wildlife.isEntityAlive(we)) {
+        if (this.d.towing.getTowedEntity() === we) this.d.wildlife.restoreVessel(we);
+        else this.d.wildlife.removeEntity(we);
+      }
+    }
     this.instance = null;
-    // Per-encounter despawn is added in Task 9 / Milestone 2.
+    this.rescueHooked = false;
   }
 
   private distanceToMarker(): number | null {
     if (!this.marker) return null;
     const b = this.d.getBoatPos();
     return Math.hypot(this.marker.x - b.x, this.marker.z - b.z);
+  }
+
+  private makePickupProp(x: number, z: number): THREE.Group {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0xd98b3a, roughness: 0.6, metalness: 0.1 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 1.6, 8), mat);
+    body.position.y = 0.4;
+    g.add(body);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 8), mat);
+    top.position.y = 1.35;
+    g.add(top);
+    g.position.set(x, 0, z);
+    return g;
+  }
+
+  private clearProp(): void {
+    if (!this.prop) return;
+    this.d.scene.remove(this.prop);
+    this.prop.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const m = child.material;
+        if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+        else m.dispose();
+      }
+    });
+    this.prop = null;
   }
 
   /** Remove all scripted instances + props and clear the quest panel. */

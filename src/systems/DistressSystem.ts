@@ -29,6 +29,10 @@ export class DistressSystem {
   private cutProgress = 0;
   private cooldown = 100; // first call comes after the player has settled in
   private bannerTimer = 0;
+  // Story Mode: while a scripted rescue is live, ambient spawns are suspended
+  // and the ambient isSafeHarbor→onComplete reward path never fires. The
+  // MissionSystem owns this vessel and grants the beat reward.
+  private scripted = false;
 
   private smoke: THREE.Points;
   private smokeVel: Float32Array;
@@ -71,7 +75,49 @@ export class DistressSystem {
     return this.callbacks.nearestHarbor(this.vessel.mesh.position.x, this.vessel.mesh.position.z);
   }
 
+  /**
+   * Begin a mission-owned rescue at a fixed spot (Story Mode beat 4). Clears any
+   * ambient vessel + banner first, suspends ambient spawns, and spawns the
+   * foundering vessel (the heli scrambles via getMarker). The MissionSystem
+   * polls getScriptedVessel + grants the beat reward; the ambient onComplete
+   * path is skipped while scripted.
+   */
+  beginScriptedRescue(x: number, z: number): WildlifeEntity {
+    if (this.vessel && this.wildlife.isEntityAlive(this.vessel)) {
+      this.wildlife.removeEntity(this.vessel);
+    }
+    this.clear(0);
+    this.scripted = true;
+    this.kind = 'fire';
+    this.vessel = this.wildlife.spawnDistressedVessel(x, z);
+    this.cutProgress = 0;
+    this.bannerTimer = 0;
+    return this.vessel;
+  }
+
+  /**
+   * End the scripted rescue (idempotent). A vessel still on the tow line at
+   * completion is restored to ordinary traffic (smoke off, finite lifetime) so
+   * it despawns naturally; one not yet hooked (disarm/dispose) is removed.
+   */
+  endScripted(): void {
+    if (!this.scripted) return;
+    this.scripted = false;
+    if (this.vessel && this.wildlife.isEntityAlive(this.vessel)) {
+      if (this.vessel.towed) this.wildlife.restoreVessel(this.vessel);
+      else this.wildlife.removeEntity(this.vessel);
+    }
+    this.vessel = null;
+    this.clear(240);
+  }
+
+  /** The live scripted vessel, or null when no scripted rescue is active. */
+  getScriptedVessel(): WildlifeEntity | null {
+    return this.scripted ? this.vessel : null;
+  }
+
   private trySpawn(boatX: number, boatZ: number): void {
+    if (this.scripted) return; // ambient calls are suspended during a story rescue
     for (let attempt = 0; attempt < 8; attempt++) {
       const angle = Math.random() * Math.PI * 2;
       const dist = 250 + Math.random() * 130;
@@ -130,7 +176,9 @@ export class DistressSystem {
 
     this.updateSmoke(dt, v);
 
-    if (this.callbacks.isSafeHarbor(vx, vz)) {
+    // Story rescues: the MissionSystem owns completion (tow it clear of the
+    // foundering spot) and the reward — never the ambient harbor delivery.
+    if (!this.scripted && this.callbacks.isSafeHarbor(vx, vz)) {
       this.wildlife.restoreVessel(v);
       this.clear(240);
       this.callbacks.onComplete(REWARD);
@@ -143,6 +191,9 @@ export class DistressSystem {
       if (!v.towed) {
         const dist = Math.round(Math.hypot(vx - boatX, vz - boatZ));
         this.callbacks.onBanner(`🛟 Mayday — fishing boat ablaze · ${dist}m`);
+      } else if (this.scripted) {
+        // Quest log drives the "tow it clear" guidance; clear the ambient banner.
+        this.callbacks.onBanner(null);
       } else {
         const harbor = this.callbacks.nearestHarbor(vx, vz);
         const dist = harbor ? ` · ${Math.round(Math.hypot(harbor.x - vx, harbor.z - vz))}m` : '';

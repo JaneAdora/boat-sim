@@ -255,6 +255,9 @@ export class WildlifeSystem extends System {
   private boatEntity: number;
   private chunkManager: ChunkManager | null = null;
   private entities: WildlifeEntity[] = [];
+  // Story Mode: vessels owned by the MissionSystem, excluded from the ambient
+  // field-journal scan so a scripted derelict doesn't grant a spurious sighting.
+  private missionOwned = new Set<WildlifeEntity>();
   private spawnTimer = 0;
   private time = 0;
   private boatX = 0;
@@ -731,6 +734,7 @@ export class WildlifeSystem extends System {
   removeEntity(entity: WildlifeEntity): void {
     const idx = this.entities.indexOf(entity);
     if (idx === -1) return;
+    this.missionOwned.delete(entity);
     this.scene.remove(entity.mesh);
     entity.mesh.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -757,6 +761,22 @@ export class WildlifeSystem extends System {
       z: e.mesh.position.z,
       type: e.type,
     }));
+  }
+
+  /** Tag/untag an entity as mission-owned (Story Mode); excluded from the
+   *  field-journal sighting scan. No-op set in Free Roam → behaviour unchanged. */
+  setMissionOwned(entity: WildlifeEntity, owned: boolean): void {
+    if (owned) this.missionOwned.add(entity);
+    else this.missionOwned.delete(entity);
+  }
+
+  /** Positions for the field-journal scan — excludes mission-owned vessels.
+   *  Identical to getWildlifePositions when nothing is tagged (Free Roam). */
+  getJournalPositions(): { x: number; z: number; type: string }[] {
+    if (this.missionOwned.size === 0) return this.getWildlifePositions();
+    return this.entities
+      .filter(e => !this.missionOwned.has(e))
+      .map(e => ({ x: e.mesh.position.x, z: e.mesh.position.z, type: e.type }));
   }
 
   private updateEntity(e: WildlifeEntity, dt: number): void {
