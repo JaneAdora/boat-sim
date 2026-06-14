@@ -381,7 +381,9 @@ export class Engine {
     this.aircraft = new AircraftSystem(
       this.sceneManager.scene, this.ocean, this.chunkManager,
       {
-        activeDistress: () => this.distress.getMarker(),
+        // Story finale: the heli scrambles to the trench during beats 7/8 (R10);
+        // otherwise it follows the ambient rescue marker as before.
+        activeDistress: () => this.mission?.getAircraftMarker() ?? this.distress.getMarker(),
         onCrateCollected: (credits) => {
           addCredits(credits);
           this.soundEffects.playDiscovery();
@@ -480,9 +482,15 @@ export class Engine {
       },
     );
     this.weaponsSystem.onLeviathanSlain = () => {
-      addCredits(200);
       this.hud.setLeviathan(null);
       this.soundEffects.playDiscovery();
+      // Story finale (beat 8): the campaign grants the BEAT reward instead of the
+      // ambient bounty, and suppresses the 200cr/karma/journal here (R9).
+      if (this.mission?.consumesLeviathan()) {
+        this.mission.onLeviathanDefeated();
+        return;
+      }
+      addCredits(200);
       this.hud.showToast('🐙 The Leviathan is slain', 'Bounty · +200 cr');
       this.awardKarma(15, 'Slew the Leviathan', 'leviathan-slain');
     };
@@ -598,7 +606,9 @@ export class Engine {
         distress: this.distress,
         mermaid: this.mermaid,
         leviathan: this.leviathan,
+        weather: this.weather,
         sonarPing: () => this.soundEffects.playSonarPing(),
+        disarmed: combatSettings.disarmed,
         getBoatPos: () => {
           const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
           return { x: t?.position.x ?? 0, z: t?.position.z ?? 0, y: t?.position.y ?? 0 };

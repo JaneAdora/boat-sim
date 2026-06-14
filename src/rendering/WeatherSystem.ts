@@ -110,6 +110,10 @@ export class WeatherSystem {
   private rainIntensity = 0;
   private weatherDarkness = 0;
 
+  // Story Mode (beats 7 & 8): a forced storm so the Leviathan spectacle/boss
+  // always has its rain + heavy seas, regardless of the live noise cycle.
+  private scriptedStorm = false;
+
   // Rain particles
   private rainMesh: THREE.Points;
   private rainMaterial: THREE.ShaderMaterial;
@@ -189,6 +193,16 @@ export class WeatherSystem {
     // ── 2. Interpolate weather config ──
     this.updateTransition(dt);
 
+    // ── 2b. Forced scripted storm (Story finale) — floor the storm parameters
+    // so rain, darkness, fog, lightning and heavy seas all read full-storm,
+    // whatever the noise cycle is doing underneath. ──
+    if (this.scriptedStorm) {
+      const storm = WEATHER_CONFIGS[WeatherState.Storm];
+      this.rainIntensity = Math.max(this.rainIntensity, storm.rainIntensity);
+      this.weatherDarkness = Math.max(this.weatherDarkness, storm.darkness);
+      this.fogDensity = Math.max(this.fogDensity, storm.fogDensity);
+    }
+
     // ── 3. Apply fog density ──
     currentFog.density = this.fogDensity;
 
@@ -205,7 +219,21 @@ export class WeatherSystem {
   }
 
   getRainIntensity(): number {
+    // Honour the forced storm even between updates (consumers read this any time).
+    if (this.scriptedStorm) {
+      return Math.max(this.rainIntensity, WEATHER_CONFIGS[WeatherState.Storm].rainIntensity);
+    }
     return this.rainIntensity;
+  }
+
+  /** Force a full storm (Story finale, beats 7 & 8) until endScriptedStorm. */
+  beginScriptedStorm(): void {
+    this.scriptedStorm = true;
+  }
+
+  /** Release the forced storm; the weather resumes its natural noise cycle. */
+  endScriptedStorm(): void {
+    this.scriptedStorm = false;
   }
 
   getWeatherDarkness(): number {

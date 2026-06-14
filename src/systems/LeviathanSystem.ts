@@ -120,6 +120,17 @@ export class LeviathanSystem {
     return this.scriptedSpectacleDone;
   }
 
+  /** True while the scripted boss is up and pursuing — the lure counter only
+   *  banks a pass when the beast is actually in tow. */
+  scriptedBossActive(): boolean {
+    return (
+      this.scripted?.phase === 'boss' &&
+      this.phase === 'boss' &&
+      this.entity !== null &&
+      this.wildlife.isEntityAlive(this.entity)
+    );
+  }
+
   /** True when the scripted boss is gone (slain or dived) and we've folded back
    *  to lurking — beat 8's armed-resolution signal. */
   scriptedResolved(): boolean {

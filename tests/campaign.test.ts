@@ -12,6 +12,7 @@ import {
 import { STORY_BEATS, validateBeatGraph } from '../src/state/StoryBeats';
 import { JOURNAL_ENTRIES } from '../src/state/JournalTracker';
 import { findStoryHarbor, isOpenWater } from '../src/state/StoryHarbor';
+import { LureCounter, LURE_IN, LURE_OUT, LURE_FLEE } from '../src/state/LureCounter';
 
 class MemoryStorage implements Storage {
   private data = new Map<string, string>();
@@ -147,5 +148,101 @@ describe('StoryHarbor', () => {
         expect(isOpenWater(e.spawn.x, e.spawn.z)).toBe(true);
       }
     }
+  });
+});
+
+describe('LureCounter (no-weapons finale)', () => {
+  it('thresholds are ordered IN < OUT < FLEE', () => {
+    expect(LURE_IN).toBeLessThan(LURE_OUT);
+    expect(LURE_OUT).toBeLessThan(LURE_FLEE);
+  });
+
+  it('counts one pass on the first inside crossing with the boss chasing', () => {
+    const l = new LureCounter();
+    l.step(LURE_OUT + 50, true); // approaching from outside
+    expect(l.getPasses()).toBe(0);
+    l.step(LURE_IN - 10, true); // crosses in
+    expect(l.getPasses()).toBe(1);
+  });
+
+  it('does not double-count while loitering inside (no re-arm)', () => {
+    const l = new LureCounter();
+    l.step(LURE_IN - 10, true);
+    l.step(LURE_IN - 20, true);
+    l.step(LURE_IN - 5, true);
+    expect(l.getPasses()).toBe(1);
+  });
+
+  it('a partial pull-back (past IN but not OUT) does NOT re-arm', () => {
+    const l = new LureCounter();
+    l.step(LURE_IN - 10, true); // pass 1
+    l.step((LURE_IN + LURE_OUT) / 2, true); // between IN and OUT — not re-armed
+    l.step(LURE_IN - 10, true); // back in — must NOT count
+    expect(l.getPasses()).toBe(1);
+  });
+
+  it('pulling back beyond OUT re-arms the next pass', () => {
+    const l = new LureCounter();
+    l.step(LURE_IN - 10, true); // pass 1
+    l.step(LURE_OUT + 10, true); // re-arm
+    l.step(LURE_IN - 10, true); // pass 2
+    expect(l.getPasses()).toBe(2);
+  });
+
+  it('requires the boss to be chasing to count a pass', () => {
+    const l = new LureCounter();
+    l.step(LURE_IN - 10, false); // inside but boss not chasing
+    expect(l.getPasses()).toBe(0);
+    l.step(LURE_IN - 10, true); // now it counts
+    expect(l.getPasses()).toBe(1);
+  });
+
+  it('the OUT re-arm is chase-gated (no re-arm while boss not chasing)', () => {
+    const l = new LureCounter();
+    l.step(LURE_IN - 10, true); // pass 1, inside=true
+    l.step(LURE_OUT + 10, false); // boss broke off below FLEE — edge NOT re-armed
+    l.step(LURE_IN - 10, true); // still inside-latched → no new pass
+    expect(l.getPasses()).toBe(1);
+  });
+
+  it('fleeing past FLEE resets the inside edge even with no chase, keeping passes', () => {
+    const l = new LureCounter();
+    l.step(LURE_IN - 10, true); // pass 1, inside=true
+    l.step(LURE_FLEE + 50, false); // long flight, boss not chasing → edge resets
+    expect(l.getPasses()).toBe(1); // progress preserved
+    l.step(LURE_IN - 10, true); // re-engage → counts
+    expect(l.getPasses()).toBe(2);
+  });
+
+  it('completes at three passes', () => {
+    const l = new LureCounter();
+    const oneFullPass = () => {
+      l.step(LURE_OUT + 20, true);
+      l.step(LURE_IN - 10, true);
+    };
+    expect(l.step(LURE_IN - 10, true)).toBe(false); // pass 1
+    oneFullPass(); // pass 2
+    expect(l.isComplete()).toBe(false);
+    const done = (() => {
+      l.step(LURE_OUT + 20, true);
+      return l.step(LURE_IN - 10, true); // pass 3
+    })();
+    expect(done).toBe(true);
+    expect(l.isComplete()).toBe(true);
+    expect(l.getPasses()).toBe(3);
+  });
+
+  it('reset() clears passes and edge', () => {
+    const l = new LureCounter();
+    l.step(LURE_IN - 10, true);
+    l.reset();
+    expect(l.getPasses()).toBe(0);
+    l.step(LURE_IN - 10, true); // edge was cleared → counts again
+    expect(l.getPasses()).toBe(1);
+  });
+
+  it('honors a custom passesNeeded', () => {
+    const l = new LureCounter(1);
+    expect(l.step(LURE_IN - 10, true)).toBe(true);
   });
 });

@@ -21,6 +21,8 @@ import type { TowingSystem } from './TowingSystem';
 import type { DistressSystem } from './DistressSystem';
 import type { MermaidSystem } from './MermaidSystem';
 import type { LeviathanSystem } from './LeviathanSystem';
+import type { WeatherSystem } from '../rendering/WeatherSystem';
+import { LureCounter } from '../state/LureCounter';
 
 export interface MissionDeps {
   state: CampaignState;
@@ -35,8 +37,11 @@ export interface MissionDeps {
   distress: DistressSystem;
   mermaid: MermaidSystem;
   leviathan: LeviathanSystem;
+  weather: WeatherSystem;
   /** A clean sonar 'pong' on first reef contact (beat 5). */
   sonarPing(): void;
+  /** No-weapons mode (tb-disarmed): the finale is won by luring, not sinking. */
+  disarmed: boolean;
   getBoatPos(): { x: number; z: number; y: number };
   isInBoat(name: string): boolean;
 }
@@ -71,6 +76,11 @@ export class MissionSystem {
   /** Beat 7: the scripted spectacle triggers once, when the player first reaches
    *  the trench (it then plays out and completes on its own animation end). */
   private spectacleTriggered = false;
+  /** Beat 8 (armed path): set when the scripted boss is slain (WeaponsSystem →
+   *  Engine.onLeviathanSlain → onLeviathanDefeated). complete() reads it. */
+  private leviathanDefeated = false;
+  /** Beat 8 (no-weapons path): the pure lure-pass counter. */
+  private lure = new LureCounter();
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -93,11 +103,41 @@ export class MissionSystem {
     return this.marker;
   }
 
+  /** R10: the coastguard heli scrambles to the trench through the finale (beats 7
+   *  & 8) so it circles the Leviathan; null otherwise (it falls back to the
+   *  ambient distress marker). */
+  getAircraftMarker(): { x: number; z: number } | null {
+    const beat = currentBeat(this.d.state);
+    if (!beat) return null;
+    const k = beat.encounter.kind;
+    if (k !== 'leviathan-witness' && k !== 'leviathan-boss') return null;
+    return { x: beat.encounter.spawn.x, z: beat.encounter.spawn.z };
+  }
+
   /** True while the campaign owns an active rescue (beat 4) — the Engine's
    *  ambient rescue onComplete early-outs so only the beat reward is paid. */
   consumesRescue(): boolean {
     const beat = currentBeat(this.d.state);
     return !!beat && beat.id === 'souls-water' && this.d.state.armedBeat === this.d.state.beat;
+  }
+
+  /** True while the campaign owns the scripted boss (beat 8 armed) — the Engine's
+   *  ambient onLeviathanSlain reward is suppressed so only the beat reward pays.
+   *  Mirrors consumesRescue (R9). */
+  consumesLeviathan(): boolean {
+    const beat = currentBeat(this.d.state);
+    return (
+      !!beat &&
+      beat.id === 'vanishing-tide' &&
+      this.d.state.armedBeat === this.d.state.beat
+    );
+  }
+
+  /** The scripted boss was slain (armed path). Records the kill so the next
+   *  complete() poll finishes the beat with the BEAT reward (not the ambient
+   *  200cr). Routed from Engine.onLeviathanSlain when consumesLeviathan(). */
+  onLeviathanDefeated(): void {
+    this.leviathanDefeated = true;
   }
 
   /** Whether a runtime object is the active mission-owned instance (so the
@@ -163,8 +203,23 @@ export class MissionSystem {
         this.d.mermaid.beginScripted(e.spawn.x, e.spawn.z);
         break;
       }
+      case 'leviathan-witness': {
+        // Force the storm now so the spectacle has its weather on arrival (the
+        // spectacle itself triggers on proximity in complete()).
+        this.d.weather.beginScriptedStorm();
+        break;
+      }
+      case 'leviathan-boss': {
+        // The finale: a forced storm + the mission-owned boss. beginScripted
+        // clears any active ambient/scripted Leviathan first (R9).
+        this.d.weather.beginScriptedStorm();
+        this.leviathanDefeated = false;
+        this.lure.reset();
+        this.d.leviathan.beginScripted(e.spawn.x, e.spawn.z, 'boss', true);
+        break;
+      }
       default:
-        // sonar-contact (marker only) / leviathan-* are handled in Milestone 2.
+        // sonar-contact is marker-only (R3 handles the dock swap in getMarker).
         break;
     }
   }
@@ -242,8 +297,19 @@ export class MissionSystem {
         }
         return this.d.leviathan.scriptedSpectaclePlayed();
       }
+      case 'leviathan-boss': {
+        if (this.d.disarmed) {
+          // No-weapons path: lure the chasing beast into the trench mouth.
+          const dist = Math.hypot(boat.x - e.spawn.x, boat.z - e.spawn.z);
+          const done = this.lure.step(dist, this.d.leviathan.scriptedBossActive());
+          if (done) this.d.leviathan.endScripted(); // it sounds and dives
+          return done;
+        }
+        // Armed path: the WeaponsSystem kill is routed to onLeviathanDefeated.
+        return this.leviathanDefeated;
+      }
       default:
-        return false; // beat 8 (leviathan-boss) handled in Task 14
+        return false;
     }
   }
 
@@ -273,6 +339,10 @@ export class MissionSystem {
     this.d.mermaid.endScripted();
     // Tear down any scripted Leviathan spectacle/boss (no-op if none).
     this.d.leviathan.endScripted();
+    // Release the forced finale storm (no-op if not forced).
+    this.d.weather.endScriptedStorm();
+    this.leviathanDefeated = false;
+    this.lure.reset();
     this.clearProp();
     // A mission-owned derelict (tow-derelict) still on the tow line at
     // completion rejoins ordinary traffic (finite lifetime, untagged so it
