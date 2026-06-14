@@ -113,7 +113,29 @@ export class MissionSystem {
         return { x: vessel.mesh.position.x, z: vessel.mesh.position.z };
       }
     }
+    // Beat 4: after the foundering vessel is hooked, point to clear water (toward
+    // home, past the danger radius); before that, track the vessel at the mayday.
+    if (beat?.encounter.kind === 'rescue') {
+      const vessel = this.d.distress.getScriptedVessel();
+      if (vessel) {
+        if (this.d.towing.getTowedEntity() === vessel) {
+          return this.clearPoint(beat.encounter.spawn, beat.encounter.safeRadius);
+        }
+        return { x: vessel.mesh.position.x, z: vessel.mesh.position.z };
+      }
+    }
     return this.marker;
+  }
+
+  /** A point in clear water past the danger radius, toward Greyharbor — where to
+   *  tow a rescued vessel so the survivors are safe. */
+  private clearPoint(spawn: { x: number; z: number }, safeRadius: number): { x: number; z: number } {
+    const dock = this.d.greyharbor.dock;
+    const dx = dock.x - spawn.x;
+    const dz = dock.z - spawn.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const r = safeRadius + 40;
+    return { x: spawn.x + (dx / len) * r, z: spawn.z + (dz / len) * r };
   }
 
   /** R10: the coastguard heli scrambles to the trench through the finale (beats 7
