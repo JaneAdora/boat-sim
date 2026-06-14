@@ -31,6 +31,8 @@ export interface MissionDeps {
   wildlife: WildlifeSystem;
   towing: TowingSystem;
   distress: DistressSystem;
+  /** A clean sonar 'pong' on first reef contact (beat 5). */
+  sonarPing(): void;
   getBoatPos(): { x: number; z: number; y: number };
   isInBoat(name: string): boolean;
 }
@@ -60,6 +62,8 @@ export class MissionSystem {
   /** Set once a scripted-rescue vessel has been hooked, so completion only
    *  fires after the player tows it (not by spawning already-clear). */
   private rescueHooked = false;
+  /** Beat 5: the sonar 'pong'/contact toast fires once on first reef contact. */
+  private sonarPinged = false;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -69,6 +73,16 @@ export class MissionSystem {
   }
 
   getMarker(): { x: number; z: number } | null {
+    // R3: while the sub leg is armed but the player is in the wrong boat, steer
+    // them back to the Greyharbor dock to swap — not out to the unreachable reef.
+    const beat = currentBeat(this.d.state);
+    if (
+      beat?.encounter.kind === 'sonar-contact' &&
+      beat.requiresBoat &&
+      !this.d.isInBoat(beat.requiresBoat)
+    ) {
+      return { x: this.d.greyharbor.dock.x, z: this.d.greyharbor.dock.z };
+    }
     return this.marker;
   }
 
@@ -93,7 +107,10 @@ export class MissionSystem {
       return;
     }
     this.d.state.armedBeat = this.d.state.beat;
-    this.d.quest.set(beat.title, beat.objective);
+    // R3: if this leg needs a boat the player isn't currently in, the objective
+    // nudges them to swap (the marker — getMarker — points back to the dock).
+    const wrongBoat = beat.requiresBoat && !this.d.isInBoat(beat.requiresBoat);
+    this.d.quest.set(beat.title, wrongBoat ? `Take the ${beat.requiresBoat} out.` : beat.objective);
     this.d.hud.showToast(beat.title, beat.brief);
     this.arm(beat);
     saveCampaign(this.d.state);
@@ -103,6 +120,7 @@ export class MissionSystem {
     const e = beat.encounter;
     if ('spawn' in e) this.marker = { x: e.spawn.x, z: e.spawn.z };
     this.rescueHooked = false;
+    this.sonarPinged = false;
 
     switch (e.kind) {
       case 'tow-derelict': {
@@ -182,8 +200,21 @@ export class MissionSystem {
         const d = Math.hypot(vessel.mesh.position.x - e.spawn.x, vessel.mesh.position.z - e.spawn.z);
         return d > e.safeRadius;
       }
+      case 'sonar-contact': {
+        // Must be in the loaned sub, over the reef, and actually submerged past
+        // the contact depth. (R3 keeps the marker on the dock until they swap.)
+        if (!beat.requiresBoat || !this.d.isInBoat(beat.requiresBoat)) return false;
+        const flat = Math.hypot(boat.x - e.spawn.x, boat.z - e.spawn.z);
+        if (flat >= e.radius || boat.y >= e.depth) return false;
+        if (!this.sonarPinged) {
+          this.sonarPinged = true;
+          this.d.sonarPing();
+          this.d.hud.showToast('Sonar contact', 'A return too big for any whale — and a hull raked by something clawed.');
+        }
+        return true;
+      }
       default:
-        return false; // Milestone 2 encounters
+        return false; // Milestone 2 encounters (mermaid / leviathan)
     }
   }
 
@@ -228,9 +259,11 @@ export class MissionSystem {
   }
 
   private distanceToMarker(): number | null {
-    if (!this.marker) return null;
+    // Track the live waypoint (R3 may point this at the dock, not this.marker).
+    const m = this.getMarker();
+    if (!m) return null;
     const b = this.d.getBoatPos();
-    return Math.hypot(this.marker.x - b.x, this.marker.z - b.z);
+    return Math.hypot(m.x - b.x, m.z - b.z);
   }
 
   private makePickupProp(x: number, z: number): THREE.Group {
