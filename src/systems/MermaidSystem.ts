@@ -36,6 +36,12 @@ export class MermaidSystem {
   private rollTimer = 8;
   private time = 0;
 
+  // Story Mode (beat 6): while a scripted mermaid is live she ignores the
+  // night/calm/karma/lifetime gates, stays surfaced at the scripted spot, and
+  // never fires the ambient gift/lifetime path — the MissionSystem owns it.
+  private scripted: { x: number; z: number } | null = null;
+  private scriptedHeardFlag = false;
+
   constructor(
     private scene: THREE.Scene,
     private ocean: Ocean,
@@ -52,6 +58,14 @@ export class MermaidSystem {
 
   update(dt: number, boatX: number, boatZ: number, boatHeading: number, sunY: number, rain: number): void {
     this.time += dt;
+
+    // Story Mode: the scripted mermaid runs BEFORE every ambient gate (day/night,
+    // rain, karma, lifetime) and holds her spot until the player closes on her.
+    if (this.scripted) {
+      this.updateScripted(dt, boatX, boatZ, boatHeading);
+      return;
+    }
+
     const night = sunY < -0.1;
 
     if (!night) {
@@ -101,6 +115,12 @@ export class MermaidSystem {
     if (x === null || z === null) return;
     if (this.chunkManager.getTerrainHeight(x, z) > 0) return; // she needs water
 
+    this.surfaceAt(x, z);
+  }
+
+  /** Raise the mermaid + start her song at a fixed spot (shared by the ambient
+   *  roll and the scripted Story beat). */
+  private surfaceAt(x: number, z: number): void {
     this.mesh = createMermaidMesh();
     this.mesh.position.set(x, 0, z);
     this.scene.add(this.mesh);
@@ -139,6 +159,54 @@ export class MermaidSystem {
       this.callbacks.onGift(this.level);
       this.depart();
     }
+  }
+
+  /**
+   * The scripted (Story-beat-6) variant: she idles on her rock and her song
+   * pans/swells exactly as ambient, but ignores weather/time and — on contact —
+   * only raises scriptedHeardFlag. No recordMermaidEncounter (no lifetime touch),
+   * no onGift; the MissionSystem polls scriptedHeard() and grants the beat.
+   */
+  private updateScripted(dt: number, boatX: number, boatZ: number, boatHeading: number): void {
+    if (!this.mesh) return; // beginScripted surfaced her; safety only
+    const m = this.mesh;
+
+    m.position.y = this.ocean.getWaveHeight(m.position.x, m.position.z, this.time) - 0.2;
+    m.rotation.y += Math.sin(this.time * 0.3) * 0.002;
+    const tail = m.getObjectByName('tail');
+    if (tail) tail.rotation.x = 0.5 + Math.sin(this.time * 1.4) * 0.18;
+    const glow = m.getObjectByName('glow') as THREE.PointLight | null;
+    if (glow) glow.intensity = 1.4 + Math.sin(this.time * 1.8) * 0.5;
+
+    const dx = m.position.x - boatX;
+    const dz = m.position.z - boatZ;
+    const dist = Math.hypot(dx, dz);
+    const closeness = Math.max(0, 1 - dist / HEAR_RANGE);
+    this.song.setListener(bearingPan(boatHeading, dx, dz), closeness);
+    this.song.update(dt);
+
+    if (dist < ENCOUNTER_RANGE) this.scriptedHeardFlag = true;
+  }
+
+  /** Begin the scripted mermaid at a fixed spot (Story beat 6). Clears any
+   *  ambient mermaid first, then surfaces her — gates bypassed in update. */
+  beginScripted(x: number, z: number): void {
+    this.depart(); // clear any ambient instance + fade her song
+    this.scripted = { x, z };
+    this.scriptedHeardFlag = false;
+    this.surfaceAt(x, z);
+  }
+
+  /** End the scripted mermaid (idempotent); she slips back under. */
+  endScripted(): void {
+    if (!this.scripted) return;
+    this.scripted = null;
+    this.depart();
+  }
+
+  /** True once the player closed within earshot of the scripted mermaid. */
+  scriptedHeard(): boolean {
+    return this.scriptedHeardFlag;
   }
 
   private depart(): void {

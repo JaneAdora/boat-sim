@@ -19,6 +19,7 @@ import type { QuestLog } from '../ui/QuestLog';
 import type { WildlifeSystem, WildlifeEntity } from './WildlifeSystem';
 import type { TowingSystem } from './TowingSystem';
 import type { DistressSystem } from './DistressSystem';
+import type { MermaidSystem } from './MermaidSystem';
 
 export interface MissionDeps {
   state: CampaignState;
@@ -31,6 +32,7 @@ export interface MissionDeps {
   wildlife: WildlifeSystem;
   towing: TowingSystem;
   distress: DistressSystem;
+  mermaid: MermaidSystem;
   /** A clean sonar 'pong' on first reef contact (beat 5). */
   sonarPing(): void;
   getBoatPos(): { x: number; z: number; y: number };
@@ -149,8 +151,14 @@ export class MissionSystem {
         this.d.towing.setPreferredTowable(vessel);
         break;
       }
+      case 'mermaid': {
+        // Scripted mermaid: clears any ambient one, holds her spot, ignores
+        // night/calm/karma/lifetime; MissionSystem grants the beat on contact.
+        this.d.mermaid.beginScripted(e.spawn.x, e.spawn.z);
+        break;
+      }
       default:
-        // sonar-contact / mermaid / leviathan-* are Milestone 2 — marker only.
+        // sonar-contact (marker only) / leviathan-* are handled in Milestone 2.
         break;
     }
   }
@@ -213,8 +221,10 @@ export class MissionSystem {
         }
         return true;
       }
+      case 'mermaid':
+        return this.d.mermaid.scriptedHeard();
       default:
-        return false; // Milestone 2 encounters (mermaid / leviathan)
+        return false; // Milestone 2 encounters (leviathan)
     }
   }
 
@@ -240,6 +250,8 @@ export class MissionSystem {
     this.d.towing.setPreferredTowable(null);
     // Restore/clear the scripted rescue vessel (no-op if none was scripted).
     this.d.distress.endScripted();
+    // Send any scripted mermaid back under (no-op if none was scripted).
+    this.d.mermaid.endScripted();
     this.clearProp();
     // A mission-owned derelict (tow-derelict) still on the tow line at
     // completion rejoins ordinary traffic (finite lifetime, untagged so it

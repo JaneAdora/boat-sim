@@ -596,6 +596,7 @@ export class Engine {
         wildlife: this.wildlifeSystem,
         towing: towingSystem,
         distress: this.distress,
+        mermaid: this.mermaid,
         sonarPing: () => this.soundEffects.playSonarPing(),
         getBoatPos: () => {
           const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');
