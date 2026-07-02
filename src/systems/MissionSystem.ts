@@ -449,10 +449,16 @@ export class MissionSystem {
               `It follows you in — pass ${passes} of 3. Pull away and come round again.`,
             );
           }
-          if (done) this.d.leviathan.endScripted(); // it sounds and dives
+          if (done) {
+            // Act 2 hinges on spared-vs-killed: record the mercy now so the
+            // sequel can read it off any finished save.
+            setFlag(this.d.state, 'mercy');
+            this.d.leviathan.endScripted(); // it sounds and dives
+          }
           return done;
         }
         // Armed path: the WeaponsSystem kill is routed to onLeviathanDefeated.
+        if (this.leviathanDefeated) setFlag(this.d.state, 'slain');
         return this.leviathanDefeated;
       }
       default:
