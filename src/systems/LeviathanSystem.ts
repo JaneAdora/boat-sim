@@ -3,6 +3,7 @@ import { Ocean } from '../rendering/Ocean';
 import { ChunkManager } from '../world/ChunkManager';
 import { WildlifeSystem, WildlifeEntity } from './WildlifeSystem';
 import { hasWitnessedLeviathan, recordLeviathanWitnessed } from '../state/LeviathanState';
+import { createDoomedShip, disposeGroup } from '../props/StoryProps';
 
 export interface LeviathanCallbacks {
   /** The spectacle played out — journal the sighting. */
@@ -399,31 +400,5 @@ function createTentacleRing(count: number, radius: number): THREE.Group {
   return ring;
 }
 
-function createDoomedShip(): THREE.Group {
-  const g = new THREE.Group();
-  const hull = new THREE.Mesh(
-    new THREE.BoxGeometry(8, 5, 34),
-    new THREE.MeshStandardMaterial({ color: 0x4a4540, roughness: 0.8 }),
-  );
-  hull.position.y = 1.5;
-  g.add(hull);
-  for (let i = 0; i < 3; i++) {
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(6, 2.4, 7),
-      new THREE.MeshStandardMaterial({ color: [0xa64833, 0x3f6e8c, 0x7a8c3f][i], roughness: 0.7 }),
-    );
-    box.position.set(0, 5.2, -10 + i * 10);
-    g.add(box);
-  }
-  return g;
-}
-
-function disposeGroup(scene: THREE.Scene, group: THREE.Group): void {
-  scene.remove(group);
-  group.traverse((obj) => {
-    if (obj instanceof THREE.Mesh) {
-      obj.geometry.dispose();
-      (obj.material as THREE.Material).dispose();
-    }
-  });
-}
+// createDoomedShip + disposeGroup moved to src/props/StoryProps.ts (Act 2
+// stage 1): the campaign layer reuses the same silhouettes for its wrecks.
