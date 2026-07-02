@@ -10,5 +10,6 @@ dist
 !public/icon-maskable-512.png
 *.jpg
 !public/story/*.jpg
+!storyboard/img/*.jpg
 .playwright-mcp/
 .netlify/
