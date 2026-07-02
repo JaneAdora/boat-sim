@@ -23,6 +23,17 @@ import type { MermaidSystem } from './MermaidSystem';
 import type { LeviathanSystem } from './LeviathanSystem';
 import type { WeatherSystem } from '../rendering/WeatherSystem';
 import { LureCounter } from '../state/LureCounter';
+import { MultiPickup } from '../state/MultiPickup';
+import { SoulTransport } from '../state/SoulTransport';
+import type { SoulId } from '../state/CampaignState';
+import { TRENCH, inBand } from '../world/TrenchProfile';
+import {
+  createWreckHull,
+  createSoulSprite,
+  createRecoveryVessel,
+  createDrownedHamlet,
+  disposeGroup,
+} from '../props/StoryProps';
 import type { InterludeCard } from '../ui/StoryInterlude';
 
 /**
@@ -111,6 +122,18 @@ export class MissionSystem {
   private diveHintShown = false;
   /** Beat 8 (lure path): last banked pass count, for progress toasts. */
   private lastLurePasses = 0;
+  // ── Act 2 encounter state ──
+  /** Beat 11: the salvage machine + one prop per uncollected piece. */
+  private multi: MultiPickup | null = null;
+  private multiProps = new Map<string, THREE.Group>();
+  /** Beat 12: slow sonar cadence while closing on the trench. */
+  private deepPingTimer = 0;
+  /** Beat 13: the soul machine, hamlet dressing, and the carried glow. */
+  private soulRun: SoulTransport | null = null;
+  private soulProps = new Map<string, THREE.Group>();
+  private hamletProp: THREE.Group | null = null;
+  private recoveryProp: THREE.Group | null = null;
+  private carryGlow: THREE.Group | null = null;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -160,6 +183,28 @@ export class MissionSystem {
         }
         return { x: vessel.mesh.position.x, z: vessel.mesh.position.z };
       }
+    }
+    // Beat 11: nearest uncollected salvage, then home to the dock.
+    if (beat?.encounter.kind === 'multi-pickup' && this.multi) {
+      if (this.multi.allCollected()) {
+        return { x: this.d.greyharbor.dock.x, z: this.d.greyharbor.dock.z };
+      }
+      const b = this.d.getBoatPos();
+      let best: { x: number; z: number } | null = null;
+      let bestD = Infinity;
+      for (const p of beat.encounter.points) {
+        if (this.multi.isCollected(p.id)) continue;
+        const d = Math.hypot(p.x - b.x, p.z - b.z);
+        if (d < bestD) {
+          bestD = d;
+          best = { x: p.x, z: p.z };
+        }
+      }
+      return best ?? this.marker;
+    }
+    // Beat 13: the hamlet below (and the recovery vessel above it — same column).
+    if (beat?.encounter.kind === 'soul-transport') {
+      return { x: beat.encounter.hamlet.x, z: beat.encounter.hamlet.z };
     }
     // Beat 4: after the foundering vessel is hooked, point to clear water (toward
     // home, past the danger radius); before that, track the vessel at the mayday.
@@ -262,6 +307,9 @@ export class MissionSystem {
   private arm(beat: StoryBeat): void {
     const e = beat.encounter;
     if ('spawn' in e) this.marker = { x: e.spawn.x, z: e.spawn.z };
+    else if (e.kind === 'multi-pickup') this.marker = { x: e.points[0].x, z: e.points[0].z };
+    else if (e.kind === 'soul-transport') this.marker = { x: e.hamlet.x, z: e.hamlet.z };
+    this.deepPingTimer = 0;
     this.rescueHooked = false;
     this.sonarPinged = false;
     this.spectacleTriggered = false;
@@ -320,6 +368,42 @@ export class MissionSystem {
         this.leviathanDefeated = false;
         this.lure.reset();
         this.d.leviathan.beginScripted(e.spawn.x, e.spawn.z, 'boss', true);
+        break;
+      }
+      case 'multi-pickup': {
+        // Beat 11: hydrate from persisted per-piece flags; only uncollected
+        // salvage respawns. Props are wreck-hull silhouettes at the reef.
+        this.multi = new MultiPickup(e.points.map((p) => p.id));
+        this.multi.hydrate(e.points.filter((p) => this.d.state.flags[p.id]).map((p) => p.id));
+        for (const p of e.points) {
+          if (this.multi.isCollected(p.id)) continue;
+          const prop = createWreckHull(p.id.length);
+          prop.position.set(p.x, 0, p.z);
+          this.d.scene.add(prop);
+          this.multiProps.set(p.id, prop);
+        }
+        break;
+      }
+      case 'soul-transport': {
+        // Beat 13: the drowned hamlet on the trench floor, one glow per
+        // undelivered soul, and the recovery vessel holding station above.
+        this.soulRun = new SoulTransport(e.souls.map((s) => s.id));
+        this.soulRun.hydrate(
+          e.souls.filter((s) => this.d.state.fates[s.id as SoulId] === 'saved').map((s) => s.id),
+        );
+        this.hamletProp = createDrownedHamlet();
+        this.hamletProp.position.set(e.hamlet.x, TRENCH.hamletDepth, e.hamlet.z);
+        this.d.scene.add(this.hamletProp);
+        for (const s of e.souls) {
+          if (this.d.state.fates[s.id as SoulId]) continue; // saved already
+          const glow = createSoulSprite();
+          glow.position.set(e.hamlet.x + s.dx, TRENCH.hamletDepth + 3, e.hamlet.z + s.dz);
+          this.d.scene.add(glow);
+          this.soulProps.set(s.id, glow);
+        }
+        this.recoveryProp = createRecoveryVessel();
+        this.recoveryProp.position.set(e.hamlet.x, 0, e.hamlet.z);
+        this.d.scene.add(this.recoveryProp);
         break;
       }
       default:
@@ -414,6 +498,91 @@ export class MissionSystem {
       }
     }
 
+    // Beat 11: collect salvage on contact; each piece commits to a flag
+    // immediately so a reload respawns only what's still out there.
+    if (beat.encounter.kind === 'multi-pickup' && this.multi) {
+      const e = beat.encounter;
+      const b = this.d.getBoatPos();
+      for (const p of e.points) {
+        if (this.multi.isCollected(p.id)) continue;
+        if (Math.hypot(p.x - b.x, p.z - b.z) < e.radius && this.multi.collect(p.id)) {
+          setFlag(this.d.state, p.id);
+          saveCampaign(this.d.state);
+          const prop = this.multiProps.get(p.id);
+          if (prop) {
+            disposeGroup(this.d.scene, prop);
+            this.multiProps.delete(p.id);
+          }
+          const got = e.points.length - this.multi.remaining().length;
+          this.d.hud.showToast(
+            'Salvage secured',
+            got < e.points.length
+              ? `${got} of ${e.points.length} aboard — the marker leads on.`
+              : 'All three aboard — bring her home to Greyharbor for the refit.',
+          );
+        }
+      }
+    }
+
+    // Beat 12: a slow sonar heartbeat while closing on the trench, so the
+    // descent has a pulse before the contact completes it.
+    if (beat.encounter.kind === 'sonar-contact' && !this.requiresBoatUnmet(beat)) {
+      const e = beat.encounter;
+      const b = this.d.getBoatPos();
+      if (Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z) < e.radius * 3) {
+        this.deepPingTimer -= dt;
+        if (this.deepPingTimer <= 0) {
+          this.deepPingTimer = 5;
+          this.d.sonarPing();
+        }
+      }
+    }
+
+    // Beat 13: soul pickup (3D contact in the deep band), the carried glow
+    // riding the hull, and delivery on surfacing beside the recovery vessel.
+    if (beat.encounter.kind === 'soul-transport' && this.soulRun) {
+      const e = beat.encounter;
+      const b = this.d.getBoatPos();
+      if (this.soulRun.carrying() === null) {
+        for (const s of e.souls) {
+          const glow = this.soulProps.get(s.id);
+          if (!glow || !this.soulRun.canPickup(s.id)) continue;
+          const dist3 = Math.hypot(
+            glow.position.x - b.x,
+            glow.position.y - b.y,
+            glow.position.z - b.z,
+          );
+          if (dist3 < e.pickupRadius && inBand(b.y, TRENCH.pickupBand) && this.soulRun.pickup(s.id)) {
+            disposeGroup(this.d.scene, glow);
+            this.soulProps.delete(s.id);
+            this.carryGlow = createSoulSprite();
+            this.d.scene.add(this.carryGlow);
+            this.d.hud.showToast(s.name, 'She rises with you. Carry her gently to the light.');
+            break;
+          }
+        }
+      } else {
+        if (this.carryGlow) {
+          this.carryGlow.position.set(b.x, b.y + 2.2, b.z);
+          this.carryGlow.rotation.y = this.time * 0.6;
+        }
+        if (b.y >= -0.3 && Math.hypot(b.x - e.hamlet.x, b.z - e.hamlet.z) < e.deliverRadius) {
+          const id = this.soulRun.deliver();
+          if (id) {
+            this.d.state.fates[id as SoulId] = 'saved'; // commits immediately
+            saveCampaign(this.d.state);
+            if (this.carryGlow) {
+              disposeGroup(this.d.scene, this.carryGlow);
+              this.carryGlow = null;
+            }
+            const name = e.souls.find((s) => s.id === id)?.name ?? id;
+            const left = this.soulRun.complete() ? null : 'One more trip. Choose who you go back for.';
+            this.d.hud.showToast(`${name} is safe`, left ?? 'The coastguard takes her aboard.');
+          }
+        }
+      }
+    }
+
     if (this.complete(beat)) this.finish(beat);
     else this.d.quest.setDistance(this.distanceToMarker());
   }
@@ -502,6 +671,14 @@ export class MissionSystem {
         if (this.leviathanDefeated) setFlag(this.d.state, 'slain');
         return this.leviathanDefeated;
       }
+      case 'multi-pickup': {
+        // All pieces aboard, then home: the dock completes the refit.
+        if (!this.multi || !this.multi.allCollected()) return false;
+        const d = Math.hypot(boat.x - this.d.greyharbor.dock.x, boat.z - this.d.greyharbor.dock.z);
+        return d < e.dockRadius;
+      }
+      case 'soul-transport':
+        return !!this.soulRun && this.soulRun.complete();
       default:
         return false;
     }
@@ -514,9 +691,20 @@ export class MissionSystem {
     // Act 2's ally branch contradicts a journal that says it was slain.)
     const spared = beat.encounter.kind === 'leviathan-boss' && !!this.d.state.flags['mercy'];
     const journalKey = spared ? undefined : r.journalKey;
-    const successLine = spared
+    let successLine = spared
       ? 'Lured into the trench, it sounds and dives — spared, not slain. The tide is yours, Captain. (To be continued.)'
       : r.successLine;
+    // Beat 13: the soul the sea keeps is chosen by omission — commit her fate
+    // and name her in the closing line.
+    if (beat.encounter.kind === 'soul-transport' && this.soulRun) {
+      const keptId = this.soulRun.keptSouls()[0];
+      if (keptId) {
+        this.d.state.fates[keptId as SoulId] = 'kept';
+        const keptName =
+          beat.encounter.souls.find((s) => s.id === keptId)?.name ?? 'One of them';
+        successLine = successLine.replace('{kept}', keptName);
+      }
+    }
     if (r.credits) addCredits(r.credits);
     if (r.karma) addKarma(r.karma);
     if (r.unlockBoat) unlockBoat(this.d.state, r.unlockBoat);
@@ -552,6 +740,25 @@ export class MissionSystem {
     this.leviathanDefeated = false;
     this.lure.reset();
     this.clearProp();
+    // Act 2 teardown — all scene-prop dressing and machines (idempotent).
+    for (const prop of this.multiProps.values()) disposeGroup(this.d.scene, prop);
+    this.multiProps.clear();
+    this.multi = null;
+    for (const glow of this.soulProps.values()) disposeGroup(this.d.scene, glow);
+    this.soulProps.clear();
+    if (this.hamletProp) {
+      disposeGroup(this.d.scene, this.hamletProp);
+      this.hamletProp = null;
+    }
+    if (this.recoveryProp) {
+      disposeGroup(this.d.scene, this.recoveryProp);
+      this.recoveryProp = null;
+    }
+    if (this.carryGlow) {
+      disposeGroup(this.d.scene, this.carryGlow);
+      this.carryGlow = null;
+    }
+    this.soulRun = null;
     // A mission-owned vessel (the towed Marigold, or a rescued boat) is handed
     // off at beat's end: detach the tow line so she isn't dragged into the next
     // beat, then despawn her. (Scripted-rescue vessels are also cleared by

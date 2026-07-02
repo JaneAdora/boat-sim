@@ -1,7 +1,30 @@
-import { STORY_BEATS } from './StoryBeats';
+import { STORY_BEATS, type StoryBeat } from './StoryBeats';
 
 const STORAGE_KEY = 'tb-story';
 const START_BOAT = 'Tugboat';
+
+/**
+ * The working beat array. Production: always exactly STORY_BEATS. The dev
+ * slice harness (compile-time-gated in Engine) extends it with unshipped
+ * Act 2 beats so they can be played before they append for real; nothing in
+ * a production build calls devExtendBeats.
+ */
+let WORKING_BEATS: readonly StoryBeat[] = STORY_BEATS;
+
+export function devExtendBeats(extra: StoryBeat[]): void {
+  WORKING_BEATS = [...STORY_BEATS, ...extra];
+}
+
+export function workingBeats(): readonly StoryBeat[] {
+  return WORKING_BEATS;
+}
+
+/** The dev harness plays with a synthetic beat pointer — its session must
+ *  never overwrite the real save. Default on; harness switches it off. */
+let persistEnabled = true;
+export function setPersistEnabled(on: boolean): void {
+  persistEnabled = on;
+}
 
 /**
  * Story Mode campaign progress — the save for "The Vanishing Tide".
@@ -91,6 +114,7 @@ export function loadCampaign(storage: Storage = localStorage): CampaignState | n
 }
 
 export function saveCampaign(state: CampaignState, storage: Storage = localStorage): void {
+  if (!persistEnabled) return; // dev harness session — never touch the real save
   try {
     storage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
@@ -107,11 +131,11 @@ export function resetCampaign(storage: Storage = localStorage): void {
 }
 
 export function currentBeat(state: CampaignState) {
-  return STORY_BEATS[state.beat] ?? null;
+  return WORKING_BEATS[state.beat] ?? null;
 }
 
 export function isComplete(state: CampaignState): boolean {
-  return state.beat >= STORY_BEATS.length;
+  return state.beat >= WORKING_BEATS.length;
 }
 
 export function markCompleted(state: CampaignState, id: string): void {
@@ -119,7 +143,7 @@ export function markCompleted(state: CampaignState, id: string): void {
 }
 
 export function advanceBeat(state: CampaignState): CampaignState {
-  if (state.beat < STORY_BEATS.length) state.beat++;
+  if (state.beat < WORKING_BEATS.length) state.beat++;
   state.armedBeat = null;
   return state;
 }

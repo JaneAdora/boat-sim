@@ -277,6 +277,13 @@ function showCampaignLaunch(): void {
 
 function startStory(def: BoatDefinition): void {
   if (activeEngine) return; // guard against the touchend + click double-fire
+  if (import.meta.env.DEV) {
+    // TB_DEV_HARNESS: ?boat=Submarine launches the slice straight in the sub,
+    // whatever the picker says. Dev builds only.
+    const q = new URLSearchParams(window.location.search).get('boat');
+    const override = q ? BOATS.find((b) => b.def.name === q) : undefined;
+    if (override) def = override.def;
+  }
   const state = loadCampaign() ?? newCampaign();
   state.lastBoat = def.name;
   saveCampaign(state);

@@ -10,7 +10,21 @@ export type EncounterSpec =
   | { kind: 'sonar-contact'; spawn: V2; radius: number; depth: number }
   | { kind: 'mermaid'; spawn: V2; radius: number }
   | { kind: 'leviathan-witness'; spawn: V2; radius: number }
-  | { kind: 'leviathan-boss'; spawn: V2; lurePasses: number };
+  | { kind: 'leviathan-boss'; spawn: V2; lurePasses: number }
+  // ── Act 2 ──
+  | {
+      kind: 'multi-pickup'; // beat 11: N salvage contacts, then return to dock
+      points: { id: string; x: number; z: number }[];
+      radius: number;
+      dockRadius: number;
+    }
+  | {
+      kind: 'soul-transport'; // beat 13: the Drowned Choir
+      hamlet: V2; // trench-floor site (depths come from TrenchProfile)
+      souls: { id: string; name: string; dx: number; dz: number }[];
+      pickupRadius: number; // 3D contact
+      deliverRadius: number; // surfaced, near the recovery vessel
+    };
 
 export interface StoryBeat {
   id: string;

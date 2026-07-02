@@ -72,7 +72,19 @@ import { MissionSystem } from './systems/MissionSystem';
 import { QuestLog } from './ui/QuestLog';
 import { StoryInterlude } from './ui/StoryInterlude';
 import { floorAt as trenchFloorAt } from './world/TrenchProfile';
-import { CampaignState, loadCampaign, newCampaign } from './state/CampaignState';
+import {
+  CampaignState,
+  loadCampaign,
+  newCampaign,
+  saveCampaign,
+  setFlag,
+  unlockBoat,
+  workingBeats,
+  devExtendBeats,
+  setPersistEnabled,
+} from './state/CampaignState';
+import { ACT2_BEATS } from './state/StoryBeatsAct2';
+import { ChoiceDialog } from './ui/ChoiceDialog';
 import { findStoryHarbor, StoryHarbor } from './state/StoryHarbor';
 
 // Reusable scratch vector for per-frame forward/heading math (avoids GC churn).
@@ -125,6 +137,9 @@ export class Engine {
   private mission: MissionSystem | null = null;
   private questLog: QuestLog | null = null;
   private interlude: StoryInterlude | null = null;
+  private choiceDialog: ChoiceDialog | null = null;
+  /** Arms the first story beat — possibly behind the Act 2 outcome dialog. */
+  private startMission: () => void = () => this.mission?.start();
   private greyharbor: StoryHarbor | null = null;
   private readonly canFly: boolean;
   private readonly canDive: boolean;
@@ -604,6 +619,29 @@ export class Engine {
       this.contracts.setAmbientEnabled(false);
 
       const state: CampaignState = loadCampaign() ?? newCampaign();
+
+      if (import.meta.env.DEV) {
+        // TB_DEV_HARNESS — slice testing only; stripped from production builds
+        // (scripts/assert-no-harness.mjs proves it). ?beat=N jumps to authored
+        // beat N with the unshipped Act 2 beats in the working array,
+        // prerequisites seeded, and persistence off so the real save is never
+        // touched.
+        const params = new URLSearchParams(window.location.search);
+        const beatParam = params.get('beat');
+        if (beatParam) {
+          devExtendBeats(ACT2_BEATS);
+          setPersistEnabled(false);
+          const n = Math.max(1, Math.min(parseInt(beatParam, 10) || 1, workingBeats().length));
+          state.beat = n - 1; // authored numbering → zero-based index
+          state.armedBeat = null;
+          if (n >= 5) unlockBoat(state, 'Submarine');
+          if (n >= 12) setFlag(state, 'deepRefit');
+          if (!state.flags.mercy && !state.flags.slain) {
+            setFlag(state, params.get('slain') ? 'slain' : 'mercy');
+          }
+        }
+      }
+
       // Deep refit (Act 2 beat 11): the sub's floor follows the trench profile
       // the moment the flag commits — the closure reads the live save state,
       // so no reload is needed between beats 11 and 12.
@@ -637,6 +675,31 @@ export class Engine {
         isInBoat: (name) => boatDef.name === name,
         interlude: this.interlude,
       });
+
+      // Act 2 entry with a pre-flag Act 1 finish: the save doesn't know
+      // whether the Leviathan was spared or slain, and the whole act branches
+      // on it. Ask once, blocking, before the first Act 2 beat arms.
+      this.startMission = () => {
+        const inActTwo = state.beat >= 8 && state.beat < workingBeats().length;
+        const outcomeKnown = !!state.flags.mercy || !!state.flags.slain;
+        if (!inActTwo || outcomeKnown) {
+          this.mission?.start();
+          return;
+        }
+        this.choiceDialog = new ChoiceDialog();
+        void this.choiceDialog
+          .show(
+            'The Vanishing Tide',
+            'Before the tide turns, the sea asks its question: when you faced the Leviathan at the trench... did you spare it, or slay it?',
+            'I spared it',
+            'I slew it',
+          )
+          .then((i) => {
+            setFlag(state, i === 0 ? 'mercy' : 'slain');
+            saveCampaign(state);
+            this.mission?.start();
+          });
+      };
     }
 
     // Keyboard toggles (stored for cleanup)
@@ -665,8 +728,9 @@ export class Engine {
     // Initial chunk load — around the campaign spawn if any, else the origin.
     this.chunkManager.update(this.config.spawn?.x ?? 0, this.config.spawn?.z ?? 0);
 
-    // Arm the first story beat (after the loop + chunks are ready).
-    this.mission?.start();
+    // Arm the first story beat (after the loop + chunks are ready) — possibly
+    // behind the Act 2 outcome dialog for pre-flag saves.
+    this.startMission();
 
     // Teach the non-obvious seaplane takeoff
     if (this.canFly) {
@@ -1021,6 +1085,7 @@ export class Engine {
     this.mission?.dispose();
     this.questLog?.dispose();
     this.interlude?.dispose();
+    this.choiceDialog?.dispose();
 
     // Tear down ECS systems — each removes its own listeners + GPU resources
     // (WeaponsSystem/TowingSystem keydown handlers, weapon effect buffers, etc.)
