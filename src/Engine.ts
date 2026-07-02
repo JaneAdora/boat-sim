@@ -71,6 +71,7 @@ import { GameConfig } from './state/GameConfig';
 import { MissionSystem } from './systems/MissionSystem';
 import { QuestLog } from './ui/QuestLog';
 import { StoryInterlude } from './ui/StoryInterlude';
+import { floorAt as trenchFloorAt } from './world/TrenchProfile';
 import { CampaignState, loadCampaign, newCampaign } from './state/CampaignState';
 import { findStoryHarbor, StoryHarbor } from './state/StoryHarbor';
 
@@ -603,6 +604,12 @@ export class Engine {
       this.contracts.setAmbientEnabled(false);
 
       const state: CampaignState = loadCampaign() ?? newCampaign();
+      // Deep refit (Act 2 beat 11): the sub's floor follows the trench profile
+      // the moment the flag commits — the closure reads the live save state,
+      // so no reload is needed between beats 11 and 12.
+      submarineSystem.setMaxDepthProvider((x, z) =>
+        state.flags.deepRefit ? trenchFloorAt(x, z) : -35,
+      );
       this.questLog = new QuestLog();
       this.interlude = new StoryInterlude();
       this.mission = new MissionSystem({
