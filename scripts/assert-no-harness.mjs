@@ -12,7 +12,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const DIST = new URL('../dist/assets', import.meta.url).pathname;
-const MARKERS = ['TB_DEV_HARNESS', 'drowned-choir', 'tide-stayed', 'setPersistEnabled'];
+// TB_DEV_HARNESS ships as a runtime string inside the harness block (survives
+// minification when the block is live); the beat ids exist only in Act 2 data.
+const MARKERS = ['TB_DEV_HARNESS', 'drowned-choir', 'tide-stayed'];
 
 let files;
 try {

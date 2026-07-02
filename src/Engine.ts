@@ -620,12 +620,12 @@ export class Engine {
 
       const state: CampaignState = loadCampaign() ?? newCampaign();
 
-      if (import.meta.env.DEV) {
-        // TB_DEV_HARNESS — slice testing only; stripped from production builds
-        // (scripts/assert-no-harness.mjs proves it). ?beat=N jumps to authored
-        // beat N with the unshipped Act 2 beats in the working array,
-        // prerequisites seeded, and persistence off so the real save is never
-        // touched.
+      if (import.meta.env.VITE_STORY_HARNESS) {
+        // The dev slice harness — present ONLY in builds made with
+        // VITE_STORY_HARNESS=1 (scripts/assert-no-harness.mjs proves normal
+        // builds are clean). ?beat=N jumps to authored beat N with the
+        // unshipped Act 2 beats in the working array, prerequisites seeded,
+        // and persistence off so the real save is never touched.
         const params = new URLSearchParams(window.location.search);
         const beatParam = params.get('beat');
         if (beatParam) {
@@ -639,6 +639,7 @@ export class Engine {
           if (!state.flags.mercy && !state.flags.slain) {
             setFlag(state, params.get('slain') ? 'slain' : 'mercy');
           }
+          console.info('TB_DEV_HARNESS active — beat', n, '(save persistence off)');
         }
       }
 

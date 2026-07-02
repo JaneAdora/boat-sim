@@ -13,3 +13,4 @@ dist
 !storyboard/img/*.jpg
 .playwright-mcp/
 .netlify/
+dist-dev
