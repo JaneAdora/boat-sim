@@ -70,6 +70,7 @@ import { BoatControl } from './components/BoatControl';
 import { GameConfig } from './state/GameConfig';
 import { MissionSystem } from './systems/MissionSystem';
 import { QuestLog } from './ui/QuestLog';
+import { StoryInterlude } from './ui/StoryInterlude';
 import { CampaignState, loadCampaign, newCampaign } from './state/CampaignState';
 import { findStoryHarbor, StoryHarbor } from './state/StoryHarbor';
 
@@ -122,6 +123,7 @@ export class Engine {
   // Story Mode (campaign only) — null in Free Roam.
   private mission: MissionSystem | null = null;
   private questLog: QuestLog | null = null;
+  private interlude: StoryInterlude | null = null;
   private greyharbor: StoryHarbor | null = null;
   private readonly canFly: boolean;
   private readonly canDive: boolean;
@@ -602,6 +604,7 @@ export class Engine {
 
       const state: CampaignState = loadCampaign() ?? newCampaign();
       this.questLog = new QuestLog();
+      this.interlude = new StoryInterlude();
       this.mission = new MissionSystem({
         state,
         quest: this.questLog,
@@ -625,6 +628,7 @@ export class Engine {
           return { x: t?.position.x ?? 0, z: t?.position.z ?? 0, y: t?.position.y ?? 0 };
         },
         isInBoat: (name) => boatDef.name === name,
+        interlude: this.interlude,
       });
     }
 
@@ -1009,6 +1013,7 @@ export class Engine {
     // subsystems are torn down below.
     this.mission?.dispose();
     this.questLog?.dispose();
+    this.interlude?.dispose();
 
     // Tear down ECS systems — each removes its own listeners + GPU resources
     // (WeaponsSystem/TowingSystem keydown handlers, weapon effect buffers, etc.)

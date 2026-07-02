@@ -23,6 +23,25 @@ import type { MermaidSystem } from './MermaidSystem';
 import type { LeviathanSystem } from './LeviathanSystem';
 import type { WeatherSystem } from '../rendering/WeatherSystem';
 import { LureCounter } from '../state/LureCounter';
+import type { InterludeCard } from '../ui/StoryInterlude';
+
+/**
+ * Which storyboard plate (public/story/panel-NN.jpg) plays at each beat
+ * boundary. 'begin' cards show the beat's brief; 'complete' cards show its
+ * successLine. Plate 01 (the Greyharbor title card) fires once on a fresh
+ * campaign; beat 8 has no card — the finale stays pure gameplay.
+ */
+const INTERLUDE_PLATES: Record<string, { begin?: number; complete?: number }> = {
+  'empty-berth': { begin: 2, complete: 3 },
+  'message-swell': { complete: 4 },
+  'reef-wrecks': { complete: 5 },
+  'souls-water': { begin: 6, complete: 7 },
+  'down-dark': { complete: 8 },
+  'mermaid-warning': { complete: 9 },
+  witness: { complete: 10 },
+};
+
+const plateUrl = (n: number): string => `/story/panel-${String(n).padStart(2, '0')}.jpg`;
 
 export interface MissionDeps {
   state: CampaignState;
@@ -44,6 +63,8 @@ export interface MissionDeps {
   disarmed: boolean;
   getBoatPos(): { x: number; z: number; y: number };
   isInBoat(name: string): boolean;
+  /** Full-screen story cards at beat boundaries (see INTERLUDE_PLATES). */
+  interlude: { show(card: InterludeCard): void; preload(image: string): void };
 }
 
 /**
@@ -83,12 +104,35 @@ export class MissionSystem {
   private lure = new LureCounter();
   /** Beat 1: the "press G to tow" hint shows once when first near the Marigold. */
   private towHintShown = false;
+  /** Beat 5: one-time "swap boats via ESC" hint when idling at the dock in the
+   *  wrong boat — the swap mechanism is otherwise never explained. */
+  private swapHintShown = false;
+  /** Beat 5: one-time "dive deeper" nudge when over the reef but too shallow. */
+  private diveHintShown = false;
+  /** Beat 8 (lure path): last banked pass count, for progress toasts. */
+  private lastLurePasses = 0;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
 
   start(): void {
+    // A brand-new campaign opens on the Greyharbor title plate before beat 1's
+    // own card — the pair reads as the story's cold open.
+    if (this.d.state.beat === 0 && this.d.state.completed.length === 0) {
+      this.showPlate(1, 'Greyharbor', 'The eastern boats aren’t coming home.');
+    }
     this.armCurrent();
+  }
+
+  /** Show a storyboard plate once per campaign (seen-flags persist in the
+   *  save). Returns false if it was already seen (caller falls back to toast). */
+  private showPlate(n: number, title: string, line: string): boolean {
+    const key = `il${String(n).padStart(2, '0')}`;
+    if (this.d.state.flags[key]) return false;
+    setFlag(this.d.state, key);
+    saveCampaign(this.d.state);
+    this.d.interlude.show({ image: plateUrl(n), title, line });
+    return true;
   }
 
   getMarker(): { x: number; z: number } | null {
@@ -191,9 +235,22 @@ export class MissionSystem {
     this.d.state.armedBeat = this.d.state.beat;
     // R3: if this leg needs a boat the player isn't currently in, the objective
     // nudges them to swap (the marker — getMarker — points back to the dock).
+    // The swap lives behind ESC, which nothing else teaches — say so here.
     const wrongBoat = beat.requiresBoat && !this.d.isInBoat(beat.requiresBoat);
-    this.d.quest.set(beat.title, wrongBoat ? `Take the ${beat.requiresBoat} out.` : beat.objective);
-    this.d.hud.showToast(beat.title, beat.brief);
+    let objective = beat.objective;
+    if (wrongBoat) objective = `Take the ${beat.requiresBoat} out — press ESC to change boats.`;
+    // No-weapons finale: the objective leads with the lure, not the fight.
+    else if (beat.encounter.kind === 'leviathan-boss' && this.d.disarmed)
+      objective = 'Lure the Leviathan: draw it close to the trench, then pull away. Three passes.';
+    this.d.quest.set(beat.title, objective);
+    // The beat's begin-card (if it has one and it hasn't played) replaces the
+    // brief toast; on reloads the seen-flag skips the card and the toast fires.
+    const plates = INTERLUDE_PLATES[beat.id];
+    const cardShown = plates?.begin
+      ? this.showPlate(plates.begin, beat.title, beat.brief)
+      : false;
+    if (!cardShown) this.d.hud.showToast(beat.title, beat.brief);
+    if (plates?.complete) this.d.interlude.preload(plateUrl(plates.complete));
     this.arm(beat);
     saveCampaign(this.d.state);
   }
@@ -205,6 +262,9 @@ export class MissionSystem {
     this.sonarPinged = false;
     this.spectacleTriggered = false;
     this.towHintShown = false;
+    this.swapHintShown = false;
+    this.diveHintShown = false;
+    this.lastLurePasses = 0;
 
     switch (e.kind) {
       case 'tow-derelict': {
@@ -289,6 +349,32 @@ export class MissionSystem {
       }
     }
 
+    // Beat 5 unstick hints — the two places players stall with no feedback:
+    // (a) at the dock in the wrong boat, not knowing ESC is the swap; (b) over
+    // the reef in the sub but level too shallow for the contact depth.
+    if (beat.encounter.kind === 'sonar-contact' && beat.requiresBoat) {
+      const b = this.d.getBoatPos();
+      if (!this.d.isInBoat(beat.requiresBoat)) {
+        if (!this.swapHintShown) {
+          const dock = this.d.greyharbor.dock;
+          if (Math.hypot(b.x - dock.x, b.z - dock.z) < 70) {
+            this.swapHintShown = true;
+            this.d.hud.showToast(
+              'Greyharbor dock',
+              `Press ESC and choose the ${beat.requiresBoat}, then set sail.`,
+            );
+          }
+        }
+      } else if (!this.diveHintShown && !this.sonarPinged) {
+        const e = beat.encounter;
+        const flat = Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z);
+        if (flat < e.radius && b.y >= e.depth) {
+          this.diveHintShown = true;
+          this.d.hud.showToast('The wrecks below', 'You’re over them — dive deeper (hold ▼ / Shift).');
+        }
+      }
+    }
+
     if (this.complete(beat)) this.finish(beat);
     else this.d.quest.setDistance(this.distanceToMarker());
   }
@@ -353,6 +439,16 @@ export class MissionSystem {
           // No-weapons path: lure the chasing beast into the trench mouth.
           const dist = Math.hypot(boat.x - e.spawn.x, boat.z - e.spawn.z);
           const done = this.lure.step(dist, this.d.leviathan.scriptedBossActive());
+          // Surface the invisible counter: each banked pass gets a beat of
+          // feedback, or the player has no idea the lure is even working.
+          const passes = this.lure.getPasses();
+          if (!done && passes !== this.lastLurePasses) {
+            this.lastLurePasses = passes;
+            this.d.hud.showToast(
+              'The lure holds',
+              `It follows you in — pass ${passes} of 3. Pull away and come round again.`,
+            );
+          }
           if (done) this.d.leviathan.endScripted(); // it sounds and dives
           return done;
         }
@@ -371,7 +467,13 @@ export class MissionSystem {
     if (r.unlockBoat) unlockBoat(this.d.state, r.unlockBoat);
     if (r.journalKey) this.d.journal.log(r.journalKey);
     if (r.flag) setFlag(this.d.state, r.flag);
-    this.d.hud.showToast(beat.title, r.successLine);
+    // The beat's completion plate carries the success line; the toast is the
+    // fallback for beats without a card (or replays where it's been seen).
+    const plates = INTERLUDE_PLATES[beat.id];
+    const cardShown = plates?.complete
+      ? this.showPlate(plates.complete, beat.title, r.successLine)
+      : false;
+    if (!cardShown) this.d.hud.showToast(beat.title, r.successLine);
     markCompleted(this.d.state, beat.id);
     advanceBeat(this.d.state);
     saveCampaign(this.d.state);
