@@ -139,6 +139,30 @@ export function createDrownedHamlet(): THREE.Group {
   return g;
 }
 
+/** The guardian Leviathan (beat 14, mercy branch): a line of dark humps and a
+ *  head breaking the surface — a presence circling the boat, not a combatant.
+ *  Deliberately NOT a wildlife entity, so weapons and tow lines can't see it. */
+export function createGuardianSerpent(): THREE.Group {
+  const g = new THREE.Group();
+  const hide = new THREE.MeshStandardMaterial({
+    color: 0x1f4a44,
+    roughness: 0.55,
+    emissive: 0x2fae96,
+    emissiveIntensity: 0.25,
+  });
+  const head = new THREE.Mesh(new THREE.ConeGeometry(2.2, 7, 8), hide);
+  head.rotation.x = Math.PI / 2.6; // nose up out of the water
+  head.position.set(0, 2.2, 4);
+  g.add(head);
+  for (let i = 0; i < 4; i++) {
+    const hump = new THREE.Mesh(new THREE.SphereGeometry(2.4 - i * 0.35, 10, 8), hide);
+    hump.scale.y = 0.55;
+    hump.position.set(0, 0.6, -4 - i * 7);
+    g.add(hump);
+  }
+  return g;
+}
+
 /** A departing merfolk silhouette (beat 10's exodus): a dim teal glimmer just
  *  under the surface, built to be seen leaving, not met. */
 export function createMermaidSilhouette(): THREE.Group {

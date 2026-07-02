@@ -10,7 +10,7 @@ import {
   setFlag,
   saveCampaign,
 } from '../state/CampaignState';
-import type { StoryBeat } from '../state/StoryBeats';
+import type { StoryBeat, EncounterSpec } from '../state/StoryBeats';
 import type { MissionInstance } from '../components/MissionInstance';
 import { addCredits } from '../state/Wallet';
 import { addKarma } from '../state/Karma';
@@ -25,6 +25,8 @@ import type { WeatherSystem } from '../rendering/WeatherSystem';
 import { LureCounter } from '../state/LureCounter';
 import { MultiPickup } from '../state/MultiPickup';
 import { SoulTransport } from '../state/SoulTransport';
+import { HoldTimer } from '../state/HoldTimer';
+import { RescueSequence } from '../state/RescueSequence';
 import type { SoulId } from '../state/CampaignState';
 import { TRENCH, inBand } from '../world/TrenchProfile';
 import {
@@ -58,6 +60,8 @@ const INTERLUDE_PLATES: Record<string, { begin?: number; complete?: number }> = 
   'deep-refit': { complete: 13 },
   'into-trench': { complete: 14 },
   'drowned-choir': { complete: 15 },
+  'old-enemy': { complete: 16 },
+  'king-tide': { begin: 17 },
 };
 
 const plateUrl = (n: number): string => `/story/panel-${String(n).padStart(2, '0')}.jpg`;
@@ -152,6 +156,12 @@ export class MissionSystem {
   /** Beat 10: the mermaid waits for dark; her people leave when she sings. */
   private exodusStarted = false;
   private exodusSwimmers: { group: THREE.Group; vx: number; vz: number; age: number }[] = [];
+  /** Beat 14: the mission-owned hold clock (authoritative for both branches). */
+  private hold: HoldTimer | null = null;
+  private holdEntered = false;
+  private holdMidpointToasted = false;
+  /** Beat 15: the storm-rescue sequencer. */
+  private rescueSeq: RescueSequence | null = null;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -223,6 +233,22 @@ export class MissionSystem {
     // Beat 13: the hamlet below (and the recovery vessel above it — same column).
     if (beat?.encounter.kind === 'soul-transport') {
       return { x: beat.encounter.hamlet.x, z: beat.encounter.hamlet.z };
+    }
+    // Beat 15: track the current stage's vessel; once hooked, point to clear
+    // water past the safe radius (the clearPoint pattern from beat 4).
+    if (beat?.encounter.kind === 'rescue-sequence' && this.rescueSeq) {
+      const stage = this.rescueSeq.currentStage();
+      if (stage != null) {
+        const p = beat.encounter.points[stage];
+        const vessel = this.d.distress.getScriptedVessel();
+        if (vessel) {
+          if (this.d.towing.getTowedEntity() === vessel) {
+            return this.clearPoint(p, beat.encounter.safeRadius);
+          }
+          return { x: vessel.mesh.position.x, z: vessel.mesh.position.z };
+        }
+        return { x: p.x, z: p.z };
+      }
     }
     // Beat 4: after the foundering vessel is hooked, point to clear water (toward
     // home, past the danger radius); before that, track the vessel at the mayday.
@@ -434,10 +460,44 @@ export class MissionSystem {
         this.d.scene.add(this.recoveryProp);
         break;
       }
+      case 'guardian': {
+        // Beat 14: the hold clock is mission-owned and identical for both
+        // branches; the branch decides presence (guardian circles) vs absence
+        // (storm, alone) — never the completion logic.
+        const spared = !!this.d.state.flags['mercy'];
+        this.hold = new HoldTimer(spared ? e.mercySeconds : e.slainSeconds);
+        this.holdEntered = false;
+        this.holdMidpointToasted = false;
+        if (spared) this.d.leviathan.beginScripted(e.spawn.x, e.spawn.z, 'guardian');
+        else this.d.weather.beginScriptedStorm();
+        break;
+      }
+      case 'rescue-sequence': {
+        // Beat 15: forced storm; stages hydrate from per-stage flags so a
+        // reload (or a lost vessel) restarts the current rescue, never the arc.
+        this.d.weather.beginScriptedStorm();
+        this.rescueSeq = new RescueSequence(e.points.length);
+        this.rescueSeq.hydrate(e.points.map((_, i) => !!this.d.state.flags[`kt_rescue_${i + 1}`]));
+        this.spawnRescueStage(e);
+        break;
+      }
       default:
         // sonar-contact is marker-only (R3 handles the dock swap in getMarker).
         break;
     }
+  }
+
+  /** Spawn (or respawn) the current king-tide rescue stage's vessel. */
+  private spawnRescueStage(e: Extract<EncounterSpec, { kind: 'rescue-sequence' }>): void {
+    const stage = this.rescueSeq?.currentStage();
+    if (stage == null) return;
+    const p = e.points[stage];
+    const vessel = this.d.distress.beginScriptedRescue(p.x, p.z);
+    this.d.wildlife.setMissionOwned(vessel, true);
+    this.d.wildlife.setUntargetable(vessel);
+    this.instance = { beatId: 'king-tide', ref: vessel };
+    this.d.towing.setPreferredTowable(vessel);
+    this.rescueHooked = false;
   }
 
   /** Instance-backed encounters must still have their critical object; the
@@ -451,6 +511,11 @@ export class MissionSystem {
       }
       case 'rescue':
         return this.d.distress.getScriptedVessel() !== null;
+      case 'rescue-sequence':
+        // Mid-arc a live stage must have its vessel; done means done.
+        return !this.rescueSeq || this.rescueSeq.complete()
+          ? true
+          : this.d.distress.getScriptedVessel() !== null;
       case 'pickup':
         return this.prop !== null;
       default:
@@ -662,6 +727,61 @@ export class MissionSystem {
       }
     }
 
+    // Beat 14: tick the hold clock — surfaced, inside the radius. Leaving
+    // pauses; the feedback tells the player the clock is real.
+    if (beat.encounter.kind === 'guardian' && this.hold) {
+      const e = beat.encounter;
+      const b = this.d.getBoatPos();
+      const inside =
+        b.y >= -0.3 && Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z) < e.holdRadius;
+      this.hold.step(dt, inside);
+      if (inside && !this.holdEntered) {
+        this.holdEntered = true;
+        this.d.hud.showToast(
+          'Hold the line',
+          this.d.state.flags['mercy']
+            ? 'Something vast rises — and circles you, not at you. Keep her steady.'
+            : 'The glow climbs. Nothing comes to stand beside you. Keep her steady.',
+        );
+      }
+      if (inside && !this.holdMidpointToasted && this.hold.progress() >= 0.5) {
+        this.holdMidpointToasted = true;
+        this.d.hud.showToast('The water holds', 'Halfway. The glow is slowing.');
+      }
+    }
+
+    // Beat 15: run the current rescue stage through the scripted-rescue
+    // contract; each save commits a stage flag and the next boat calls.
+    if (beat.encounter.kind === 'rescue-sequence' && this.rescueSeq && !this.rescueSeq.complete()) {
+      const e = beat.encounter;
+      const stage = this.rescueSeq.currentStage();
+      const vessel = this.d.distress.getScriptedVessel();
+      if (stage != null && vessel) {
+        if (this.d.towing.getTowedEntity() === vessel) this.rescueHooked = true;
+        const p = e.points[stage];
+        const clear =
+          this.rescueHooked &&
+          this.d.towing.getTowedEntity() === vessel &&
+          Math.hypot(vessel.mesh.position.x - p.x, vessel.mesh.position.z - p.z) > e.safeRadius;
+        if (clear && this.rescueSeq.completeStage(stage)) {
+          setFlag(this.d.state, `kt_rescue_${stage + 1}`);
+          saveCampaign(this.d.state);
+          this.d.towing.releaseEntity(vessel);
+          this.d.wildlife.setMissionOwned(vessel, false);
+          this.d.distress.endScripted();
+          this.instance = null;
+          const n = this.rescueSeq.completedCount();
+          if (!this.rescueSeq.complete()) {
+            this.d.hud.showToast(
+              `${n} of ${e.points.length} saved`,
+              n === 1 ? 'Two crews still out there. The next boat is calling.' : 'One more out there. Bring them home.',
+            );
+            this.spawnRescueStage(e);
+          }
+        }
+      }
+    }
+
     if (this.complete(beat)) this.finish(beat);
     else this.d.quest.setDistance(this.distanceToMarker());
   }
@@ -758,6 +878,11 @@ export class MissionSystem {
       }
       case 'soul-transport':
         return !!this.soulRun && this.soulRun.complete();
+      case 'guardian':
+        // The clock is stepped in update(); completion is just its verdict.
+        return !!this.hold && this.hold.complete();
+      case 'rescue-sequence':
+        return !!this.rescueSeq && this.rescueSeq.complete();
       default:
         return false;
     }
@@ -773,6 +898,8 @@ export class MissionSystem {
     let successLine = spared
       ? 'Lured into the trench, it sounds and dives — spared, not slain. The tide is yours, Captain. (To be continued.)'
       : r.successLine;
+    // Branch-flavored closings (beat 14's guardian vs its absence).
+    if (r.slainLine && this.d.state.flags['slain']) successLine = r.slainLine;
     // Beat 13: the soul the sea keeps is chosen by omission — commit her fate
     // and name her in the closing line.
     if (beat.encounter.kind === 'soul-transport' && this.soulRun) {
@@ -845,6 +972,8 @@ export class MissionSystem {
     for (const s of this.exodusSwimmers) disposeGroup(this.d.scene, s.group);
     this.exodusSwimmers = [];
     this.exodusStarted = false;
+    this.hold = null;
+    this.rescueSeq = null;
     // A mission-owned vessel (the towed Marigold, or a rescued boat) is handed
     // off at beat's end: detach the tow line so she isn't dragged into the next
     // beat, then despawn her. (Scripted-rescue vessels are also cleared by

@@ -24,6 +24,18 @@ export type EncounterSpec =
       souls: { id: string; name: string; dx: number; dz: number }[];
       pickupRadius: number; // 3D contact
       deliverRadius: number; // surfaced, near the recovery vessel
+    }
+  | {
+      kind: 'guardian'; // beat 14: hold the line at the trench mouth, surfaced
+      spawn: V2;
+      holdRadius: number;
+      mercySeconds: number; // the spared Leviathan circles with you
+      slainSeconds: number; // nobody comes; longer, under storm
+    }
+  | {
+      kind: 'rescue-sequence'; // beat 15: three rescues, in order, under storm
+      points: V2[];
+      safeRadius: number;
     };
 
 export interface StoryBeat {
@@ -40,6 +52,9 @@ export interface StoryBeat {
     journalKey?: keyof typeof JOURNAL_ENTRIES;
     flag?: string;
     successLine: string;
+    /** Alternate closing line when the save carries `slain` (beats whose
+     *  meaning branches on the Act 1 finale — e.g. the guardian's absence). */
+    slainLine?: string;
   };
 }
 

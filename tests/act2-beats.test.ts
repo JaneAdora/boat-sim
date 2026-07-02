@@ -55,14 +55,24 @@ describe('Act 2 beat graph', () => {
   });
 
   it('exactly the shipped beats are in the production working array', () => {
-    // ACT2_SHIPPED must track the plan's stages: 9–13 as of stage 2.
+    // ACT2_SHIPPED must track the plan's stages: 9–15 as of stage 3.
     expect(ACT2_SHIPPED.map((b) => b.id)).toEqual([
       'tide-stayed',
       'exodus',
       'deep-refit',
       'into-trench',
       'drowned-choir',
+      'old-enemy',
+      'king-tide',
     ]);
+  });
+
+  it('the guardian beat carries both branch closings', () => {
+    const guardian = ACT2_BEATS.find((b) => b.id === 'old-enemy')!;
+    expect(guardian.reward.successLine.length).toBeGreaterThan(0);
+    expect(guardian.reward.slainLine?.length).toBeGreaterThan(0);
+    if (guardian.encounter.kind !== 'guardian') throw new Error('wrong kind');
+    expect(guardian.encounter.slainSeconds).toBeGreaterThan(guardian.encounter.mercySeconds);
   });
 
   it('the drowned-choir success line names the kept soul', () => {
@@ -75,6 +85,17 @@ describe('Act 2 locations are open water', () => {
   it('the flats derelict and night-waters mermaid float clear of land', () => {
     expect(isOpenWater(ACT2_LOCATIONS.flats.x, ACT2_LOCATIONS.flats.z)).toBe(true);
     expect(isOpenWater(ACT2_LOCATIONS.nightWaters.x, ACT2_LOCATIONS.nightWaters.z)).toBe(true);
+  });
+
+  it('the trench mouth and all king-tide rescue points are open water', () => {
+    const guardian = ACT2_BEATS.find((b) => b.id === 'old-enemy')!;
+    if (guardian.encounter.kind !== 'guardian') throw new Error('wrong kind');
+    expect(isOpenWater(guardian.encounter.spawn.x, guardian.encounter.spawn.z)).toBe(true);
+    const kt = ACT2_BEATS.find((b) => b.id === 'king-tide')!;
+    if (kt.encounter.kind !== 'rescue-sequence') throw new Error('wrong kind');
+    for (const p of kt.encounter.points) {
+      expect(isOpenWater(p.x, p.z), `kt point (${p.x},${p.z})`).toBe(true);
+    }
   });
 
   it('all salvage points sit in open water at the reef', () => {

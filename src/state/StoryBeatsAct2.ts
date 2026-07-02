@@ -112,13 +112,56 @@ export const ACT2_BEATS: StoryBeat[] = [
         'Two came back to the light. {kept} stays below, singing — the sea keeps one voice for itself.',
     },
   },
+  // ── SHIPPED (stage 3): beats 14–15 ──
+  {
+    id: 'old-enemy',
+    title: 'An Old Enemy',
+    brief: 'The deep stirs. A pale glow is climbing the trench — hold the water above it.',
+    objective: 'Hold your position at the trench mouth, on the surface.',
+    encounter: {
+      kind: 'guardian',
+      spawn: { x: 940, z: 86 },
+      holdRadius: 80,
+      mercySeconds: 60,
+      slainSeconds: 90,
+    },
+    reward: {
+      credits: 80,
+      journalKey: 'the-guardian',
+      successLine:
+        'It circled you the whole time the glow climbed — vast, silent, remembering. What you spared has not forgotten you.',
+      slainLine:
+        'You held the water alone while the glow climbed and searched, and nothing rose to stand beside you. The sea remembers what was taken from it.',
+    },
+  },
+  {
+    id: 'king-tide',
+    title: 'The King Tide',
+    brief: 'The deep heaves. A king tide bears down on Greyharbor — and three crews are still out.',
+    objective: 'Reach each stricken boat and tow it clear. Three crews are counting on you.',
+    encounter: {
+      kind: 'rescue-sequence',
+      points: [
+        { x: -520, z: -40 },
+        { x: -360, z: 40 },
+        { x: -320, z: -120 },
+      ],
+      safeRadius: 120,
+    },
+    reward: {
+      credits: 100,
+      karma: 10,
+      successLine:
+        'Three boats home through the worst water the harbour has ever known. Greyharbor holds — because you held.',
+    },
+  },
 ];
 
 /**
  * The Act 2 beats currently SHIPPED to production (they join the working
- * array for every player). Grows by stage — 9–13 shipped in plan stage 2;
- * 14–15 land with stage 3, 16 with stage 4. The dev harness uses the full
+ * array for every player). Grows by stage — 9–13 shipped in stage 2, 14–15
+ * in stage 3; 16 lands with stage 4. The dev harness uses the full
  * ACT2_BEATS regardless, so unshipped beats stay playable behind
  * VITE_STORY_HARNESS.
  */
-export const ACT2_SHIPPED: StoryBeat[] = ACT2_BEATS.slice(0, 5);
+export const ACT2_SHIPPED: StoryBeat[] = ACT2_BEATS.slice(0, 7);

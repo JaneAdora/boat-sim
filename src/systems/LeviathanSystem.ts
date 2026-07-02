@@ -3,7 +3,7 @@ import { Ocean } from '../rendering/Ocean';
 import { ChunkManager } from '../world/ChunkManager';
 import { WildlifeSystem, WildlifeEntity } from './WildlifeSystem';
 import { hasWitnessedLeviathan, recordLeviathanWitnessed } from '../state/LeviathanState';
-import { createDoomedShip, disposeGroup } from '../props/StoryProps';
+import { createDoomedShip, createGuardianSerpent, disposeGroup } from '../props/StoryProps';
 
 export interface LeviathanCallbacks {
   /** The spectacle played out — journal the sighting. */
@@ -44,8 +44,15 @@ export class LeviathanSystem {
   // and the spectacle/boss never fire their ambient witnessed/slain rewards —
   // the MissionSystem owns them. persistStorm keeps the boss up regardless of
   // the live weather (the forced scripted storm drives the visuals).
-  private scripted: { phase: 'spectacle' | 'boss'; persistStorm: boolean } | null = null;
+  private scripted: { phase: 'spectacle' | 'boss' | 'guardian'; persistStorm: boolean } | null =
+    null;
   private scriptedSpectacleDone = false;
+  // Act 2 beat 14 (mercy branch): a circling presence, not a combatant. Lives
+  // OUTSIDE the phase machine and the wildlife registry — weapons, slams, and
+  // banners never touch it.
+  private guardianMesh: THREE.Group | null = null;
+  private guardianAngle = 0;
+  private static readonly GUARDIAN_RADIUS = 60;
 
   // Spectacle props
   private doomedShip: THREE.Group | null = null;
@@ -74,6 +81,20 @@ export class LeviathanSystem {
     this.time += dt;
     if (rain < STORM_END) this.stormRolled = false; // storm over → next storm rolls fresh
 
+    // The guardian circles the boat, slow and huge, riding the swell. It runs
+    // beside the phase machine (phase stays 'lurking'; tryAwaken is frozen by
+    // the scripted guard), so nothing combat-shaped can reach it.
+    if (this.scripted?.phase === 'guardian' && this.guardianMesh) {
+      this.guardianAngle += dt * 0.22;
+      const r = LeviathanSystem.GUARDIAN_RADIUS;
+      const gx = boatX + Math.cos(this.guardianAngle) * r;
+      const gz = boatZ + Math.sin(this.guardianAngle) * r;
+      const gy = this.ocean.getWaveHeight(gx, gz, this.time) - 0.4;
+      this.guardianMesh.position.set(gx, gy, gz);
+      // Face along the tangent of the circle, nose leading.
+      this.guardianMesh.rotation.y = -this.guardianAngle;
+    }
+
     switch (this.phase) {
       case 'lurking':
         this.rollTimer -= dt;
@@ -99,12 +120,26 @@ export class LeviathanSystem {
    * raises the boss. Neither scripted phase fires the ambient witnessed/slain
    * reward — the MissionSystem grants the beat.
    */
-  beginScripted(x: number, z: number, phase: 'spectacle' | 'boss', persistStorm = true): void {
+  beginScripted(
+    x: number,
+    z: number,
+    phase: 'spectacle' | 'boss' | 'guardian',
+    persistStorm = true,
+  ): void {
     this.clearActive();
     this.scripted = { phase, persistStorm };
     this.scriptedSpectacleDone = false;
     if (phase === 'spectacle') this.beginSpectacle(x, z);
-    else this.beginBoss(x, z); // entity cleared above, so beginBoss won't early-out
+    else if (phase === 'boss') this.beginBoss(x, z); // entity cleared above, so beginBoss won't early-out
+    else {
+      // Guardian: surfaces near the given point and thereafter circles the
+      // player (see update). No wildlife entity, no banner, no slams.
+      this.guardianMesh = createGuardianSerpent();
+      this.guardianMesh.position.set(x, 0, z);
+      this.scene.add(this.guardianMesh);
+      this.guardianAngle = 0;
+      this.callbacks.groan();
+    }
   }
 
   /** End the scripted encounter (idempotent). Tears down any live spectacle/boss
@@ -141,6 +176,10 @@ export class LeviathanSystem {
   /** Tear down whatever ambient/scripted spectacle or boss is currently live,
    *  returning to 'lurking' WITHOUT firing any reward callback. */
   private clearActive(): void {
+    if (this.guardianMesh) {
+      disposeGroup(this.scene, this.guardianMesh);
+      this.guardianMesh = null;
+    }
     if (this.phase === 'spectacle') {
       if (this.doomedShip) disposeGroup(this.scene, this.doomedShip);
       if (this.spectacleTentacles) disposeGroup(this.scene, this.spectacleTentacles);

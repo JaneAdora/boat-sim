@@ -16,7 +16,7 @@ const DIST = new URL('../dist/assets', import.meta.url).pathname;
 // minification when the block is live). Beat-id markers track UNSHIPPED
 // stages only: 9–13 shipped in stage 2, so their ids are legitimately in
 // prod now; 14–16 ids join ACT2_SHIPPED (and leave this list) with stages 3–4.
-const MARKERS = ['TB_DEV_HARNESS', 'old-enemy', 'king-tide', 'drowned-light'];
+const MARKERS = ['TB_DEV_HARNESS', 'drowned-light'];
 
 let files;
 try {
