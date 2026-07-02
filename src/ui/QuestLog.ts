@@ -79,9 +79,11 @@ export class QuestLog {
     this.applyVisibility();
   }
 
-  /** Campaign finished — a closing line in place of an active objective. */
+  /** End of the shipped story — a closing line in place of an active
+   *  objective. Act-agnostic on purpose: it marks the water's edge of
+   *  whatever content has shipped so far. */
   complete(): void {
-    this.set('The Vanishing Tide', 'Act 1 complete — to be continued.');
+    this.set('The Vanishing Tide', 'To be continued — the rest of the tide is still coming in.');
     this.setDistance(null);
   }
 

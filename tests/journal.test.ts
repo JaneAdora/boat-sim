@@ -36,6 +36,6 @@ describe('JournalTracker', () => {
     const j = new JournalTracker(storage);
     expect(j.log('kraken' as never)).toBeNull();
     expect(j.count()).toBe(0);
-    expect(JOURNAL_TOTAL).toBe(20);
+    expect(JOURNAL_TOTAL).toBe(21); // +drowned-choir (Act 2 stage 2)
   });
 });

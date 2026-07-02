@@ -668,6 +668,8 @@ export class Engine {
         leviathan: this.leviathan,
         weather: this.weather,
         sonarPing: () => this.soundEffects.playSonarPing(),
+        bellToll: () => this.soundEffects.playBellToll(),
+        isNight: () => this.dayNightSystem.getSunDirection().y < -0.1,
         disarmed: combatSettings.disarmed,
         getBoatPos: () => {
           const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');

@@ -32,6 +32,8 @@ import {
   createSoulSprite,
   createRecoveryVessel,
   createDrownedHamlet,
+  createBellBuoy,
+  createMermaidSilhouette,
   disposeGroup,
 } from '../props/StoryProps';
 import type { InterludeCard } from '../ui/StoryInterlude';
@@ -50,6 +52,12 @@ const INTERLUDE_PLATES: Record<string, { begin?: number; complete?: number }> = 
   'down-dark': { complete: 8 },
   'mermaid-warning': { complete: 9 },
   witness: { complete: 10 },
+  // ── Act 2 (plates 11–18 from the storyboard's second act) ──
+  'tide-stayed': { begin: 11 },
+  exodus: { complete: 12 },
+  'deep-refit': { complete: 13 },
+  'into-trench': { complete: 14 },
+  'drowned-choir': { complete: 15 },
 };
 
 const plateUrl = (n: number): string => `/story/panel-${String(n).padStart(2, '0')}.jpg`;
@@ -70,6 +78,10 @@ export interface MissionDeps {
   weather: WeatherSystem;
   /** A clean sonar 'pong' on first reef contact (beat 5). */
   sonarPing(): void;
+  /** The drowned bell's slow strike (Act 2 beat 9). */
+  bellToll(): void;
+  /** Night gate for the exodus mermaid (Act 2 beat 10). */
+  isNight(): boolean;
   /** No-weapons mode (tb-disarmed): the finale is won by luring, not sinking. */
   disarmed: boolean;
   getBoatPos(): { x: number; z: number; y: number };
@@ -134,6 +146,12 @@ export class MissionSystem {
   private hamletProp: THREE.Group | null = null;
   private recoveryProp: THREE.Group | null = null;
   private carryGlow: THREE.Group | null = null;
+  /** Beat 9: the drowned bell out on the flats, tolling to no one. */
+  private bellProp: THREE.Group | null = null;
+  private bellTimer = 0;
+  /** Beat 10: the mermaid waits for dark; her people leave when she sings. */
+  private exodusStarted = false;
+  private exodusSwimmers: { group: THREE.Group; vx: number; vz: number; age: number }[] = [];
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -328,6 +346,13 @@ export class MissionSystem {
         this.d.wildlife.setUntargetable(vessel);
         this.instance = { beatId: beat.id, ref: vessel };
         this.d.towing.setPreferredTowable(vessel);
+        // Beat 9: the drowned bell tilts on the flats near the derelict.
+        if (beat.id === 'tide-stayed') {
+          this.bellProp = createBellBuoy();
+          this.bellProp.position.set(e.spawn.x + 26, 0, e.spawn.z - 18);
+          this.d.scene.add(this.bellProp);
+          this.bellTimer = 2;
+        }
         break;
       }
       case 'pickup': {
@@ -352,7 +377,10 @@ export class MissionSystem {
       case 'mermaid': {
         // Scripted mermaid: clears any ambient one, holds her spot, ignores
         // night/calm/karma/lifetime; MissionSystem grants the beat on contact.
-        this.d.mermaid.beginScripted(e.spawn.x, e.spawn.z);
+        // Beat 10 (exodus) defers her until dark — scripted mode deliberately
+        // bypasses the night gate, so the mission must not start her early.
+        this.exodusStarted = false;
+        if (beat.id !== 'exodus') this.d.mermaid.beginScripted(e.spawn.x, e.spawn.z);
         break;
       }
       case 'leviathan-witness': {
@@ -494,6 +522,57 @@ export class MissionSystem {
         if (flat < e.radius && b.y >= e.depth) {
           this.diveHintShown = true;
           this.d.hud.showToast('The wrecks below', 'You’re over them — dive deeper (hold ▼ / Shift).');
+        }
+      }
+    }
+
+    // Beat 9: the bell bobs and tolls, slow and mournful, while the player is
+    // near enough to hear the flats.
+    if (this.bellProp) {
+      const waveY = this.d.ocean.getWaveHeight(this.bellProp.position.x, this.bellProp.position.z, this.time);
+      this.bellProp.position.y = waveY;
+      this.bellProp.rotation.z = 0.18 + Math.sin(this.time * 0.5) * 0.05;
+      const b = this.d.getBoatPos();
+      if (Math.hypot(this.bellProp.position.x - b.x, this.bellProp.position.z - b.z) < 280) {
+        this.bellTimer -= dt;
+        if (this.bellTimer <= 0) {
+          this.bellTimer = 9;
+          this.d.bellToll();
+        }
+      }
+    }
+
+    // Beat 10: nightfall starts the song — and her people start leaving.
+    if (beat.encounter.kind === 'mermaid' && beat.id === 'exodus' && !this.exodusStarted) {
+      if (this.d.isNight()) {
+        this.exodusStarted = true;
+        const e = beat.encounter;
+        this.d.mermaid.beginScripted(e.spawn.x, e.spawn.z);
+        for (let i = 0; i < 3; i++) {
+          const swimmer = createMermaidSilhouette();
+          const angle = Math.PI * 0.6 + i * 0.5; // streaming away east-southeast
+          swimmer.position.set(e.spawn.x + (i - 1) * 12, -1.2, e.spawn.z + (i - 1) * 8);
+          swimmer.rotation.y = angle;
+          this.d.scene.add(swimmer);
+          this.exodusSwimmers.push({
+            group: swimmer,
+            vx: Math.sin(angle) * 3.2,
+            vz: Math.cos(angle) * 3.2,
+            age: 0,
+          });
+        }
+      }
+    }
+    if (this.exodusSwimmers.length) {
+      for (let i = this.exodusSwimmers.length - 1; i >= 0; i--) {
+        const s = this.exodusSwimmers[i];
+        s.age += dt;
+        s.group.position.x += s.vx * dt;
+        s.group.position.z += s.vz * dt;
+        s.group.position.y = -1.2 - s.age * 0.05 + Math.sin(this.time * 2 + i) * 0.2;
+        if (s.age > 130) {
+          disposeGroup(this.d.scene, s.group);
+          this.exodusSwimmers.splice(i, 1);
         }
       }
     }
@@ -759,6 +838,13 @@ export class MissionSystem {
       this.carryGlow = null;
     }
     this.soulRun = null;
+    if (this.bellProp) {
+      disposeGroup(this.d.scene, this.bellProp);
+      this.bellProp = null;
+    }
+    for (const s of this.exodusSwimmers) disposeGroup(this.d.scene, s.group);
+    this.exodusSwimmers = [];
+    this.exodusStarted = false;
     // A mission-owned vessel (the towed Marigold, or a rescued boat) is handed
     // off at beat's end: detach the tow line so she isn't dragged into the next
     // beat, then despawn her. (Scripted-rescue vessels are also cleared by

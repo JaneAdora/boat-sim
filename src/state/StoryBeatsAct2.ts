@@ -4,10 +4,10 @@ import { STORY_LOCATIONS } from './StoryBeats';
 /**
  * Act 2 "The Drowned Light" — beat definitions (9 onward).
  *
- * NOT appended to the production STORY_BEATS: a finished Act 1 save arms
- * beat 9 the moment it exists, so these join the working array only via
- * (a) the dev slice harness (compile-time-gated) during Stage 1 build, and
- * (b) the real appends when each stage is playable (plan stages 2–4).
+ * Beats join the production working array ONLY via ACT2_SHIPPED (bottom of
+ * file), stage by stage, because a finished Act 1 save arms beat 9 the moment
+ * it exists. The dev harness (VITE_STORY_HARNESS builds) uses the full
+ * ACT2_BEATS so unshipped beats stay playable before they ship.
  *
  * Coordinates are narrative anchors validated open-water in tests; trench
  * content depths come from TrenchProfile, never literals here.
@@ -24,6 +24,7 @@ const reef = STORY_LOCATIONS.reef;
 const trench = STORY_LOCATIONS.trench;
 
 export const ACT2_BEATS: StoryBeat[] = [
+  // ── SHIPPED (stage 2): beats 9–13 — see ACT2_SHIPPED below ──
   {
     id: 'tide-stayed',
     title: 'The Tide That Stayed',
@@ -41,7 +42,7 @@ export const ACT2_BEATS: StoryBeat[] = [
     id: 'exodus',
     title: 'Her People Are Leaving',
     brief: 'A song on the night water, east. It sounds like a goodbye.',
-    objective: 'Find the mermaid on the eastern water.',
+    objective: 'After dark, find the mermaid on the eastern water.',
     encounter: { kind: 'mermaid', spawn: ACT2_LOCATIONS.nightWaters, radius: 16 },
     reward: {
       credits: 60,
@@ -112,3 +113,12 @@ export const ACT2_BEATS: StoryBeat[] = [
     },
   },
 ];
+
+/**
+ * The Act 2 beats currently SHIPPED to production (they join the working
+ * array for every player). Grows by stage — 9–13 shipped in plan stage 2;
+ * 14–15 land with stage 3, 16 with stage 4. The dev harness uses the full
+ * ACT2_BEATS regardless, so unshipped beats stay playable behind
+ * VITE_STORY_HARNESS.
+ */
+export const ACT2_SHIPPED: StoryBeat[] = ACT2_BEATS.slice(0, 5);

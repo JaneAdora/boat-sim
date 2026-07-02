@@ -1,15 +1,16 @@
 import { STORY_BEATS, type StoryBeat } from './StoryBeats';
+import { ACT2_SHIPPED } from './StoryBeatsAct2';
 
 const STORAGE_KEY = 'tb-story';
 const START_BOAT = 'Tugboat';
 
 /**
- * The working beat array. Production: always exactly STORY_BEATS. The dev
- * slice harness (compile-time-gated in Engine) extends it with unshipped
- * Act 2 beats so they can be played before they append for real; nothing in
- * a production build calls devExtendBeats.
+ * The working beat array: Act 1 plus the Act 2 beats shipped so far
+ * (ACT2_SHIPPED grows stage by stage). The dev harness (VITE_STORY_HARNESS
+ * builds only) swaps in the FULL Act 2 set so unshipped beats are playable
+ * before they ship; nothing in a normal build calls devExtendBeats.
  */
-let WORKING_BEATS: readonly StoryBeat[] = STORY_BEATS;
+let WORKING_BEATS: readonly StoryBeat[] = [...STORY_BEATS, ...ACT2_SHIPPED];
 
 export function devExtendBeats(extra: StoryBeat[]): void {
   WORKING_BEATS = [...STORY_BEATS, ...extra];

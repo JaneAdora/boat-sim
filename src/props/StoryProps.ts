@@ -139,6 +139,26 @@ export function createDrownedHamlet(): THREE.Group {
   return g;
 }
 
+/** A departing merfolk silhouette (beat 10's exodus): a dim teal glimmer just
+ *  under the surface, built to be seen leaving, not met. */
+export function createMermaidSilhouette(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.5, 2.4, 3, 8),
+    new THREE.MeshBasicMaterial({ color: 0x5fe0c8, transparent: true, opacity: 0.4 }),
+  );
+  body.rotation.x = Math.PI / 2;
+  g.add(body);
+  const tail = new THREE.Mesh(
+    new THREE.ConeGeometry(0.8, 1.6, 6),
+    new THREE.MeshBasicMaterial({ color: 0x4fd0c0, transparent: true, opacity: 0.3 }),
+  );
+  tail.rotation.x = -Math.PI / 2;
+  tail.position.z = -2;
+  g.add(tail);
+  return g;
+}
+
 export function disposeGroup(scene: THREE.Scene, group: THREE.Group): void {
   scene.remove(group);
   group.traverse((obj) => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { STORY_BEATS, validateBeatGraph } from '../src/state/StoryBeats';
-import { ACT2_BEATS, ACT2_LOCATIONS } from '../src/state/StoryBeatsAct2';
+import { ACT2_BEATS, ACT2_SHIPPED, ACT2_LOCATIONS } from '../src/state/StoryBeatsAct2';
 import { JOURNAL_ENTRIES } from '../src/state/JournalTracker';
 import { isOpenWater } from '../src/state/StoryHarbor';
 import { TRENCH, inBand } from '../src/world/TrenchProfile';
@@ -37,11 +37,10 @@ describe('Act 2 beat graph', () => {
     for (const b of deep) expect(b.requiresBoat).toBe('Submarine');
   });
 
-  it('every reward journalKey exists in the catalog (or is a documented pending add)', () => {
-    // Journal entries ship with their beat's stage — 'drowned-choir' joins the
-    // catalog in stage 2, when beat 13 appends for real. Until then it must
-    // NOT be in production (the journal UI would show an unearnable entry).
-    const PENDING_JOURNAL = ['drowned-choir'];
+  it('every reward journalKey exists in the catalog (entries ship with their stage)', () => {
+    // Stage 2 shipped beats 9–13, so 'drowned-choir' is now legitimately in
+    // the catalog. Future-stage keys go into PENDING_JOURNAL when authored.
+    const PENDING_JOURNAL: string[] = [];
     for (const b of [...STORY_BEATS, ...ACT2_BEATS]) {
       if (b.reward.journalKey) {
         const known =
@@ -53,6 +52,17 @@ describe('Act 2 beat graph', () => {
     for (const key of PENDING_JOURNAL) {
       expect(JOURNAL_ENTRIES[key], `${key} must stay out of prod until its stage ships`).toBeUndefined();
     }
+  });
+
+  it('exactly the shipped beats are in the production working array', () => {
+    // ACT2_SHIPPED must track the plan's stages: 9–13 as of stage 2.
+    expect(ACT2_SHIPPED.map((b) => b.id)).toEqual([
+      'tide-stayed',
+      'exodus',
+      'deep-refit',
+      'into-trench',
+      'drowned-choir',
+    ]);
   });
 
   it('the drowned-choir success line names the kept soul', () => {

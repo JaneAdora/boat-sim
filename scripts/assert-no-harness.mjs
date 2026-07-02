@@ -13,8 +13,10 @@ import { join } from 'node:path';
 
 const DIST = new URL('../dist/assets', import.meta.url).pathname;
 // TB_DEV_HARNESS ships as a runtime string inside the harness block (survives
-// minification when the block is live); the beat ids exist only in Act 2 data.
-const MARKERS = ['TB_DEV_HARNESS', 'drowned-choir', 'tide-stayed'];
+// minification when the block is live). Beat-id markers track UNSHIPPED
+// stages only: 9–13 shipped in stage 2, so their ids are legitimately in
+// prod now; 14–16 ids join ACT2_SHIPPED (and leave this list) with stages 3–4.
+const MARKERS = ['TB_DEV_HARNESS', 'old-enemy', 'king-tide', 'drowned-light'];
 
 let files;
 try {
