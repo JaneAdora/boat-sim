@@ -468,18 +468,26 @@ export class MissionSystem {
 
   private finish(beat: StoryBeat): void {
     const r = beat.reward;
+    // The finale's canon must match how it was won: the lure path spares the
+    // beast, so it neither journals a slaying nor reads like one. (Codex gate:
+    // Act 2's ally branch contradicts a journal that says it was slain.)
+    const spared = beat.encounter.kind === 'leviathan-boss' && !!this.d.state.flags['mercy'];
+    const journalKey = spared ? undefined : r.journalKey;
+    const successLine = spared
+      ? 'Lured into the trench, it sounds and dives — spared, not slain. The tide is yours, Captain. (To be continued.)'
+      : r.successLine;
     if (r.credits) addCredits(r.credits);
     if (r.karma) addKarma(r.karma);
     if (r.unlockBoat) unlockBoat(this.d.state, r.unlockBoat);
-    if (r.journalKey) this.d.journal.log(r.journalKey);
+    if (journalKey) this.d.journal.log(journalKey);
     if (r.flag) setFlag(this.d.state, r.flag);
     // The beat's completion plate carries the success line; the toast is the
     // fallback for beats without a card (or replays where it's been seen).
     const plates = INTERLUDE_PLATES[beat.id];
     const cardShown = plates?.complete
-      ? this.showPlate(plates.complete, beat.title, r.successLine)
+      ? this.showPlate(plates.complete, beat.title, successLine)
       : false;
-    if (!cardShown) this.d.hud.showToast(beat.title, r.successLine);
+    if (!cardShown) this.d.hud.showToast(beat.title, successLine);
     markCompleted(this.d.state, beat.id);
     advanceBeat(this.d.state);
     saveCampaign(this.d.state);
