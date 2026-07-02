@@ -258,6 +258,11 @@ export class WildlifeSystem extends System {
   // Story Mode: vessels owned by the MissionSystem, excluded from the ambient
   // field-journal scan so a scripted derelict doesn't grant a spurious sighting.
   private missionOwned = new Set<WildlifeEntity>();
+  // Act 2 stage 0: mission-critical entities can be made immune to the player's
+  // weapons and/or tow line (peaceful mode does NOT disarm the player, and any
+  // vessel is otherwise towable — either could orphan a story beat).
+  private untargetable = new Set<WildlifeEntity>();
+  private untowable = new Set<WildlifeEntity>();
   private spawnTimer = 0;
   private time = 0;
   private boatX = 0;
@@ -646,6 +651,7 @@ export class WildlifeSystem extends System {
     let bestDist = maxRadius;
     for (const e of this.entities) {
       if (e.towed) continue; // don't collide with towed vessel
+      if (this.untowable.has(e)) continue;
       const dx = e.mesh.position.x - x;
       const dz = e.mesh.position.z - z;
       const dist = Math.sqrt(dx * dx + dz * dz);
@@ -678,7 +684,7 @@ export class WildlifeSystem extends System {
     let bestDist = maxRadius;
     for (const e of this.entities) {
       if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship') continue;
-      if (e.towed) continue;
+      if (e.towed || this.untargetable.has(e)) continue;
       const dx = e.mesh.position.x - x;
       const dz = e.mesh.position.z - z;
       const dist = Math.sqrt(dx * dx + dz * dz);
@@ -699,7 +705,7 @@ export class WildlifeSystem extends System {
 
     for (const e of this.entities) {
       if (e.type !== 'fishing_boat' && e.type !== 'cargo_ship' && e.type !== 'battleship' && e.type !== 'leviathan') continue;
-      if (e.towed) continue;
+      if (e.towed || this.untargetable.has(e)) continue;
 
       if (e.strikeZones) {
         // Target the nearest unhit strike zone
@@ -735,6 +741,8 @@ export class WildlifeSystem extends System {
     const idx = this.entities.indexOf(entity);
     if (idx === -1) return;
     this.missionOwned.delete(entity);
+    this.untargetable.delete(entity);
+    this.untowable.delete(entity);
     this.scene.remove(entity.mesh);
     entity.mesh.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -764,10 +772,32 @@ export class WildlifeSystem extends System {
   }
 
   /** Tag/untag an entity as mission-owned (Story Mode); excluded from the
-   *  field-journal sighting scan. No-op set in Free Roam → behaviour unchanged. */
+   *  field-journal sighting scan. No-op set in Free Roam → behaviour unchanged.
+   *  Releasing ownership also clears any protection capabilities. */
   setMissionOwned(entity: WildlifeEntity, owned: boolean): void {
     if (owned) this.missionOwned.add(entity);
-    else this.missionOwned.delete(entity);
+    else {
+      this.missionOwned.delete(entity);
+      this.untargetable.delete(entity);
+      this.untowable.delete(entity);
+    }
+  }
+
+  /** Mission-set: hide an entity from every weapons-targeting search (torpedo
+   *  homing and collision both route through the finders below). */
+  setUntargetable(entity: WildlifeEntity, on = true): void {
+    if (on) this.untargetable.add(entity);
+    else this.untargetable.delete(entity);
+  }
+
+  /** Mission-set: exclude an entity from tow candidacy and tow attachment. */
+  setUntowable(entity: WildlifeEntity, on = true): void {
+    if (on) this.untowable.add(entity);
+    else this.untowable.delete(entity);
+  }
+
+  isUntowable(entity: WildlifeEntity): boolean {
+    return this.untowable.has(entity);
   }
 
   /** Story Mode: stop ambient battleships from spawning (a warship doesn't fit

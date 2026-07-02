@@ -274,8 +274,10 @@ export class MissionSystem {
       case 'tow-derelict': {
         // Mission-owned derelict (spawnDistressedVessel sets maxAge:Infinity, so
         // it won't ambient-despawn). Tow it home to the Greyharbor dock.
+        // Untargetable: an armed player must not be able to sink the objective.
         const vessel = this.d.wildlife.spawnDistressedVessel(e.spawn.x, e.spawn.z);
         this.d.wildlife.setMissionOwned(vessel, true);
+        this.d.wildlife.setUntargetable(vessel);
         this.instance = { beatId: beat.id, ref: vessel };
         this.d.towing.setPreferredTowable(vessel);
         break;
@@ -290,9 +292,11 @@ export class MissionSystem {
       case 'rescue': {
         // Mission-owned foundering vessel; the ambient distress trigger + the
         // ambient harbor-completion path are suspended while scripted, and the
-        // heli scrambles via the marker.
+        // heli scrambles via the marker. Untargetable, still towable (towing
+        // IS the objective).
         const vessel = this.d.distress.beginScriptedRescue(e.spawn.x, e.spawn.z);
         this.d.wildlife.setMissionOwned(vessel, true);
+        this.d.wildlife.setUntargetable(vessel);
         this.instance = { beatId: beat.id, ref: vessel };
         this.d.towing.setPreferredTowable(vessel);
         break;
