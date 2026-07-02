@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>The Vanishing Tide · Storyboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,500&family=Spectral:ital,wght@0,300;0,400;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --slate:#18242c; --abyss:#04070a;
+    --fog:#c6d2d1; --fog-dim:#80918f; --fog-faint:#56656a;
+    --line:rgba(178,200,200,.14);
+    --amber:#e6a95c; --biolume:#63f0cf;
+    --accent:var(--amber);
+    --maxw:1180px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Spectral",Georgia,serif;
+    color:var(--fog);
+    background:linear-gradient(180deg,#1b2832 0%,#13202a 22%,#0c1820 45%,#08121a 68%,#050b11 86%,var(--abyss) 100%);
+    background-attachment:fixed;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* film grain */
+  .grain{
+    position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* depth readout */
+  .depth{
+    position:fixed;right:18px;bottom:16px;z-index:70;
+    font-family:"DM Mono",monospace;font-size:12px;letter-spacing:.06em;
+    color:var(--fog-dim);text-align:right;line-height:1.5;pointer-events:none;
+    text-shadow:0 1px 8px rgba(0,0,0,.6);
+  }
+  .depth b{display:block;font-weight:500;font-size:15px;color:var(--accent-now,#9fb0ae);transition:color .4s}
+  .depth span{opacity:.6;font-size:10px;letter-spacing:.22em}
+
+  /* ── hero ── */
+  .hero{
+    position:relative;min-height:90vh;display:flex;flex-direction:column;
+    align-items:center;justify-content:flex-start;text-align:center;
+    padding:clamp(64px,13vh,150px) 24px 0;overflow:hidden;
+  }
+  .hero-bg{
+    position:absolute;inset:0;z-index:0;
+    background:url("img/panel-01.jpg") center 30%/cover no-repeat;
+    opacity:.30;filter:blur(3px) saturate(.85);transform:scale(1.08);
+  }
+  .hero-scrim{
+    position:absolute;inset:0;z-index:1;
+    background:radial-gradient(120% 80% at 50% 18%,rgba(8,18,24,.2),rgba(6,12,18,.78) 60%,#070d12 100%);
+  }
+  .beam{
+    position:absolute;top:-10%;left:50%;width:160vw;height:120vh;z-index:1;transform:translateX(-50%);
+    background:conic-gradient(from 200deg at 50% 0,transparent 0deg,rgba(230,169,92,.07) 18deg,transparent 36deg);
+    animation:sweep 14s ease-in-out infinite alternate;mix-blend-mode:screen;
+  }
+  @keyframes sweep{from{transform:translateX(-50%) rotate(-9deg)}to{transform:translateX(-50%) rotate(9deg)}}
+  /* lift ONLY the text above the bg layers, never the layers themselves */
+  .hero .brand,.hero .kicker,.hero h1,.hero .sub{position:relative;z-index:2}
+  /* game home-screen wordmark */
+  .brand{
+    font-family:"Playfair Display",serif;font-weight:700;font-size:clamp(20px,2.6vw,30px);
+    letter-spacing:6px;line-height:.9;color:#eef3f4;margin-bottom:24px;
+    opacity:0;animation:rise .9s .05s both;
+  }
+  .brand span{color:#d94040}
+  .kicker{
+    font-family:"DM Mono",monospace;font-size:12.5px;letter-spacing:.42em;text-transform:uppercase;
+    color:var(--amber);margin-bottom:30px;opacity:0;animation:rise .9s .1s both;
+  }
+  h1{
+    font-family:"Playfair Display",Georgia,serif;font-weight:400;font-size:clamp(3rem,9.5vw,7.4rem);line-height:.96;
+    letter-spacing:-.01em;color:#f1efe6;text-wrap:balance;
+  }
+  h1 em{font-style:italic;font-weight:700;color:var(--amber)}
+  h1 .l1{display:block;opacity:0;animation:rise 1s .2s both}
+  h1 .l2{display:block;opacity:0;animation:rise 1s .38s both}
+  .sub{
+    margin-top:26px;font-style:italic;font-size:clamp(1rem,2.3vw,1.32rem);color:var(--fog-dim);
+    max-width:30ch;opacity:0;animation:rise 1s .6s both;
+  }
+  .cue{
+    position:absolute;left:0;right:0;bottom:4.5vh;z-index:2;
+    font-family:"DM Mono",monospace;font-size:11px;letter-spacing:.3em;color:var(--fog-faint);
+    text-transform:uppercase;opacity:0;animation:rise 1s .9s both,bob 2.6s 1.6s ease-in-out infinite;
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}
+
+  /* ── reel ── */
+  main{max-width:var(--maxw);margin:0 auto;padding:9vh 24px 4vh}
+  .panel{
+    display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(28px,5vw,80px);align-items:center;
+    padding:7vh 0;position:relative;
+    opacity:0;transform:translateY(46px);transition:opacity 1s cubic-bezier(.2,.7,.2,1),transform 1s cubic-bezier(.2,.7,.2,1);
+  }
+  .panel.in{opacity:1;transform:none}
+  .panel:nth-child(even) .plate{order:2}
+  .panel:nth-child(even) .copy{order:1;text-align:right}
+  .panel:nth-child(even) .copy .kick{flex-direction:row-reverse}
+
+  .plate{position:relative}
+  .frame{
+    position:relative;aspect-ratio:1/1;border:1px solid var(--line);background:#0a1318;overflow:hidden;
+    box-shadow:0 28px 60px -28px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.02) inset;
+    transition:transform .6s cubic-bezier(.2,.7,.2,1),box-shadow .6s;
+  }
+  .frame img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.96) contrast(1.02)}
+  .panel:hover .frame{transform:translateY(-5px);box-shadow:0 40px 80px -30px rgba(0,0,0,.9),0 0 60px -20px var(--accent)}
+  /* storyboard corner brackets */
+  .frame::before,.frame::after{content:"";position:absolute;width:26px;height:26px;z-index:3;pointer-events:none}
+  .frame::before{top:9px;left:9px;border-top:2px solid var(--accent);border-left:2px solid var(--accent)}
+  .frame::after{bottom:9px;right:9px;border-bottom:2px solid var(--accent);border-right:2px solid var(--accent)}
+  .slate{
+    position:absolute;top:0;left:0;z-index:4;font-family:"DM Mono",monospace;font-weight:500;font-size:13px;
+    color:#0a1014;background:var(--accent);padding:5px 11px;letter-spacing:.05em;
+  }
+  .phase{
+    position:absolute;bottom:0;right:0;z-index:4;font-family:"DM Mono",monospace;font-size:9.5px;
+    letter-spacing:.28em;color:var(--fog-dim);background:rgba(6,12,16,.74);padding:5px 9px;
+    border-top:1px solid var(--line);border-left:1px solid var(--line);
+  }
+  .ph{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;
+    color:var(--fog-faint);font-family:"DM Mono",monospace;font-size:11px;letter-spacing:.2em;
+  }
+  .ph .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--accent);animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+  .copy{padding:6px 0}
+  .kick{
+    display:flex;align-items:center;gap:12px;font-family:"DM Mono",monospace;font-size:11px;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:18px;
+  }
+  .ptitle{
+    font-family:"Fraunces",serif;font-weight:400;font-size:clamp(1.9rem,4.2vw,2.9rem);line-height:1.02;
+    letter-spacing:-.01em;color:#eceae1;margin-bottom:20px;
+  }
+  .cap{
+    font-size:clamp(1.05rem,2.1vw,1.32rem);line-height:1.55;color:#aebbb9;font-style:italic;max-width:34ch;
+  }
+  .panel:nth-child(even) .cap{margin-left:auto}
+  .story{
+    margin-top:20px;font-size:clamp(.95rem,1.5vw,1.05rem);line-height:1.72;color:#93a3a2;max-width:44ch;
+  }
+  .panel:nth-child(even) .story{margin-left:auto}
+
+  /* ── act break ── */
+  .act-break{text-align:center;padding:13vh 24px 3vh}
+  .ab-kicker{
+    display:inline-block;font-family:"DM Mono",monospace;font-size:12px;letter-spacing:.42em;
+    text-transform:uppercase;color:var(--accent);margin-bottom:20px;
+  }
+  .ab-title{
+    font-family:"Fraunces",serif;font-weight:300;font-style:italic;font-size:clamp(2.1rem,5vw,3.5rem);
+    letter-spacing:-.01em;color:#eceae1;
+  }
+  .ab-log{margin:20px auto 0;max-width:48ch;font-style:italic;color:var(--fog-dim);font-size:clamp(1rem,1.8vw,1.16rem);line-height:1.6}
+
+  /* ── footer ── */
+  footer{
+    max-width:var(--maxw);margin:0 auto;padding:8vh 24px 12vh;border-top:1px solid var(--line);
+  }
+  .fnote{font-family:"DM Mono",monospace;font-size:12px;letter-spacing:.04em;color:var(--fog-dim);line-height:1.9;max-width:62ch}
+  .fnote b{color:var(--biolume);font-weight:500}
+  .ftitle{font-family:"Fraunces",serif;font-style:italic;font-weight:400;font-size:1.5rem;color:#cfd8d4;margin-bottom:24px}
+  .fmeta{margin-top:28px;font-family:"DM Mono",monospace;font-size:10.5px;letter-spacing:.18em;color:var(--fog-faint);text-transform:uppercase}
+
+  @media (max-width:760px){
+    .panel{grid-template-columns:1fr;gap:26px;padding:5vh 0}
+    .panel:nth-child(even) .plate{order:0}
+    .panel:nth-child(even) .copy{order:0;text-align:left}
+    .panel:nth-child(even) .copy .kick{flex-direction:row}
+    .panel:nth-child(even) .cap{margin-left:0;margin-right:auto}
+    .panel:nth-child(even) .story{margin-left:0}
+    .depth{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    .panel{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="depth"><b id="dval">0</b><span>FATHOMS</span></div>
+
+<header class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-scrim"></div>
+  <div class="beam"></div>
+  <div class="brand">TUGBOAT <span>BLISS</span></div>
+  <div class="kicker">Storyboard</div>
+  <h1><span class="l1">The</span><span class="l2"><em>Vanishing</em> Tide</span></h1>
+  <p class="sub">Three acts, twenty-six plates, drawn from the harbour to the abyss and back.</p>
+  <div class="cue">scroll to descend &darr;</div>
+</header>
+
+<main id="reel"></main>
+
+<footer>
+  <p class="ftitle">Twenty-six plates across three acts.</p>
+  <p class="fnote">
+    These are <b>textless</b>: final captions and dialogue are overlaid by the game's UI, so the words stay crisp and editable in-engine.<br>
+    <b>Act One</b> is built and in playtest. <b>Act Two</b> and <b>Act Three</b> are concept storyboards: the spines are agreed, the beats aren't built yet. Cadence: one interlude fires at each beat boundary, the story surfacing between the open-world play. Act One descends from the harbour to the trench, Act Two goes deeper to what the tide took, and Act Three follows the long way back.
+  </p>
+  <p class="fmeta">The Vanishing Tide · Tugboat Bliss · concept storyboard · not final</p>
+</footer>
+
+<script>
+const PANELS = [
+  {n:'01',actStart:'One',phase:'SHORE',     beat:'Opening', kind:'Title plate',         title:'Greyharbor',            accent:'#e6a95c',
+    cap:`Greyharbor. The eastern boats aren’t coming home.`,
+    story:`Greyharbor wakes cold and quiet. For weeks the boats working the eastern grounds have failed to come back, and the town has run out of easy answers. You are its tugboat captain, and this morning the harbourmaster has come looking for you.`},
+  {n:'02',phase:'SHORE',     beat:'Beat 1',  kind:'tow-derelict',        title:'The Empty Berth',       accent:'#e6a95c',
+    cap:`“The Marigold never came in. Find her, Captain.”`,
+    story:`The dockmaster meets you on the quay and points east. The Marigold, overdue, unanswered, never made her berth; it sits empty, her mooring lines still cleated. He asks you to do the one thing a tug is for: go out and bring her home.`},
+  {n:'03',phase:'SHORE',     beat:'Beat 1',  kind:'home empty',          title:'Under Tow',             accent:'#e2a35f',
+    cap:`She came home empty. “Quiet water, out east,” someone mutters.`,
+    story:`You find her adrift in the fog and take her under tow. She’s whole, no fire, no breach, no sign of a struggle, but there is no one aboard. You haul an empty boat back past the lighthouse while the harbour trades uneasy rumours about the quiet water out east.`},
+  {n:'04',phase:'THE TRAIL', beat:'Beat 2',  kind:'pickup',              title:'Message in the Swell',  accent:'#d4b069',
+    cap:`A captain’s last note: “a sound like the whole sea breathing.”`,
+    story:`Working the drift where the Marigold was lost, you pull a sealed bottle from the swell. Inside is a missing captain’s last note, a few frightened lines about a sound like the whole sea breathing, and a reef ringed on the chart. It’s your first real lead, and it points further out.`},
+  {n:'05',phase:'THE TRAIL', beat:'Beat 3',  kind:'pickup',              title:'The Reef of Wrecks',    accent:'#b7bd80',
+    cap:`A scale the size of a dinner plate. The answers are deeper than you can reach.`,
+    story:`The marked reef is a graveyard, broken masts and splintered hulls scattered through the shallows, far more than any storm could explain. Snagged in a torn net you find a single iridescent scale the size of a dinner plate, and the cold certainty that whatever did this is bigger than your boat and deeper than you can reach.`},
+  {n:'06',phase:'THE TURN',  beat:'Beat 4',  kind:'rescue',              title:'Souls in the Water',    accent:'#8ac8b4',
+    cap:`MAYDAY, “it came up under us, big as the harbor.”`,
+    story:`A mayday tears across the coastguard channel, a vessel going down close by, in heavy weather. You drive in under a rescue helicopter’s searchlight and haul survivors from the black water. One of them won’t stop shaking: it came up under us, he says, big as the harbour.`},
+  {n:'07',phase:'THE TURN',  beat:'Beat 4',  kind:'reward · sub unlock', title:'The Survey Sub',        accent:'#75cabe',
+    cap:`The coastguard owes you. Take their sub.`,
+    story:`Back at Greyharbor the coastguard settles the debt the only way that matters now, they hand you the keys to their survey submarine. The mystery has pulled you off the surface for good. To find the rest of the answer, you’ll have to go down after it.`},
+  {n:'08',phase:'THE DEEP',  beat:'Beat 5',  kind:'sonar-contact',       title:'Down to the Dark',      accent:'#5cdcc2',
+    cap:`A contact too big for any whale. A song drifts up the trench.`,
+    story:`You take the sub down to the reef. Your lamps pick out a hull raked open by something clawed, and the sonar paints a contact far too large to be any whale. From the trench below, a long low song comes drifting up through the hull.`},
+  {n:'09',phase:'THE DEEP',  beat:'Beat 6',  kind:'mermaid',             title:'The Mermaid’s Warning', accent:'#62ead0',
+    cap:`“Do not go quiet into that water.”`,
+    story:`Following the song, you meet her at the viewport, a mermaid, lit by the deep’s own cold glow. She gives the thing in the trench a name, and presses a small carved charm into your hand through the dark water. Do not go quiet into that water, she warns. Then she is gone.`},
+  {n:'10',phase:'THE ABYSS', beat:'Beat 7',  kind:'leviathan-witness',   title:'Witness',               accent:'#63f0cf',
+    cap:`You watch it take a ship whole. Run. Then come back ready.`,
+    story:`At the trench you finally see it: the Leviathan, vast and luminous, rising to take a whole ship into its jaws as though it were nothing. You are far too small to stand against it, not yet. Run for now. Come back ready. Act One ends here; the reckoning is Act Two.`},
+  {n:'11',actStart:'Two',phase:'THE WRONG TIDE', beat:'Beat 9',  kind:'tow & investigate',     title:'The Tide That Stayed',   accent:'#8fb3b0',
+    cap:`The sea pulled back from Greyharbor, and didn’t come home.`,
+    story:`Weeks on, the town wants to believe it’s over. But the tide has drained away and stayed gone, leaving the fleet stranded in black mud and a drowned bell tolling out on the flats. Another boat has drifted in empty. Whatever left the eastern grounds, it isn’t finished with you.`},
+  {n:'12',phase:'THE WARNING',   beat:'Beat 10', kind:'mermaid',               title:'Her People Are Leaving', accent:'#5fe0c8',
+    cap:`“It wasn’t hunting you. It was running.”`,
+    story:`The mermaid finds you in the dark, the charm burning in her hand, and behind her the merfolk stream up out of the deep, leaving. She tells you the truth at last: the Leviathan fled the same thing they flee now, something old and vast that is starting to wake. And the lost are not lost. They are below.`},
+  {n:'13',phase:'THE REFIT',     beat:'Beat 11', kind:'refit · deep unlock',   title:'Built for the Pressure', accent:'#c6a06a',
+    cap:`Nothing afloat was built to go this deep. So you build it.`,
+    story:`The survey sub would be crushed long before the trench floor. On the Greyharbor slip you scrounge a deep refit, reinforced plating off the reef wrecks, a thick new viewport, an old engineer talked out of retirement. It is the last warm light you will see for a while. Then you go down after the rest of the answer.`},
+  {n:'14',phase:'THE DESCENT',   beat:'Beat 12', kind:'deep dive',             title:'Into the Trench',        accent:'#4fd0c0',
+    cap:`Boats don’t moor themselves a mile down.`,
+    story:`Past the depth that killed the old sub, the breathing sound swells until you feel it in your teeth. Your lamps sweep a long row of sunken boats stood upright on a ledge, masts raised like a congregation, small lights drifting between them where nothing should burn. Something arranged this. Something is watching you come down.`},
+  {n:'15',phase:'THE DROWNED',   beat:'Beat 13', kind:'rescue · the choir',    title:'The Drowned Choir',      accent:'#9fd0e8',
+    cap:`The missing aren’t dead. They’re singing.`,
+    story:`At the bottom waits a drowned town, and in its flooded streets stand the vanished, alive, lit with a cold pale glow, mouths open in a song you feel more than hear. They are held, not gone. You can carry some of them back toward the light. You cannot carry them all, and you will have to choose who.`},
+  {n:'16',phase:'THE GUARDIAN',  beat:'Beat 14', kind:'old enemy returns',     title:'An Old Enemy',           accent:'#58e0c8',
+    cap:`The thing you fought in the shallows is the only friend you have down here.`,
+    story:`The deep stirs and a cold pale glow begins to climb. Then the Leviathan returns, and if you once showed it mercy, it remembers: it coils around your little sub and turns to face what is rising. If you killed it in the shallows, no guardian comes, and you meet the dark alone.`},
+  {n:'17',phase:'THE KING TIDE', beat:'Beat 15', kind:'rescue · save the town', title:'The King Tide',         accent:'#8fc4e6',
+    cap:`It reaches for Greyharbor. You put yourself between.`,
+    story:`The waking thing heaves the whole ocean upward, and a king tide lit from within rears over the harbour that first sent you out. You are back on the tug where you started, running tow lines to crowded lifeboats, holding the line between the town and the sea. You save who you can reach in time. The water decides the rest.`},
+  {n:'18',phase:'THE ABYSS',     beat:'Beat 16', kind:'finale',                title:'The Drowned Light',      accent:'#bfe2f2',
+    cap:`It was never the enemy. It was only waking.`,
+    story:`At the trench floor you finally face it, not a beast but a vastness, an ancient indifferent thing scattered with cold light, stirring toward the world above. You can sing it back to sleep with the charm, the freed choir, and the Leviathan’s call, if you kept that call alive, or seal it below the hard way. Either way the tide settles, the saved come home, and far beneath you the dark goes quiet again. For now.`},
+  {n:'19',actStart:'Three',phase:'THE FALSE CALM', beat:'Beat 17', kind:'the quiet that lies',  title:'The False Calm',        accent:'#cdb486',
+    cap:`The sea gave Greyharbor back. It did not give back the quiet.`,
+    story:`Seasons turn. The fleet sails again, the lost are mourned, and the town calls you a hero. But the calm rings false. The tide hangs a beat too long at the slack, the charm in your pocket has gone cold and grey, and a rescued woman walks the quay at night humming a song from the deep. You know this feeling. You hoped never to feel it again.`},
+  {n:'20',phase:'THE LAST WARNING', beat:'Beat 18', kind:'the cracked charm',     title:'The Cracked Charm',     accent:'#6fcfc0',
+    cap:`“Sleep is not the same as peace.”`,
+    story:`The mermaid comes to you one last time, and she is afraid. What you lulled in the trench was never truly stilled, only quieted, and now it stirs deeper and stronger than before. The charm cracks in her hands as she gives you the last of its light. There is a way to end it for good, she says, but it asks everything, and it cannot be done from the surface.`},
+  {n:'21',phase:'THE ALLIANCE', beat:'Beat 19', kind:'gather the fleet',         title:'All Hands',             accent:'#e0a85c',
+    cap:`One boat cannot do this. So you bring them all.`,
+    story:`You will not go down alone again. Greyharbor empties its slips behind you, every keel the town can float, and the merfolk rise to meet them. The freed choir lends its voice, and out beyond the harbour mouth the Leviathan surfaces among the little boats like a hill come loose from the seabed. Land and sea, set against the dark together.`},
+  {n:'22',phase:'THE ROAD BACK', beat:'Beat 20', kind:'the deepest descent',     title:'Into the Maelstrom',    accent:'#7fb4e0',
+    cap:`Below the trench floor, the water begins to turn.`,
+    story:`Past every depth you have ever dared, the sea begins to spin. A slow black maelstrom winds down into the bedrock of the world, and your refitted sub rides it down through pressure that creaks the new plating and dark that drinks the lights. This is the road back to the thing itself, and no current will carry you up again until it is finished.`},
+  {n:'23',phase:'THE INMOST LIGHT', beat:'Beat 21', kind:'the revelation',       title:'The Heart of the Deep', accent:'#f0d27a',
+    cap:`It is not a monster. It is the oldest loneliness in the world.`,
+    story:`At the bottom of everything you find it whole, and the cold turns warm: a vast slow light, ancient beyond the reach of names, neither cruel nor kind. It did not take the ships to hunt. It reached up because it was alone, and the singing was only its way of being heard. Here, at last, you understand the thing you came to end, and your hand will not close on the charm.`},
+  {n:'24',phase:'THE RECKONING', beat:'Beat 22', kind:'the sacrifice',           title:'What the Sea Asks',     accent:'#e8c987',
+    cap:`Some doors only close from the inside.`,
+    story:`It cannot be killed and it will not sleep, but it can be answered. To let it rest, something living must stay and keep it company in the dark, a voice on the far side of the silence. The Leviathan turns its great head toward you, ready to be that voice. So does the woman from the quay. So, you find, are you. What you choose here, and who you choose to save, is the whole of the cost.`},
+  {n:'25',phase:'THE TURN', beat:'Beat 23', kind:'the tide turns',               title:'Slack Water',           accent:'#9fd6c2',
+    cap:`The tide stops. Holds. And at last begins to turn.`,
+    story:`Then it is done, and the deep goes quiet the way the living go quiet when they are finally at peace. The maelstrom unwinds. The drowned who can be freed drift upward like sparks, and the one who stayed keeps the dark from being lonely. You rise through water that is only water again, lighter by what you left below, toward a surface you were not sure you would see.`},
+  {n:'26',phase:'HOME', beat:'Beat 24', kind:'return with the elixir',           title:'Homecoming',            accent:'#e6a95c',
+    cap:`Greyharbor at dawn, and the eastern boats come home.`,
+    story:`You bring your tug into a harbour waking to an ordinary morning: gulls, lantern-light, the eastern fleet rounding the point with their holds full and their crews whole. The sea is no enemy now, only a neighbour, vast and breathing and finally at rest. You are not the captain who left. Some nights you can still hear the deep, faint and far down, and you are the one who answers when it calls.`},
+];
+
+const reel = document.getElementById('reel');
+// narrative depth (fathoms) per plate: descends to the abyss, returns to 0 at home
+const DEPTH = {'01':0,'02':0,'03':0,'04':8,'05':35,'06':15,'07':0,'08':240,'09':620,'10':1100,'11':0,'12':40,'13':0,'14':1900,'15':3400,'16':4500,'17':0,'18':6000,'19':0,'20':60,'21':0,'22':3000,'23':8000,'24':9000,'25':1500,'26':0};
+const ACTS = {
+  One: {kicker:'Act One', title:'The Vanishing Tide', accent:'#e6a95c',
+    log:`Ships are vanishing on the eastern run. Greyharbor’s tugboat captain follows the trail down into the dark.`},
+  Two: {kicker:'Act Two', title:'The Drowned Light', accent:'#9fd0e8',
+    log:`The monster was fleeing something worse. The captain descends to find the taken, and what is waking below.`},
+  Three: {kicker:'Act Three', title:'The Turning Tide', accent:'#e6c07a',
+    log:`What sleeps below was never cruel, only alone. The captain makes one last descent, and finds the long way home.`},
+};
+const actBreak = a => `
+  <div class="act-break" style="--accent:${a.accent}">
+    <span class="ab-kicker">${a.kicker}</span>
+    <h2 class="ab-title">${a.title}</h2>
+    <p class="ab-log">${a.log}</p>
+  </div>`;
+reel.innerHTML = PANELS.map(p => `
+  ${p.actStart ? actBreak(ACTS[p.actStart]) : ''}
+  <section class="panel" style="--accent:${p.accent}" data-depth="${DEPTH[p.n]||0}">
+    <figure class="plate">
+      <div class="frame">
+        <div class="ph"><span class="dot"></span>panel ${p.n} · rendering</div>
+        <img src="img/panel-${p.n}.jpg" alt="${p.title}" loading="lazy"
+             onload="this.style.opacity=1;this.previousElementSibling.style.display='none'"
+             style="opacity:0;transition:opacity .8s">
+        <span class="slate">${p.n}</span>
+        <span class="phase">${p.phase}</span>
+      </div>
+    </figure>
+    <div class="copy">
+      <div class="kick">${p.beat} · ${p.kind}</div>
+      <h2 class="ptitle">${p.title}</h2>
+      <p class="cap">${p.cap}</p>
+      <p class="story">${p.story}</p>
+    </div>
+  </section>`).join('');
+
+// reveal on scroll
+const io = new IntersectionObserver((es)=>{
+  es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+},{threshold:.18});
+document.querySelectorAll('.panel').forEach(el=>io.observe(el));
+
+// depth readout: follows the story's depth per plate, down to the abyss, back to 0 at home
+const dval = document.getElementById('dval');
+const A=[0xe6,0xa9,0x5c], M=[0x63,0xf0,0xcf], B=[0xbf,0xe2,0xf2], MAXD=9000;
+const lerp=(x,y,k)=>x.map((v,i)=>Math.round(v+(y[i]-v)*k));
+let stops=[];
+function measure(){
+  stops=[...document.querySelectorAll('.panel')].map(el=>({
+    y: el.getBoundingClientRect().top + scrollY + el.offsetHeight/2,
+    d: +el.dataset.depth || 0
+  })).sort((a,b)=>a.y-b.y);
+}
+function depthAt(cy){
+  if(!stops.length) return 0;
+  if(cy<=stops[0].y) return stops[0].d;
+  const last=stops[stops.length-1];
+  if(cy>=last.y) return last.d;
+  for(let i=1;i<stops.length;i++){
+    if(cy<=stops[i].y){ const a=stops[i-1],b=stops[i]; return a.d+(b.d-a.d)*((cy-a.y)/((b.y-a.y)||1)); }
+  }
+  return last.d;
+}
+function onScroll(){
+  const d=depthAt(scrollY+innerHeight/2);
+  dval.textContent=Math.round(d);
+  const f=Math.min(1,d/MAXD);
+  const c=f<0.5?lerp(A,M,f/0.5):lerp(M,B,(f-0.5)/0.5);
+  dval.style.setProperty('--accent-now',`rgb(${c[0]},${c[1]},${c[2]})`);
+}
+addEventListener('scroll',onScroll,{passive:true});
+addEventListener('resize',()=>{measure();onScroll();});
+addEventListener('load',()=>{measure();onScroll();});
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(()=>{measure();onScroll();});}
+measure(); onScroll();
+</script>
+</body>
+</html>

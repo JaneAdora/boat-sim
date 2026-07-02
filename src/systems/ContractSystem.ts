@@ -27,6 +27,11 @@ export interface ContractCallbacks {
 export class ContractSystem {
   private active: ActiveContract | null = null;
   private cooldown = 12; // grace period before the first offer
+  /** Story Mode suppresses ambient contract offers (the barge tows, etc.). */
+  private ambientEnabled = true;
+  setAmbientEnabled(enabled: boolean): void {
+    this.ambientEnabled = enabled;
+  }
   private bannerTimer = 0;
 
   private static readonly SOURCE_RANGE = 700;   // island near the player
@@ -45,6 +50,7 @@ export class ContractSystem {
       this.updateActive(dt);
       return;
     }
+    if (!this.ambientEnabled) return; // Story Mode: only scripted beats
     this.cooldown -= dt;
     if (this.cooldown <= 0) {
       this.cooldown = 10; // retry cadence when no contract could be generated

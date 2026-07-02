@@ -16,6 +16,14 @@ import { getCredits } from './state/Wallet';
 import { applyBoatUpgrades, buyUpgrade, hasUpgrade, upgradeCost, UPGRADE_CATALOG } from './state/Upgrades';
 import { getKarma, karmaTitle, karmaPriceFactor } from './state/Karma';
 import { ledgerCount, FISH_TOTAL } from './state/Fishing';
+import {
+  loadCampaign,
+  newCampaign,
+  saveCampaign,
+  resetCampaign,
+  currentBeat,
+} from './state/CampaignState';
+import { findStoryHarbor } from './state/StoryHarbor';
 
 // SVG boat silhouette icons (no emojis)
 const BOAT_ICONS: Record<string, string> = {
@@ -110,6 +118,189 @@ let activeEngine: Engine | null = null;
 let escKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 let escTrapHandler: ((e: KeyboardEvent) => void) | null = null;
 let selectedMode: GameMode = localStorage.getItem('tb-mode') === 'magical' ? 'magical' : 'classic';
+// True while a Story Mode voyage is running, so ESC "to harbor" returns to the
+// campaign launch screen rather than the Free Roam selector.
+let lastWasStory = false;
+
+/** Remove every dynamically-built start-screen node (shared by all screens). */
+function clearStartScreens(): void {
+  for (const id of [
+    'mode-pill', 'boat-selector', 'comfort-options', 'voyage-stats',
+    'shipyard-btn', 'shipyard', 'mode-choice', 'campaign-launch',
+  ]) {
+    document.getElementById(id)?.remove();
+  }
+}
+
+/** Top-level choice: the authored Story campaign, or open-world Free Roam. */
+function showModeChoice(): void {
+  loadingBar.parentElement!.style.display = 'none';
+  loadingText.textContent = 'How will you sail?';
+  clearStartScreens();
+
+  const choice = document.createElement('div');
+  choice.id = 'mode-choice'; // shares the #mode-pill flex styling (index.html)
+
+  const makeBtn = (name: string, desc: string, onPick: () => void): HTMLButtonElement => {
+    const btn = document.createElement('button');
+    btn.className = 'mode-btn';
+    const n = document.createElement('span');
+    n.className = 'mode-name';
+    n.textContent = name;
+    const d = document.createElement('span');
+    d.className = 'mode-desc';
+    d.textContent = desc;
+    btn.append(n, d);
+    btn.addEventListener('click', onPick);
+    return btn;
+  };
+
+  choice.appendChild(makeBtn('Story', 'The Vanishing Tide — Act 1', showCampaignLaunch));
+  choice.appendChild(makeBtn('Free Roam', 'The open sea, your way', showSelector));
+  loadingText.parentElement!.appendChild(choice);
+}
+
+/** Story Mode launch screen: Continue / New Game + an unlocked-boat picker. */
+function showCampaignLaunch(): void {
+  loadingBar.parentElement!.style.display = 'none';
+  loadingText.textContent = 'The Vanishing Tide';
+  clearStartScreens();
+
+  const saved = loadCampaign();
+  const state = saved ?? newCampaign();
+  const beat = currentBeat(state);
+
+  const panel = document.createElement('div');
+  panel.id = 'campaign-launch';
+
+  // Current objective (or a new-voyage line).
+  const objective = document.createElement('div');
+  objective.id = 'voyage-stats'; // reuse the muted stats-line styling
+  objective.textContent = beat
+    ? `Chapter ${state.beat + 1} · ${beat.title} — ${beat.objective}`
+    : 'Act 1 complete — to be continued.';
+  panel.appendChild(objective);
+
+  // The wrong-boat guard: this leg may demand a specific vessel.
+  const required = beat?.requiresBoat ?? null;
+
+  // Unlocked-boat picker (filtered by state.unlockedBoats, matched on def.name).
+  const picker = document.createElement('div');
+  picker.id = 'boat-selector';
+  const unlocked = BOATS.filter((b) => state.unlockedBoats.includes(b.def.name));
+  let selectedDef: BoatDefinition | null = null;
+
+  const launchBtn = document.createElement('button');
+  const cardsByName = new Map<string, HTMLButtonElement>();
+
+  for (const boat of unlocked) {
+    const card = document.createElement('button');
+    const isRequiredMismatch = required != null && boat.def.name !== required;
+    card.className = 'boat-card';
+    cardsByName.set(boat.def.name, card);
+    if (boat.def.name === state.lastBoat) card.classList.add('last-played');
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'boat-icon';
+    const svgDoc = new DOMParser().parseFromString(BOAT_ICONS[boat.iconKey], 'image/svg+xml');
+    iconSpan.appendChild(svgDoc.documentElement);
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'boat-name';
+    nameSpan.textContent = boat.def.name;
+    const descSpan = document.createElement('span');
+    descSpan.className = 'boat-desc';
+    descSpan.textContent = isRequiredMismatch ? `Take the ${required} out for this leg` : boat.desc;
+
+    card.append(iconSpan, nameSpan, descSpan);
+    if (isRequiredMismatch) {
+      card.style.opacity = '0.45';
+      card.disabled = true;
+    } else {
+      const pick = (): void => {
+        selectedDef = boat.def;
+        for (const c of picker.querySelectorAll('.boat-card')) c.classList.remove('selected');
+        card.classList.add('selected');
+        launchBtn.disabled = false;
+        launchBtn.textContent = `Set sail · ${boat.def.name}`;
+      };
+      card.addEventListener('click', pick);
+      card.addEventListener('touchend', (e) => { e.preventDefault(); pick(); });
+    }
+    picker.appendChild(card);
+  }
+
+  // Pre-select the required boat (or the last boat) if it's available, and
+  // mark its card so the highlight matches the enabled launch button.
+  const preselectName = required ?? state.lastBoat;
+  const preselect = unlocked.find((b) => b.def.name === preselectName);
+  if (preselect) {
+    selectedDef = preselect.def;
+    cardsByName.get(preselect.def.name)?.classList.add('selected');
+  }
+
+  panel.appendChild(picker);
+
+  // Continue / New Game / Launch action row.
+  const actions = document.createElement('div');
+  actions.id = 'comfort-options'; // reuse the action-row container styling
+  actions.style.flexDirection = 'row';
+  actions.style.gap = '10px';
+  actions.style.justifyContent = 'center';
+
+  launchBtn.className = 'campaign-btn';
+  launchBtn.textContent = selectedDef ? `Set sail · ${selectedDef.name}` : 'Choose a vessel';
+  launchBtn.disabled = selectedDef == null;
+  launchBtn.addEventListener('click', () => {
+    if (selectedDef) startStory(selectedDef);
+  });
+
+  const newBtn = document.createElement('button');
+  newBtn.className = 'campaign-btn';
+  newBtn.textContent = saved ? 'New Game' : 'Begin';
+  newBtn.addEventListener('click', () => {
+    if (saved && !confirm('Restart the story? Your campaign progress is lost (credits & journal stay).')) return;
+    resetCampaign();
+    saveCampaign(newCampaign());
+    showCampaignLaunch();
+  });
+
+  const backBtn = document.createElement('button');
+  backBtn.className = 'campaign-btn';
+  backBtn.textContent = '← Back';
+  backBtn.addEventListener('click', showModeChoice);
+
+  actions.append(launchBtn, newBtn, backBtn);
+  panel.appendChild(actions);
+
+  loadingText.parentElement!.appendChild(panel);
+}
+
+function startStory(def: BoatDefinition): void {
+  if (activeEngine) return; // guard against the touchend + click double-fire
+  const state = loadCampaign() ?? newCampaign();
+  state.lastBoat = def.name;
+  saveCampaign(state);
+  const harbor = findStoryHarbor();
+  recordVoyageStart();
+  const engine = new Engine(applyBoatUpgrades(def), {
+    mode: 'classic',
+    campaign: true,
+    spawn: harbor?.spawn,
+  });
+  activeEngine = engine;
+  lastWasStory = true;
+  (window as any).__engine = engine;
+
+  escKeyHandler = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (escMenu.classList.contains('visible')) hideEscMenu();
+      else showEscMenu();
+    }
+  };
+  window.addEventListener('keydown', escKeyHandler);
+
+  engine.start();
+}
 
 function showSelector(): void {
   // The progress bar has done its job — hide it so the selector reads clean
@@ -117,12 +308,7 @@ function showSelector(): void {
   loadingText.textContent = 'Choose your vessel';
 
   // Remove previous UI if it exists (re-entry case)
-  document.getElementById('mode-pill')?.remove();
-  document.getElementById('boat-selector')?.remove();
-  document.getElementById('comfort-options')?.remove();
-  document.getElementById('voyage-stats')?.remove();
-  document.getElementById('shipyard-btn')?.remove();
-  document.getElementById('shipyard')?.remove();
+  clearStartScreens();
 
   // Mode toggle pill
   const modePill = document.createElement('div');
@@ -377,7 +563,10 @@ function returnToSelector(): void {
   loadingScreen.style.display = '';
   loadingScreen.classList.remove('hidden');
 
-  showSelector();
+  // In Story Mode, "to harbor" returns to the campaign launch screen — the
+  // Greyharbor spawn makes relaunch the return-to-harbor / boat-swap mechanism.
+  if (lastWasStory) showCampaignLaunch();
+  else showSelector();
 }
 
 function startGame(def: BoatDefinition, mode: GameMode): void {
@@ -387,6 +576,7 @@ function startGame(def: BoatDefinition, mode: GameMode): void {
   recordVoyageStart();
   const engine = new Engine(applyBoatUpgrades(def), { mode });
   activeEngine = engine;
+  lastWasStory = false;
   (window as any).__engine = engine;
 
   // ESC key handler (only active during gameplay)
@@ -487,5 +677,5 @@ function showInstallButton(): void {
   loadingInner.appendChild(btn);
 }
 
-// Show selector once page is ready
-showSelector();
+// Show the Story / Free Roam choice once the page is ready.
+showModeChoice();

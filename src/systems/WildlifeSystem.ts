@@ -255,6 +255,9 @@ export class WildlifeSystem extends System {
   private boatEntity: number;
   private chunkManager: ChunkManager | null = null;
   private entities: WildlifeEntity[] = [];
+  // Story Mode: vessels owned by the MissionSystem, excluded from the ambient
+  // field-journal scan so a scripted derelict doesn't grant a spurious sighting.
+  private missionOwned = new Set<WildlifeEntity>();
   private spawnTimer = 0;
   private time = 0;
   private boatX = 0;
@@ -311,7 +314,7 @@ export class WildlifeSystem extends System {
       const dz = e.mesh.position.z - bz;
       const dist = Math.sqrt(dx * dx + dz * dz);
       // Barges are contract cargo — they never despawn on their own.
-      if ((dist > WildlifeSystem.DESPAWN_RADIUS || e.age > e.maxAge) && !e.towed && e.type !== 'barge') {
+      if ((dist > WildlifeSystem.DESPAWN_RADIUS || e.age > e.maxAge) && !e.towed && e.type !== 'barge' && !this.missionOwned.has(e)) {
         this.scene.remove(e.mesh);
         this.entities.splice(i, 1);
         continue;
@@ -359,7 +362,7 @@ export class WildlifeSystem extends System {
     if (this.countType('whale') < WildlifeSystem.MAX_WHALES) candidates.push('whale');
     if (this.countType('fishing_boat') < WildlifeSystem.MAX_FISHING) candidates.push('fishing_boat');
     if (this.countType('cargo_ship') < WildlifeSystem.MAX_CARGO) candidates.push('cargo_ship');
-    if (this.countType('battleship') < WildlifeSystem.MAX_BATTLESHIPS) candidates.push('battleship');
+    if (this.spawnBattleships && this.countType('battleship') < WildlifeSystem.MAX_BATTLESHIPS) candidates.push('battleship');
     if (candidates.length === 0) return;
 
     const type = candidates[Math.floor(Math.random() * candidates.length)];
@@ -731,6 +734,7 @@ export class WildlifeSystem extends System {
   removeEntity(entity: WildlifeEntity): void {
     const idx = this.entities.indexOf(entity);
     if (idx === -1) return;
+    this.missionOwned.delete(entity);
     this.scene.remove(entity.mesh);
     entity.mesh.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -757,6 +761,29 @@ export class WildlifeSystem extends System {
       z: e.mesh.position.z,
       type: e.type,
     }));
+  }
+
+  /** Tag/untag an entity as mission-owned (Story Mode); excluded from the
+   *  field-journal sighting scan. No-op set in Free Roam → behaviour unchanged. */
+  setMissionOwned(entity: WildlifeEntity, owned: boolean): void {
+    if (owned) this.missionOwned.add(entity);
+    else this.missionOwned.delete(entity);
+  }
+
+  /** Story Mode: stop ambient battleships from spawning (a warship doesn't fit
+   *  the campaign). Default true → Free Roam unchanged. */
+  private spawnBattleships = true;
+  setSpawnBattleships(enabled: boolean): void {
+    this.spawnBattleships = enabled;
+  }
+
+  /** Positions for the field-journal scan — excludes mission-owned vessels.
+   *  Identical to getWildlifePositions when nothing is tagged (Free Roam). */
+  getJournalPositions(): { x: number; z: number; type: string }[] {
+    if (this.missionOwned.size === 0) return this.getWildlifePositions();
+    return this.entities
+      .filter(e => !this.missionOwned.has(e))
+      .map(e => ({ x: e.mesh.position.x, z: e.mesh.position.z, type: e.type }));
   }
 
   private updateEntity(e: WildlifeEntity, dt: number): void {
