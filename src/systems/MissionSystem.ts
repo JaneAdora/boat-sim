@@ -135,15 +135,19 @@ export class MissionSystem {
     return true;
   }
 
+  /** True when the armed beat names a boat the player isn't in. Generalized
+   *  (Act 2 plan, stage 0): EVERY requiresBoat beat gets dock routing, the ESC
+   *  swap hint, and a completion guard — not just sonar-contact. */
+  private requiresBoatUnmet(beat: StoryBeat): boolean {
+    return !!beat.requiresBoat && !this.d.isInBoat(beat.requiresBoat);
+  }
+
   getMarker(): { x: number; z: number } | null {
-    // R3: while the sub leg is armed but the player is in the wrong boat, steer
-    // them back to the Greyharbor dock to swap — not out to the unreachable reef.
+    // While a boat-gated leg is armed but the player is in the wrong boat,
+    // steer them back to the Greyharbor dock to swap — never at an objective
+    // they can't reach.
     const beat = currentBeat(this.d.state);
-    if (
-      beat?.encounter.kind === 'sonar-contact' &&
-      beat.requiresBoat &&
-      !this.d.isInBoat(beat.requiresBoat)
-    ) {
+    if (beat && this.requiresBoatUnmet(beat)) {
       return { x: this.d.greyharbor.dock.x, z: this.d.greyharbor.dock.z };
     }
     // Beat 1: once the Marigold is on the tow line, steer home to the dock;
@@ -236,7 +240,7 @@ export class MissionSystem {
     // R3: if this leg needs a boat the player isn't currently in, the objective
     // nudges them to swap (the marker — getMarker — points back to the dock).
     // The swap lives behind ESC, which nothing else teaches — say so here.
-    const wrongBoat = beat.requiresBoat && !this.d.isInBoat(beat.requiresBoat);
+    const wrongBoat = this.requiresBoatUnmet(beat);
     let objective = beat.objective;
     if (wrongBoat) objective = `Take the ${beat.requiresBoat} out — press ESC to change boats.`;
     // No-weapons finale: the objective leads with the lure, not the fight.
@@ -349,12 +353,12 @@ export class MissionSystem {
       }
     }
 
-    // Beat 5 unstick hints — the two places players stall with no feedback:
-    // (a) at the dock in the wrong boat, not knowing ESC is the swap; (b) over
-    // the reef in the sub but level too shallow for the contact depth.
-    if (beat.encounter.kind === 'sonar-contact' && beat.requiresBoat) {
+    // Unstick hints — the places players stall with no feedback:
+    // (a) any boat-gated beat: at the dock in the wrong boat, not knowing ESC
+    // is the swap; (b) sonar legs: over the reef but too shallow for contact.
+    if (beat.requiresBoat) {
       const b = this.d.getBoatPos();
-      if (!this.d.isInBoat(beat.requiresBoat)) {
+      if (this.requiresBoatUnmet(beat)) {
         if (!this.swapHintShown) {
           const dock = this.d.greyharbor.dock;
           if (Math.hypot(b.x - dock.x, b.z - dock.z) < 70) {
@@ -365,7 +369,11 @@ export class MissionSystem {
             );
           }
         }
-      } else if (!this.diveHintShown && !this.sonarPinged) {
+      } else if (
+        beat.encounter.kind === 'sonar-contact' &&
+        !this.diveHintShown &&
+        !this.sonarPinged
+      ) {
         const e = beat.encounter;
         const flat = Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z);
         if (flat < e.radius && b.y >= e.depth) {
@@ -380,6 +388,8 @@ export class MissionSystem {
   }
 
   private complete(beat: StoryBeat): boolean {
+    // A beat that names a boat can only complete from that boat.
+    if (this.requiresBoatUnmet(beat)) return false;
     const e = beat.encounter;
     const boat = this.d.getBoatPos();
 
