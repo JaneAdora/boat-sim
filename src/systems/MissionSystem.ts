@@ -328,11 +328,38 @@ export class MissionSystem {
     }
   }
 
+  /** Instance-backed encounters must still have their critical object; the
+   *  systems-owned kinds (mermaid/leviathan/weather) manage their own
+   *  lifecycles and are always "healthy" from the mission's view. */
+  private encounterHealthy(beat: StoryBeat): boolean {
+    switch (beat.encounter.kind) {
+      case 'tow-derelict': {
+        const v = this.instance?.ref as WildlifeEntity | undefined;
+        return !!v && this.d.wildlife.isEntityAlive(v);
+      }
+      case 'rescue':
+        return this.d.distress.getScriptedVessel() !== null;
+      case 'pickup':
+        return this.prop !== null;
+      default:
+        return true;
+    }
+  }
+
   /** Called each frame from Engine.update (campaign only). */
   update(dt: number): void {
     this.time += dt;
     const beat = currentBeat(this.d.state);
     if (!beat) return;
+
+    // Self-heal (Act 2 stage 0): if the armed encounter's critical object is
+    // ever gone — destroyed, culled, or lost across a reload edge — quietly
+    // rebuild the beat rather than soft-locking on a completion that can
+    // never fire. (Act 1's beat-4 "empty mayday" bug, prevented by design.)
+    if (this.d.state.armedBeat === this.d.state.beat && !this.encounterHealthy(beat)) {
+      this.disarm();
+      this.arm(beat);
+    }
 
     // Bob the pickup prop on the swell so it reads as floating, not static.
     if (this.prop) {
