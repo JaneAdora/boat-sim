@@ -23,6 +23,14 @@ export const ACT2_LOCATIONS = {
 const reef = STORY_LOCATIONS.reef;
 const trench = STORY_LOCATIONS.trench;
 
+/** Display names for the drowned souls — save keys never carry these. The
+ *  epilogue substitutes them into {saved}/{kept}. */
+export const SOUL_NAMES: Record<string, string> = {
+  survivor_wife: 'Mara',
+  soul_lampkeeper: 'Edda',
+  soul_deckhand: 'Tomas',
+};
+
 export const ACT2_BEATS: StoryBeat[] = [
   // ── SHIPPED (stage 2): beats 9–13 — see ACT2_SHIPPED below ──
   {
@@ -155,6 +163,36 @@ export const ACT2_BEATS: StoryBeat[] = [
         'Three boats home through the worst water the harbour has ever known. Greyharbor holds — because you held.',
     },
   },
+  // ── SHIPPED (stage 4): beat 16, the finale ──
+  {
+    id: 'drowned-light',
+    title: 'The Drowned Light',
+    brief: 'The song rises to meet you. It is not a hunt. It is a question — answer it gently.',
+    objective: 'Answer the song: pass each glow slowly, deep, in order.',
+    requiresBoat: 'Submarine',
+    encounter: {
+      kind: 'song-answer',
+      spawn: trench,
+      points: [
+        { x: trench.x + 42, z: trench.z },
+        { x: trench.x - 20, z: trench.z + 44 },
+        { x: trench.x - 20, z: trench.z - 44 },
+      ],
+      radius: 25,
+      dwellSeconds: 5,
+      maxSpeed: 3,
+    },
+    reward: {
+      credits: 300,
+      karma: 15,
+      journalKey: 'drowned-light',
+      flag: 'act2complete',
+      successLine:
+        'The light dims, gently, like the living going to sleep. {saved} are home; {kept} keeps the dark company, singing. The tide turns for Greyharbor — and the Leviathan’s call fades with it, answered. (Act 2 complete.)',
+      slainLine:
+        'The light sinks under your song alone, sealed below storm-water. {saved} are home; {kept} keeps the dark company. The tide turns for Greyharbor — but no great voice answers yours, and the quiet has a shape. (Act 2 complete.)',
+    },
+  },
 ];
 
 /**
@@ -164,4 +202,4 @@ export const ACT2_BEATS: StoryBeat[] = [
  * ACT2_BEATS regardless, so unshipped beats stay playable behind
  * VITE_STORY_HARNESS.
  */
-export const ACT2_SHIPPED: StoryBeat[] = ACT2_BEATS.slice(0, 7);
+export const ACT2_SHIPPED: StoryBeat[] = ACT2_BEATS.slice(0, 8); // stage 4: the full act

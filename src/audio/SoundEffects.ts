@@ -474,6 +474,41 @@ export class SoundEffects {
     }
   }
 
+  /**
+   * The Leviathan's answering call (~4s): a low descending moan with slow
+   * vibrato, far off and enormous. Plays when a song pass banks on the mercy
+   * branch of the finale.
+   */
+  playDeepCall(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(82, now);
+    osc.frequency.exponentialRampToValueAtTime(58, now + 3.2);
+
+    const vibrato = ctx.createOscillator();
+    vibrato.frequency.setValueAtTime(2.1, now);
+    const vibratoGain = ctx.createGain();
+    vibratoGain.gain.setValueAtTime(2.5, now);
+    vibrato.connect(vibratoGain);
+    vibratoGain.connect(osc.frequency);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.8);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 4.2);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain!);
+    osc.start(now);
+    osc.stop(now + 4.4);
+    vibrato.start(now);
+    vibrato.stop(now + 4.4);
+  }
+
   stop(): void {
     if (this.audioCtx) {
       this.audioCtx.close();

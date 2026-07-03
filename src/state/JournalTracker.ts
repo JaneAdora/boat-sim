@@ -24,6 +24,7 @@ export const JOURNAL_ENTRIES: Record<string, string> = {
   angler: 'Cast a line and waited',
   'drowned-choir': 'Carried souls back from the drowned choir',
   'the-guardian': 'Held the line while the deep glow climbed',
+  'drowned-light': 'Answered the song at the bottom of the world',
 };
 
 export const JOURNAL_TOTAL = Object.keys(JOURNAL_ENTRIES).length;

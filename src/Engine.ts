@@ -670,6 +670,11 @@ export class Engine {
         sonarPing: () => this.soundEffects.playSonarPing(),
         bellToll: () => this.soundEffects.playBellToll(),
         isNight: () => this.dayNightSystem.getSunDirection().y < -0.1,
+        deepCall: () => this.soundEffects.playDeepCall(),
+        getBoatSpeed: () => {
+          const rb = this.world.getComponent<RigidBody>(this.boatEntity, 'RigidBody');
+          return rb ? Math.hypot(rb.velocity.x, rb.velocity.z) : 0;
+        },
         disarmed: combatSettings.disarmed,
         getBoatPos: () => {
           const t = this.world.getComponent<Transform>(this.boatEntity, 'Transform');

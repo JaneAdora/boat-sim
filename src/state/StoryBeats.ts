@@ -36,6 +36,14 @@ export type EncounterSpec =
       kind: 'rescue-sequence'; // beat 15: three rescues, in order, under storm
       points: V2[];
       safeRadius: number;
+    }
+  | {
+      kind: 'song-answer'; // beat 16: the finale — answer the song, slowly, in order
+      spawn: V2; // the presence (also the marker anchor)
+      points: V2[]; // ordered pass points around it
+      radius: number;
+      dwellSeconds: number;
+      maxSpeed: number; // engine units; calm approach
     };
 
 export interface StoryBeat {

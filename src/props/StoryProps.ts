@@ -183,6 +183,47 @@ export function createMermaidSilhouette(): THREE.Group {
   return g;
 }
 
+/** The drowned light itself (beat 16): a vast pale glow half-lost below the
+ *  trench floor — deliberately simple, a presence rather than a creature. */
+export function createDeepPresence(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(55, 20, 14),
+    new THREE.MeshBasicMaterial({
+      color: 0xbfe2f2,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false,
+    }),
+  );
+  body.scale.y = 0.35; // a long low swell of light, not a ball
+  g.add(body);
+  const heart = new THREE.Mesh(
+    new THREE.SphereGeometry(18, 16, 12),
+    new THREE.MeshBasicMaterial({
+      color: 0xe8f4fa,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+    }),
+  );
+  g.add(heart);
+  for (let i = 0; i < 5; i++) {
+    const mote = new THREE.Mesh(
+      new THREE.SphereGeometry(1.4, 8, 6),
+      new THREE.MeshBasicMaterial({
+        color: 0xbfe2f2,
+        transparent: true,
+        opacity: 0.5,
+        depthWrite: false,
+      }),
+    );
+    mote.position.set(Math.sin(i * 2.1) * 30, 6 + (i % 3) * 5, Math.cos(i * 2.1) * 30);
+    g.add(mote);
+  }
+  return g;
+}
+
 export function disposeGroup(scene: THREE.Scene, group: THREE.Group): void {
   scene.remove(group);
   group.traverse((obj) => {

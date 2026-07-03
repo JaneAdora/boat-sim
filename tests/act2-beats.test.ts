@@ -32,8 +32,10 @@ describe('Act 2 beat graph', () => {
   });
 
   it('every deep beat requires the Submarine (the gate CRITICAL)', () => {
-    const deep = ACT2_BEATS.filter((b) => ['into-trench', 'drowned-choir'].includes(b.id));
-    expect(deep).toHaveLength(2);
+    const deep = ACT2_BEATS.filter((b) =>
+      ['into-trench', 'drowned-choir', 'drowned-light'].includes(b.id),
+    );
+    expect(deep).toHaveLength(3);
     for (const b of deep) expect(b.requiresBoat).toBe('Submarine');
   });
 
@@ -55,7 +57,7 @@ describe('Act 2 beat graph', () => {
   });
 
   it('exactly the shipped beats are in the production working array', () => {
-    // ACT2_SHIPPED must track the plan's stages: 9–15 as of stage 3.
+    // ACT2_SHIPPED must track the plan's stages: the full act as of stage 4.
     expect(ACT2_SHIPPED.map((b) => b.id)).toEqual([
       'tide-stayed',
       'exodus',
@@ -64,7 +66,21 @@ describe('Act 2 beat graph', () => {
       'drowned-choir',
       'old-enemy',
       'king-tide',
+      'drowned-light',
     ]);
+  });
+
+  it('the finale carries both endings, the fates substitution, and in-trench points', () => {
+    const finale = ACT2_BEATS.find((b) => b.id === 'drowned-light')!;
+    expect(finale.reward.successLine).toContain('{saved}');
+    expect(finale.reward.successLine).toContain('{kept}');
+    expect(finale.reward.slainLine).toContain('{saved}');
+    expect(finale.reward.flag).toBe('act2complete');
+    if (finale.encounter.kind !== 'song-answer') throw new Error('wrong kind');
+    for (const p of finale.encounter.points) {
+      expect(Math.hypot(p.x - TRENCH.centerX, p.z - TRENCH.centerZ)).toBeLessThan(TRENCH.radius);
+    }
+    expect(inBand(-60, TRENCH.songBand)).toBe(true); // a sane cruising depth passes
   });
 
   it('the guardian beat carries both branch closings', () => {

@@ -27,6 +27,8 @@ import { MultiPickup } from '../state/MultiPickup';
 import { SoulTransport } from '../state/SoulTransport';
 import { HoldTimer } from '../state/HoldTimer';
 import { RescueSequence } from '../state/RescueSequence';
+import { SongAnswer, type SongViolation } from '../state/SongAnswer';
+import { SOUL_NAMES } from '../state/StoryBeatsAct2';
 import type { SoulId } from '../state/CampaignState';
 import { TRENCH, inBand } from '../world/TrenchProfile';
 import {
@@ -36,6 +38,8 @@ import {
   createDrownedHamlet,
   createBellBuoy,
   createMermaidSilhouette,
+  createGuardianSerpent,
+  createDeepPresence,
   disposeGroup,
 } from '../props/StoryProps';
 import type { InterludeCard } from '../ui/StoryInterlude';
@@ -62,6 +66,7 @@ const INTERLUDE_PLATES: Record<string, { begin?: number; complete?: number }> = 
   'drowned-choir': { complete: 15 },
   'old-enemy': { complete: 16 },
   'king-tide': { begin: 17 },
+  'drowned-light': { begin: 18 },
 };
 
 const plateUrl = (n: number): string => `/story/panel-${String(n).padStart(2, '0')}.jpg`;
@@ -86,6 +91,10 @@ export interface MissionDeps {
   bellToll(): void;
   /** Night gate for the exodus mermaid (Act 2 beat 10). */
   isNight(): boolean;
+  /** The Leviathan's answering call (Act 2 finale, mercy branch). */
+  deepCall(): void;
+  /** Current boat speed, engine units (Act 2 finale: calm-approach check). */
+  getBoatSpeed(): number;
   /** No-weapons mode (tb-disarmed): the finale is won by luring, not sinking. */
   disarmed: boolean;
   getBoatPos(): { x: number; z: number; y: number };
@@ -162,6 +171,14 @@ export class MissionSystem {
   private holdMidpointToasted = false;
   /** Beat 15: the storm-rescue sequencer. */
   private rescueSeq: RescueSequence | null = null;
+  /** Beat 16: the finale — the song machine, the presence, and (mercy) the
+   *  answering serpent on its fixed circuit. */
+  private song: SongAnswer | null = null;
+  private presenceProp: THREE.Group | null = null;
+  private callSerpent: THREE.Group | null = null;
+  private callAngle = 0;
+  private lastSongViolation: SongViolation = 'none';
+  private songToastAt = -10;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -233,6 +250,14 @@ export class MissionSystem {
     // Beat 13: the hamlet below (and the recovery vessel above it — same column).
     if (beat?.encounter.kind === 'soul-transport') {
       return { x: beat.encounter.hamlet.x, z: beat.encounter.hamlet.z };
+    }
+    // Beat 16: the marker leads to the current song point.
+    if (beat?.encounter.kind === 'song-answer' && this.song) {
+      const idx = this.song.currentPoint();
+      if (idx !== null) {
+        const p = beat.encounter.points[idx];
+        return { x: p.x, z: p.z };
+      }
     }
     // Beat 15: track the current stage's vessel; once hooked, point to clear
     // water past the safe radius (the clearPoint pattern from beat 4).
@@ -479,6 +504,30 @@ export class MissionSystem {
         this.rescueSeq = new RescueSequence(e.points.length);
         this.rescueSeq.hydrate(e.points.map((_, i) => !!this.d.state.flags[`kt_rescue_${i + 1}`]));
         this.spawnRescueStage(e);
+        break;
+      }
+      case 'song-answer': {
+        // The finale. Mercy: unforced sky and the spared Leviathan circling
+        // the presence on a fixed circuit, answering each pass. Slain: the
+        // same song under forced storm, alone.
+        this.song = new SongAnswer(e.points.length, {
+          radius: e.radius,
+          dwellSeconds: e.dwellSeconds,
+          maxSpeed: e.maxSpeed,
+          band: TRENCH.songBand,
+        });
+        this.lastSongViolation = 'none';
+        this.songToastAt = -10;
+        this.presenceProp = createDeepPresence();
+        this.presenceProp.position.set(e.spawn.x, TRENCH.deepFloor - 14, e.spawn.z);
+        this.d.scene.add(this.presenceProp);
+        if (this.d.state.flags['mercy']) {
+          this.callSerpent = createGuardianSerpent();
+          this.callAngle = 0;
+          this.d.scene.add(this.callSerpent);
+        } else {
+          this.d.weather.beginScriptedStorm();
+        }
         break;
       }
       default:
@@ -782,6 +831,63 @@ export class MissionSystem {
       }
     }
 
+    // Beat 16: drive the song, breathe the presence, animate the answering
+    // serpent, and keep the feedback honest (the Act 1 rule: never let the
+    // player fail silently).
+    if (beat.encounter.kind === 'song-answer' && this.song && !this.requiresBoatUnmet(beat)) {
+      const e = beat.encounter;
+      const b = this.d.getBoatPos();
+      if (this.presenceProp) {
+        const breathe = 1 + Math.sin(this.time * 0.5) * 0.06;
+        this.presenceProp.scale.setScalar(breathe);
+      }
+      if (this.callSerpent) {
+        this.callAngle += dt * 0.12;
+        const r = 95;
+        this.callSerpent.position.set(
+          e.spawn.x + Math.cos(this.callAngle) * r,
+          -58,
+          e.spawn.z + Math.sin(this.callAngle) * r,
+        );
+        this.callSerpent.rotation.y = -this.callAngle;
+      }
+      const idx = this.song.currentPoint();
+      if (idx !== null) {
+        const p = e.points[idx];
+        const dist = Math.hypot(b.x - p.x, b.z - p.z);
+        const banked = this.song.step(dt, dist, b.y, this.d.getBoatSpeed());
+        if (banked) {
+          const n = this.song.passesBanked();
+          if (this.d.state.flags['mercy']) this.d.deepCall();
+          if (!this.song.complete()) {
+            this.d.hud.showToast(
+              'The song answers',
+              `${n} of ${e.points.length} — the next glow waits. Slowly, Captain.`,
+            );
+          }
+        } else if (dist < e.radius * 2.5) {
+          // Live coaching, throttled, only when the mode changes or repeats
+          // after a while — silence when compliant.
+          const v = this.song.lastViolation();
+          if (v !== 'none' && (v !== this.lastSongViolation || this.time - this.songToastAt > 8)) {
+            const lines: Record<SongViolation, string | null> = {
+              none: null,
+              outside: null, // the marker already leads there
+              'too-fast': 'Slow. Approach like a prayer.',
+              'too-shallow': 'Deeper — the song is below you.',
+              'too-deep': 'Ease up — hold inside the song.',
+            };
+            const line = lines[v];
+            if (line) {
+              this.lastSongViolation = v;
+              this.songToastAt = this.time;
+              this.d.hud.showToast('The Drowned Light', line);
+            }
+          }
+        }
+      }
+    }
+
     if (this.complete(beat)) this.finish(beat);
     else this.d.quest.setDistance(this.distanceToMarker());
   }
@@ -883,6 +989,8 @@ export class MissionSystem {
         return !!this.hold && this.hold.complete();
       case 'rescue-sequence':
         return !!this.rescueSeq && this.rescueSeq.complete();
+      case 'song-answer':
+        return !!this.song && this.song.complete();
       default:
         return false;
     }
@@ -900,6 +1008,18 @@ export class MissionSystem {
       : r.successLine;
     // Branch-flavored closings (beat 14's guardian vs its absence).
     if (r.slainLine && this.d.state.flags['slain']) successLine = r.slainLine;
+    // The epilogue names the fates: {saved} and {kept} from the choir.
+    if (successLine.includes('{saved}') || successLine.includes('{kept}')) {
+      const saved = Object.entries(this.d.state.fates)
+        .filter(([, f]) => f === 'saved')
+        .map(([id]) => SOUL_NAMES[id] ?? id);
+      const kept = Object.entries(this.d.state.fates)
+        .filter(([, f]) => f === 'kept')
+        .map(([id]) => SOUL_NAMES[id] ?? id);
+      successLine = successLine
+        .replace('{saved}', saved.length ? saved.join(' and ') : 'The rescued')
+        .replace('{kept}', kept.length ? kept.join(' and ') : 'one voice');
+    }
     // Beat 13: the soul the sea keeps is chosen by omission — commit her fate
     // and name her in the closing line.
     if (beat.encounter.kind === 'soul-transport' && this.soulRun) {
@@ -974,6 +1094,15 @@ export class MissionSystem {
     this.exodusStarted = false;
     this.hold = null;
     this.rescueSeq = null;
+    if (this.presenceProp) {
+      disposeGroup(this.d.scene, this.presenceProp);
+      this.presenceProp = null;
+    }
+    if (this.callSerpent) {
+      disposeGroup(this.d.scene, this.callSerpent);
+      this.callSerpent = null;
+    }
+    this.song = null;
     // A mission-owned vessel (the towed Marigold, or a rescued boat) is handed
     // off at beat's end: detach the tow line so she isn't dragged into the next
     // beat, then despawn her. (Scripted-rescue vessels are also cleared by
