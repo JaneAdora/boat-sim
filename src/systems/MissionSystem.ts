@@ -30,7 +30,7 @@ import { RescueSequence } from '../state/RescueSequence';
 import { SongAnswer, type SongViolation } from '../state/SongAnswer';
 import { SOUL_NAMES } from '../state/StoryBeatsAct2';
 import type { SoulId } from '../state/CampaignState';
-import { TRENCH, inBand } from '../world/TrenchProfile';
+import { TRENCH, inBand, setEra } from '../world/TrenchProfile';
 import {
   createWreckHull,
   createSoulSprite,
@@ -375,6 +375,10 @@ export class MissionSystem {
 
   private arm(beat: StoryBeat): void {
     const e = beat.encounter;
+    // Depth era: the trench deepens ONLY while an Act 3 descent beat (authored
+    // beat ≥ 20, zero-based index ≥ 19) is armed; every disarm resets to act2,
+    // so no path can leave the deep era active outside the maelstrom.
+    setEra(this.d.state.beat >= 19 ? 'act3' : 'act2');
     if ('spawn' in e) this.marker = { x: e.spawn.x, z: e.spawn.z };
     else if (e.kind === 'multi-pickup') this.marker = { x: e.points[0].x, z: e.points[0].z };
     else if (e.kind === 'soul-transport') this.marker = { x: e.hamlet.x, z: e.hamlet.z };
@@ -1053,6 +1057,7 @@ export class MissionSystem {
 
   /** Tear down the active scripted encounter (idempotent). */
   private disarm(): void {
+    setEra('act2'); // the deep era never survives a disarm
     this.marker = null;
     this.d.towing.setPreferredTowable(null);
     // Restore/clear the scripted rescue vessel (no-op if none was scripted).

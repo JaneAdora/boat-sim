@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clamp } from '../utils/math';
-import { floorAt, TRENCH } from '../world/TrenchProfile';
+import { floorAt, fadeParams, TRENCH } from '../world/TrenchProfile';
 
 /**
  * The underwater look for the submarine. A full-screen blue tint deepens as the
@@ -53,8 +53,10 @@ export class Underwater {
     const submersion = clamp(-cameraY / 14, 0, 1);
     this.tint.style.opacity = (submersion * 0.9).toFixed(3);
 
-    // The deep band: fades in below the old −35 world floor.
-    const deep = clamp((-cameraY - 28) / 30, 0, 1);
+    // The deep band: fades in below the old −35 world floor (curve is
+    // era-aware — act2's numbers are the shipped literals, frozen).
+    const fade = fadeParams();
+    const deep = clamp((-cameraY - fade.start) / fade.range, 0, 1);
     this.deepTint.style.opacity = (deep * 0.82).toFixed(3);
 
     this.seabed.visible = submersion > 0.02;

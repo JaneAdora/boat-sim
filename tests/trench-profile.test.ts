@@ -69,3 +69,46 @@ describe('TrenchProfile: predicates and bands', () => {
     expect(mid).toBeCloseTo(0.5, 9);
   });
 });
+
+// ── Act 3: depth eras ──
+import { TRENCH_ACT3, setEra, currentEra, fadeParams, bandReachable } from '../src/world/TrenchProfile';
+import { afterEach } from 'vitest';
+
+describe('TrenchProfile: eras (Act 3)', () => {
+  afterEach(() => setEra('act2')); // never leak the deep era into other tests
+
+  it('defaults to act2 and act2 values are the shipped constants, frozen', () => {
+    expect(currentEra()).toBe('act2');
+    expect(TRENCH.deepFloor).toBe(-80);
+    expect(TRENCH.standardFloor).toBe(-35);
+    expect(TRENCH.radius).toBe(140);
+    expect(TRENCH.shelf).toBe(80);
+    expect(fadeParams()).toEqual({ start: 28, range: 30 }); // Underwater's shipped literals
+    expect(floorAt(cx, cz)).toBe(-80); // byte-identical Act 2 behavior
+  });
+
+  it('act3 deepens the core; outside stays the standard world', () => {
+    setEra('act3');
+    expect(floorAt(cx, cz)).toBe(TRENCH_ACT3.deepFloor);
+    expect(TRENCH_ACT3.deepFloor).toBe(-105);
+    expect(floorAt(cx + 5000, cz)).toBe(TRENCH.standardFloor); // Greyharbor untouched
+    expect(fadeParams()).toEqual({ start: 28, range: 45 });
+  });
+
+  it('switching back restores act2 exactly', () => {
+    setEra('act3');
+    setEra('act2');
+    expect(floorAt(cx, cz)).toBe(-80);
+    expect(fadeParams().range).toBe(30);
+  });
+
+  it('bandReachable enforces the reachability invariant', () => {
+    // act2: the heart band's bottom (−105) is NOT reachable
+    expect(bandReachable(cx, cz, TRENCH_ACT3.heartBand)).toBe(false);
+    setEra('act3');
+    expect(bandReachable(cx, cz, TRENCH_ACT3.heartBand)).toBe(true);
+    // and never reachable outside the core, in any era
+    expect(bandReachable(cx + 5000, cz, TRENCH_ACT3.heartBand)).toBe(false);
+    expect(bandReachable(cx, cz, { min: -40, max: -10 })).toBe(true); // shallow band fine anywhere deep
+  });
+});

@@ -35,6 +35,52 @@ export const TRENCH = {
   songBand: { min: -80, max: -50 }, // beat 16 calm passes
 } as const;
 
+/**
+ * Act 3: the maelstrom opens the trench deeper than Act 2 ever went. The
+ * deepening is an ERA, not a retune — `TRENCH` above is frozen forever (the
+ * shipped Act 2 beats replay byte-identically), and the era switches only
+ * while an Act 3 descent beat (≥ 20) is armed. MissionSystem owns the switch;
+ * disarm always resets to act2.
+ */
+export const TRENCH_ACT3 = {
+  ...TRENCH,
+  deepFloor: -105,
+  /** The heart of the deep and the ask both live in this band. */
+  heartBand: { min: -105, max: -85 },
+  /** Underwater deep-fade curve (start depth, range) — act3 fades longer. */
+  fade: { start: 28, range: 45 },
+} as const;
+
+/** act2's fade curve = the shipped Underwater literals, frozen. */
+const TRENCH_ACT2_FADE = { start: 28, range: 30 } as const;
+
+export type TrenchEra = 'act2' | 'act3';
+let era: TrenchEra = 'act2';
+
+export function setEra(e: TrenchEra): void {
+  era = e;
+}
+
+export function currentEra(): TrenchEra {
+  return era;
+}
+
+/** The active era's floor inside the core. */
+function coreFloor(): number {
+  return era === 'act2' ? TRENCH.deepFloor : TRENCH_ACT3.deepFloor;
+}
+
+/** The active era's Underwater fade curve. */
+export function fadeParams(): { start: number; range: number } {
+  return era === 'act2' ? TRENCH_ACT2_FADE : TRENCH_ACT3.fade;
+}
+
+/** Reachability invariant (Act 3 plan): the sub can hold the WHOLE band at
+ *  (x,z) only if the local floor reaches the band's bottom. */
+export function bandReachable(x: number, z: number, band: { min: number; max: number }): boolean {
+  return floorAt(x, z) <= band.min;
+}
+
 function smoothstep(t: number): number {
   const c = Math.min(1, Math.max(0, t));
   return c * c * (3 - 2 * c);
@@ -56,11 +102,12 @@ export function inTrench(x: number, z: number): boolean {
  * eases upward instead of snap-clamping.
  */
 export function floorAt(x: number, z: number): number {
+  const deep = coreFloor(); // era-aware: −80 in act2, −105 in act3
   const d = trenchDist(x, z);
-  if (d <= TRENCH.radius) return TRENCH.deepFloor;
+  if (d <= TRENCH.radius) return deep;
   if (d >= TRENCH.radius + TRENCH.shelf) return TRENCH.standardFloor;
   const t = smoothstep((d - TRENCH.radius) / TRENCH.shelf);
-  return TRENCH.deepFloor + (TRENCH.standardFloor - TRENCH.deepFloor) * t;
+  return deep + (TRENCH.standardFloor - deep) * t;
 }
 
 /** 0 at the surface → 1 at the local floor; drives the deep tint/fog curve. */
