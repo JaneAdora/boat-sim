@@ -52,6 +52,12 @@ export class SubmarineSystem extends System {
   private rings: Ring[] = [];
   private sonarTimer = SONAR_INTERVAL;
   private contacted = new Set<string>();
+  // Act 2: the dive floor is a live provider, not a constant — the deep refit
+  // (beat 11) extends it mid-session, and the trench profile varies it by
+  // position. Default = Act 1's flat −35 everywhere.
+  private maxDepthAt: (x: number, z: number) => number = () => MAX_DEPTH;
+  // Below the old world floor the water is lightless; a headlight rides along.
+  private headlight: THREE.PointLight | null = null;
 
   constructor(
     private scene: THREE.Scene,
@@ -65,6 +71,11 @@ export class SubmarineSystem extends System {
 
   setTouchControls(tc: TouchControls): void {
     this.touch = tc;
+  }
+
+  /** Act 2: install a position-aware dive floor (deep refit / trench). */
+  setMaxDepthProvider(fn: (x: number, z: number) => number): void {
+    this.maxDepthAt = fn;
   }
 
   update(world: World, dt: number): void {
@@ -112,8 +123,10 @@ export class SubmarineSystem extends System {
 
       t.position.x += Math.sin(d.heading) * d.speed * dt;
       t.position.z += Math.cos(d.heading) * d.speed * dt;
-      t.position.y = clamp(t.position.y + d.vspeed * dt, MAX_DEPTH, 0.5);
+      const floor = this.maxDepthAt(t.position.x, t.position.z);
+      t.position.y = clamp(t.position.y + d.vspeed * dt, floor, 0.5);
       d.depth = Math.max(0, -t.position.y);
+      this.updateHeadlight(t, d);
 
       // Nose down when diving, up when climbing (positive pitch is nose-down).
       d.pitch += (clamp(-d.vspeed * DIVE_PITCH_K, -0.35, 0.35) - d.pitch) * Math.min(1, 5 * dt);
@@ -136,6 +149,7 @@ export class SubmarineSystem extends System {
         _euler.set(0, d.heading, 0);
         t.quaternion.setFromEuler(_euler);
         t.rotation.copy(_euler);
+        if (this.headlight) this.headlight.visible = false;
       }
     }
   }
@@ -187,6 +201,24 @@ export class SubmarineSystem extends System {
     }
   }
 
+  /** A soft lamp riding the hull, fading in below the old world floor where
+   *  the deep zone goes lightless. Cheap point light — no shadow, no target. */
+  private updateHeadlight(t: Transform, d: Dive): void {
+    if (!this.headlight) {
+      this.headlight = new THREE.PointLight(0xcfe8e0, 0, 55, 1.6);
+      this.scene.add(this.headlight);
+    }
+    const fade = clamp((-t.position.y - 30) / 15, 0, 1); // 0 above −30 → 1 by −45
+    this.headlight.visible = d.submerged && fade > 0;
+    this.headlight.intensity = 2.4 * fade;
+    // Sit slightly ahead of the bow so the light reads as a lamp, not a glow.
+    this.headlight.position.set(
+      t.position.x + Math.sin(d.heading) * 6,
+      t.position.y + 1,
+      t.position.z + Math.cos(d.heading) * 6,
+    );
+  }
+
   private spinProp(world: World, entity: number, dt: number, rate: number): void {
     const mr = world.getComponent<MeshRenderable>(entity, 'MeshRenderable');
     const prop = mr?.object3D.getObjectByName('prop');
@@ -200,5 +232,10 @@ export class SubmarineSystem extends System {
       (r.mesh.material as THREE.Material).dispose();
     }
     this.rings = [];
+    if (this.headlight) {
+      this.scene.remove(this.headlight);
+      this.headlight.dispose();
+      this.headlight = null;
+    }
   }
 }

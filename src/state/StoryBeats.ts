@@ -10,7 +10,41 @@ export type EncounterSpec =
   | { kind: 'sonar-contact'; spawn: V2; radius: number; depth: number }
   | { kind: 'mermaid'; spawn: V2; radius: number }
   | { kind: 'leviathan-witness'; spawn: V2; radius: number }
-  | { kind: 'leviathan-boss'; spawn: V2; lurePasses: number };
+  | { kind: 'leviathan-boss'; spawn: V2; lurePasses: number }
+  // ── Act 2 ──
+  | {
+      kind: 'multi-pickup'; // beat 11: N salvage contacts, then return to dock
+      points: { id: string; x: number; z: number }[];
+      radius: number;
+      dockRadius: number;
+    }
+  | {
+      kind: 'soul-transport'; // beat 13: the Drowned Choir
+      hamlet: V2; // trench-floor site (depths come from TrenchProfile)
+      souls: { id: string; name: string; dx: number; dz: number }[];
+      pickupRadius: number; // 3D contact
+      deliverRadius: number; // surfaced, near the recovery vessel
+    }
+  | {
+      kind: 'guardian'; // beat 14: hold the line at the trench mouth, surfaced
+      spawn: V2;
+      holdRadius: number;
+      mercySeconds: number; // the spared Leviathan circles with you
+      slainSeconds: number; // nobody comes; longer, under storm
+    }
+  | {
+      kind: 'rescue-sequence'; // beat 15: three rescues, in order, under storm
+      points: V2[];
+      safeRadius: number;
+    }
+  | {
+      kind: 'song-answer'; // beat 16: the finale — answer the song, slowly, in order
+      spawn: V2; // the presence (also the marker anchor)
+      points: V2[]; // ordered pass points around it
+      radius: number;
+      dwellSeconds: number;
+      maxSpeed: number; // engine units; calm approach
+    };
 
 export interface StoryBeat {
   id: string;
@@ -26,6 +60,9 @@ export interface StoryBeat {
     journalKey?: keyof typeof JOURNAL_ENTRIES;
     flag?: string;
     successLine: string;
+    /** Alternate closing line when the save carries `slain` (beats whose
+     *  meaning branches on the Act 1 finale — e.g. the guardian's absence). */
+    slainLine?: string;
   };
 }
 

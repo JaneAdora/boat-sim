@@ -127,9 +127,12 @@ export class TowingSystem extends System {
     }
   }
 
-  /** Attach a specific entity to the tow line (heists auto-hook stolen cargo). */
+  /** Attach a specific entity to the tow line (heists auto-hook stolen cargo).
+   *  Refuses mission-protected (untowable) entities — every attachment path
+   *  must honor the capability, not just the candidate search. */
   towEntity(entity: WildlifeEntity): boolean {
     if (this.towedEntity) return false;
+    if (this.wildlifeSystem.isUntowable(entity)) return false;
     this.startTow(entity);
     return true;
   }
@@ -145,10 +148,11 @@ export class TowingSystem extends System {
     this.preferredTowable = entity;
   }
 
-  /** The preferred vessel if it's alive and within tow range, else null. */
+  /** The preferred vessel if it's alive, towable, and within range, else null. */
   private preferredTowableInRange(x: number, z: number): WildlifeEntity | null {
     const e = this.preferredTowable;
     if (!e || e.towed || !this.wildlifeSystem.isEntityAlive(e)) return null;
+    if (this.wildlifeSystem.isUntowable(e)) return null;
     const dx = e.mesh.position.x - x;
     const dz = e.mesh.position.z - z;
     return dx * dx + dz * dz <= this.towRange * this.towRange ? e : null;

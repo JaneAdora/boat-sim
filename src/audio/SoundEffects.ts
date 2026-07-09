@@ -443,6 +443,72 @@ export class SoundEffects {
     }
   }
 
+  /**
+   * A single mournful buoy-bell strike (~3s). Low A3 with inharmonic partials
+   * and a long salt-air decay — the drowned bell out on the flats (Act 2
+   * beat 9), tolling to no one.
+   */
+  playBellToll(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const strike: [number, number, number][] = [
+      // [freq, peak gain, decay seconds] — hum, prime, tierce-ish partial
+      [220, 0.14, 3.0],
+      [220 * 2.0, 0.06, 1.8],
+      [220 * 2.76, 0.035, 0.9],
+    ];
+    for (const [freq, peak, decay] of strike) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(peak, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + decay);
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now);
+      osc.stop(now + decay + 0.1);
+    }
+  }
+
+  /**
+   * The Leviathan's answering call (~4s): a low descending moan with slow
+   * vibrato, far off and enormous. Plays when a song pass banks on the mercy
+   * branch of the finale.
+   */
+  playDeepCall(): void {
+    if (this.muted) return;
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(82, now);
+    osc.frequency.exponentialRampToValueAtTime(58, now + 3.2);
+
+    const vibrato = ctx.createOscillator();
+    vibrato.frequency.setValueAtTime(2.1, now);
+    const vibratoGain = ctx.createGain();
+    vibratoGain.gain.setValueAtTime(2.5, now);
+    vibrato.connect(vibratoGain);
+    vibratoGain.connect(osc.frequency);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.8);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 4.2);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain!);
+    osc.start(now);
+    osc.stop(now + 4.4);
+    vibrato.start(now);
+    vibrato.stop(now + 4.4);
+  }
+
   stop(): void {
     if (this.audioCtx) {
       this.audioCtx.close();
