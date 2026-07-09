@@ -93,6 +93,11 @@ export interface MissionDeps {
   isNight(): boolean;
   /** The Leviathan's answering call (Act 2 finale, mercy branch). */
   deepCall(): void;
+  /** Act 3: the blocking mid-beat ask (beat 22). Resolves the chosen index;
+   *  rejects with 'cancelled' if the ask is closed by a beat change. */
+  choice(title: string, line: string, options: string[]): Promise<number>;
+  /** Close any pending ask — called on every disarm/dispose. */
+  cancelChoice(): void;
   /** Current boat speed, engine units (Act 2 finale: calm-approach check). */
   getBoatSpeed(): number;
   /** No-weapons mode (tb-disarmed): the finale is won by luring, not sinking. */
@@ -373,8 +378,13 @@ export class MissionSystem {
     saveCampaign(this.d.state);
   }
 
+  /** Arm generation — bumps on every arm/disarm so async resolutions (the
+   *  keeper ask) can prove they belong to the currently armed beat. */
+  private armGen = 0;
+
   private arm(beat: StoryBeat): void {
     const e = beat.encounter;
+    this.armGen++;
     // Depth era: the trench deepens ONLY while an Act 3 descent beat (authored
     // beat ≥ 20, zero-based index ≥ 19) is armed; every disarm resets to act2,
     // so no path can leave the deep era active outside the maelstrom.
@@ -1063,6 +1073,8 @@ export class MissionSystem {
   /** Tear down the active scripted encounter (idempotent). */
   private disarm(): void {
     setEra('act2'); // the deep era never survives a disarm
+    this.armGen++; // pending async asks are now provably stale
+    this.d.cancelChoice(); // and their UI is closed (no-op when none pending)
     this.marker = null;
     this.d.towing.setPreferredTowable(null);
     // Restore/clear the scripted rescue vessel (no-op if none was scripted).

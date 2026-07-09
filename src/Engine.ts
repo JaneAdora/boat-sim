@@ -619,6 +619,9 @@ export class Engine {
       this.contracts.setAmbientEnabled(false);
 
       const state: CampaignState = loadCampaign() ?? newCampaign();
+      // One dialog instance serves the act-entry mercy ask and Act 3's
+      // mid-beat keeper ask (via the mission dep pair below).
+      this.choiceDialog = new ChoiceDialog();
 
       if (import.meta.env.VITE_STORY_HARNESS) {
         // The dev slice harness — present ONLY in builds made with
@@ -671,6 +674,8 @@ export class Engine {
         bellToll: () => this.soundEffects.playBellToll(),
         isNight: () => this.dayNightSystem.getSunDirection().y < -0.1,
         deepCall: () => this.soundEffects.playDeepCall(),
+        choice: (title, line, options) => this.choiceDialog!.show(title, line, options),
+        cancelChoice: () => this.choiceDialog?.cancel(),
         getBoatSpeed: () => {
           const rb = this.world.getComponent<RigidBody>(this.boatEntity, 'RigidBody');
           return rb ? Math.hypot(rb.velocity.x, rb.velocity.z) : 0;
@@ -694,18 +699,20 @@ export class Engine {
           this.mission?.start();
           return;
         }
-        this.choiceDialog = new ChoiceDialog();
-        void this.choiceDialog
+        this.choiceDialog ??= new ChoiceDialog();
+        this.choiceDialog
           .show(
             'The Vanishing Tide',
             'Before the tide turns, the sea asks its question: when you faced the Leviathan at the trench... did you spare it, or slay it?',
-            'I spared it',
-            'I slew it',
+            ['I spared it', 'I slew it'],
           )
           .then((i) => {
             setFlag(state, i === 0 ? 'mercy' : 'slain');
             saveCampaign(state);
             this.mission?.start();
+          })
+          .catch(() => {
+            // cancelled (engine disposed mid-ask) — nothing committed
           });
       };
     }

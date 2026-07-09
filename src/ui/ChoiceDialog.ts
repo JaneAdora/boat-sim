@@ -1,40 +1,62 @@
 /**
- * A minimal blocking two-choice dialog for Story Mode — used once, at Act 2
- * entry, to normalize a pre-flag Act 1 finish ("Did you spare it, Captain?").
- * Unlike StoryInterlude it cannot be dismissed without choosing; keys are
- * swallowed while it's up so the boat doesn't respond underneath.
+ * A minimal blocking choice dialog for Story Mode — the act-entry mercy ask
+ * and Act 3's "What the Sea Asks". Cannot be dismissed without choosing; keys
+ * are swallowed while it's up so the boat doesn't respond underneath.
+ *
+ * `show` takes 1–3 options and resolves the chosen index. `cancel()` (public,
+ * per the Act 3 plan gate) closes the UI and REJECTS the pending promise with
+ * 'cancelled' — callers swallow the rejection; combined with the mission's
+ * beat-token guard, a cancelled ask can never commit anything.
  */
 export class ChoiceDialog {
   private root: HTMLElement | null = null;
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
+  private pendingReject: ((reason: Error) => void) | null = null;
 
-  /** Show the dialog; resolves 0 for the first option, 1 for the second. */
-  show(title: string, line: string, optionA: string, optionB: string): Promise<0 | 1> {
-    this.close(); // never two at once
+  /** Show the dialog; resolves the chosen option index. */
+  show(title: string, line: string, options: string[]): Promise<number> {
+    this.cancel(); // never two at once
     this.injectStyles();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      this.pendingReject = reject;
       const root = document.createElement('div');
       root.id = 'choice-dialog';
-      root.innerHTML =
-        `<div class="cd-card"><div class="cd-title"></div><div class="cd-line"></div>` +
-        `<div class="cd-buttons"><button class="cd-a"></button><button class="cd-b"></button></div></div>`;
-      (root.querySelector('.cd-title') as HTMLElement).textContent = title;
-      (root.querySelector('.cd-line') as HTMLElement).textContent = line;
-      const a = root.querySelector('.cd-a') as HTMLButtonElement;
-      const b = root.querySelector('.cd-b') as HTMLButtonElement;
-      a.textContent = optionA;
-      b.textContent = optionB;
-      const pick = (v: 0 | 1) => {
-        this.close();
-        resolve(v);
-      };
-      a.addEventListener('click', () => pick(0));
-      b.addEventListener('click', () => pick(1));
+      const card = document.createElement('div');
+      card.className = 'cd-card';
+      const titleEl = document.createElement('div');
+      titleEl.className = 'cd-title';
+      titleEl.textContent = title;
+      const lineEl = document.createElement('div');
+      lineEl.className = 'cd-line';
+      lineEl.textContent = line;
+      const buttons = document.createElement('div');
+      buttons.className = 'cd-buttons';
+      options.forEach((label, i) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.addEventListener('click', () => {
+          this.pendingReject = null;
+          this.close();
+          resolve(i);
+        });
+        buttons.appendChild(b);
+      });
+      card.append(titleEl, lineEl, buttons);
+      root.appendChild(card);
       this.keyHandler = (e: KeyboardEvent) => e.stopPropagation(); // block the boat
       window.addEventListener('keydown', this.keyHandler, true);
       document.body.appendChild(root);
       this.root = root;
     });
+  }
+
+  /** Close a pending ask (beat change, reload, dispose). The promise rejects;
+   *  nothing is committed. Safe to call when nothing is pending. */
+  cancel(): void {
+    const reject = this.pendingReject;
+    this.pendingReject = null;
+    this.close();
+    if (reject) reject(new Error('cancelled'));
   }
 
   private close(): void {
@@ -47,7 +69,7 @@ export class ChoiceDialog {
   }
 
   dispose(): void {
-    this.close();
+    this.cancel();
   }
 
   private injectStyles(): void {
