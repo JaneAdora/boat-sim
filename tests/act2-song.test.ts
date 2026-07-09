@@ -75,3 +75,41 @@ describe('SongAnswer (beat 16)', () => {
     expect(s.currentPoint()).toBe(0);
   });
 });
+
+describe('SongAnswer per-point bands (Act 3 descent gates)', () => {
+  const GATES = {
+    ...OPTS,
+    band: { min: -80, max: -50 }, // default (unused when all points override)
+    bands: [
+      { min: -45, max: -30 },
+      { min: -70, max: -50 },
+      { min: -100, max: -80 },
+    ],
+  };
+
+  it('judges each point against its own band, in order', () => {
+    const s = new SongAnswer(3, GATES);
+    // gate 1 wants -30..-45: -60 is too deep here (would be valid for gate 2)
+    s.step(1, 10, -60, 2);
+    expect(s.lastViolation()).toBe('too-deep');
+    expect(s.step(5, 10, -38, 2)).toBe(true); // gate 1 banked in its band
+    // gate 2 wants -50..-70: -38 is now too shallow
+    s.step(1, 10, -38, 2);
+    expect(s.lastViolation()).toBe('too-shallow');
+    expect(s.step(5, 10, -60, 2)).toBe(true); // gate 2
+    expect(s.step(5, 10, -90, 2)).toBe(true); // gate 3, deepest band
+    expect(s.complete()).toBe(true);
+  });
+
+  it('missing entries fall back to the default band', () => {
+    const s = new SongAnswer(2, { ...OPTS, bands: [{ min: -45, max: -30 }, undefined] });
+    expect(s.step(5, 10, -38, 2)).toBe(true); // per-point band
+    expect(s.step(5, 10, -60, 2)).toBe(true); // default band (-80..-50)
+    expect(s.complete()).toBe(true);
+  });
+
+  it('no bands array is exactly the Act 2 finale behavior', () => {
+    const s = new SongAnswer(3, OPTS);
+    expect(good(s, 5)).toBe(true); // the original fixture still passes
+  });
+});

@@ -84,6 +84,7 @@ import {
   setPersistEnabled,
 } from './state/CampaignState';
 import { ACT2_BEATS } from './state/StoryBeatsAct2';
+import { ACT3_BEATS } from './state/StoryBeatsAct3';
 import { ChoiceDialog } from './ui/ChoiceDialog';
 import { findStoryHarbor, StoryHarbor } from './state/StoryHarbor';
 
@@ -632,7 +633,7 @@ export class Engine {
         const params = new URLSearchParams(window.location.search);
         const beatParam = params.get('beat');
         if (beatParam) {
-          devExtendBeats(ACT2_BEATS);
+          devExtendBeats([...ACT2_BEATS, ...ACT3_BEATS]); // the full later-act suffix
           setPersistEnabled(false);
           const n = Math.max(1, Math.min(parseInt(beatParam, 10) || 1, workingBeats().length));
           state.beat = n - 1; // authored numbering → zero-based index
@@ -641,6 +642,18 @@ export class Engine {
           if (n >= 12) setFlag(state, 'deepRefit');
           if (!state.flags.mercy && !state.flags.slain) {
             setFlag(state, params.get('slain') ? 'slain' : 'mercy');
+          }
+          if (n >= 17) {
+            // Jumping into Act 3: seed a canonical finished Act 2.
+            setFlag(state, 'act2complete');
+            if (Object.keys(state.fates).length === 0) {
+              state.fates = {
+                survivor_wife: 'saved',
+                soul_lampkeeper: 'saved',
+                soul_deckhand: 'kept',
+              };
+              state.savedOrder = ['survivor_wife', 'soul_lampkeeper'];
+            }
           }
           console.info('TB_DEV_HARNESS active — beat', n, '(save persistence off)');
         }

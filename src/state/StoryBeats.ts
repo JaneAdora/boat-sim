@@ -8,7 +8,7 @@ export type EncounterSpec =
   | { kind: 'pickup'; spawn: V2; radius: number }
   | { kind: 'rescue'; spawn: V2; safeRadius: number }
   | { kind: 'sonar-contact'; spawn: V2; radius: number; depth: number }
-  | { kind: 'mermaid'; spawn: V2; radius: number }
+  | { kind: 'mermaid'; spawn: V2; radius: number; requiresNight?: boolean }
   | { kind: 'leviathan-witness'; spawn: V2; radius: number }
   | { kind: 'leviathan-boss'; spawn: V2; lurePasses: number }
   // ── Act 2 ──
@@ -44,6 +44,44 @@ export type EncounterSpec =
       radius: number;
       dwellSeconds: number;
       maxSpeed: number; // engine units; calm approach
+    }
+  // ── Act 3 (types land in stage 0, per the plan gate — data follows) ──
+  | {
+      kind: 'visit'; // beat 17: quiet investigation, order-free
+      points: { id: string; x: number; z: number }[];
+      radius: number;
+    }
+  | {
+      kind: 'procession'; // beat 19: you do not sail alone
+      escorts: number;
+      destination: V2;
+      radius: number;
+    }
+  | {
+      kind: 'descent-gates'; // beat 20: down the maelstrom, gate by gate
+      spawn: V2; // the maelstrom center (mote-ring anchor)
+      gates: { x: number; z: number; band: { min: number; max: number } }[];
+      radius: number;
+      dwellSeconds: number;
+      maxSpeed: number;
+    }
+  | {
+      kind: 'listen'; // beat 21: the heart of the deep — stay, submerged, gently
+      spawn: V2;
+      radius: number;
+      band: { min: number; max: number };
+      seconds: number;
+    }
+  | {
+      kind: 'keeper-choice'; // beat 22: what the sea asks
+      spawn: V2;
+      radius: number;
+      band: { min: number; max: number };
+    }
+  | {
+      kind: 'ascend'; // beat 23: the long rise
+      spawn: V2;
+      radius: number;
     };
 
 export interface StoryBeat {
@@ -185,11 +223,16 @@ export const STORY_BEATS: StoryBeat[] = [
   },
 ];
 
-/** Static graph checks (boat names resolved against the registry by the caller). */
-export function validateBeatGraph(knownBoatNames: string[]): string[] {
+/** Static graph checks (boat names resolved against the registry by the
+ *  caller). Generalized for Act 3 (plan gate): pass the combined multi-act
+ *  array to validate the whole campaign; defaults to Act 1 alone. */
+export function validateBeatGraph(
+  knownBoatNames: string[],
+  beats: readonly StoryBeat[] = STORY_BEATS,
+): string[] {
   const errs: string[] = [];
   const ids = new Set<string>();
-  for (const b of STORY_BEATS) {
+  for (const b of beats) {
     if (ids.has(b.id)) errs.push(`duplicate id ${b.id}`);
     ids.add(b.id);
     if (b.requiresBoat && !knownBoatNames.includes(b.requiresBoat))

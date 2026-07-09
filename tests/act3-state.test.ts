@@ -118,3 +118,15 @@ describe('Act 3 state: act2complete derivation', () => {
     expect(s!.flags.act2complete).toBeUndefined();
   });
 });
+
+// ── Append boundary (plan gate): Act 3 must not arm until it ships ──
+import { isComplete, currentBeat, workingBeats } from '../src/state/CampaignState';
+
+describe('Act 3 append boundary (pre-stage-2)', () => {
+  it('an act2complete save stays complete while ACT3_SHIPPED is empty', () => {
+    const s = loadCampaign(act2CompleteSave())!;
+    expect(workingBeats()).toHaveLength(16); // Act 1 (8) + Act 2 (8) + Act 3 (0)
+    expect(isComplete(s)).toBe(true); // "to be continued" — beat 17 does NOT arm
+    expect(currentBeat(s)).toBeNull();
+  });
+});

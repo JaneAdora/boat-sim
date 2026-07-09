@@ -16,7 +16,11 @@ export interface SongAnswerOpts {
   radius: number;
   dwellSeconds: number;
   maxSpeed: number;
-  band: { min: number; max: number }; // y range, negative-down
+  band: { min: number; max: number }; // y range, negative-down (the default)
+  /** Act 3 (descent gates): optional per-point band overrides, index-aligned;
+   *  missing entries fall back to `band`. Act 2's finale passes none and is
+   *  behavior-identical. */
+  bands?: ({ min: number; max: number } | undefined)[];
 }
 
 export class SongAnswer {
@@ -29,6 +33,11 @@ export class SongAnswer {
     private readonly opts: SongAnswerOpts,
   ) {}
 
+  /** The band the CURRENT point is judged against. */
+  private currentBand(): { min: number; max: number } {
+    return this.opts.bands?.[this.banked] ?? this.opts.band;
+  }
+
   /**
    * Advance one tick against the CURRENT point.
    * @param dist  planar distance to the current point
@@ -38,14 +47,15 @@ export class SongAnswer {
    */
   step(dt: number, dist: number, y: number, speed: number): boolean {
     if (this.complete()) return false;
+    const band = this.currentBand();
     this.violation =
       dist > this.opts.radius
         ? 'outside'
         : speed > this.opts.maxSpeed
           ? 'too-fast'
-          : y > this.opts.band.max
+          : y > band.max
             ? 'too-shallow'
-            : y < this.opts.band.min
+            : y < band.min
               ? 'too-deep'
               : 'none';
     if (this.violation !== 'none') {
