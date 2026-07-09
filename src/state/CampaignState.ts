@@ -40,6 +40,12 @@ export type SoulFate = 'saved' | 'kept';
 const SOUL_IDS: readonly string[] = ['survivor_wife', 'soul_lampkeeper', 'soul_deckhand'];
 const SOUL_FATES: readonly string[] = ['saved', 'kept'];
 
+/** Act 3 (What the Sea Asks): who stays below — or the seal. */
+export type Keeper =
+  | { kind: 'leviathan' }
+  | { kind: 'soul'; soulId: SoulId }
+  | { kind: 'sealed' };
+
 export interface CampaignState {
   started: boolean;
   beat: number; // index into STORY_BEATS
@@ -50,6 +56,11 @@ export interface CampaignState {
   /** Act 2 (Drowned Choir): what became of each named soul. Deliveries commit
    *  here immediately — a reload never un-rescues anyone. */
   fates: Partial<Record<SoulId, SoulFate>>;
+  /** Act 3: delivery order from the choir (appended at each beat-13 delivery;
+   *  older saves derive best-effort via savedOrderFor). */
+  savedOrder: SoulId[];
+  /** Act 3 (beat 22): the sea's companion, or the seal. Null until asked. */
+  keeper: Keeper | null;
   lastBoat: string;
 }
 
@@ -62,8 +73,56 @@ export function newCampaign(): CampaignState {
     unlockedBoats: [START_BOAT],
     flags: {},
     fates: {},
+    savedOrder: [],
+    keeper: null,
     lastBoat: START_BOAT,
   };
+}
+
+/** A soul was actually saved on this save (the keeper/casting validity test). */
+function isSaved(state: Pick<CampaignState, 'fates'>, id: string): id is SoulId {
+  return SOUL_IDS.includes(id) && state.fates[id as SoulId] === 'saved';
+}
+
+/** Keep only well-formed, actually-saved, unique soul ids, order preserved. */
+function sanitizeSavedOrder(raw: unknown, fates: CampaignState['fates']): SoulId[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SoulId[] = [];
+  for (const id of raw) {
+    if (
+      typeof id === 'string' &&
+      SOUL_IDS.includes(id) &&
+      fates[id as SoulId] === 'saved' &&
+      !out.includes(id as SoulId)
+    ) {
+      out.push(id as SoulId);
+    }
+  }
+  return out;
+}
+
+/** A keeper is valid only if its shape is known AND (for souls) that soul was
+ *  actually saved — a plausible-but-unsaved id is rejected to null. */
+function sanitizeKeeper(raw: unknown, fates: CampaignState['fates']): Keeper | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const k = raw as Record<string, unknown>;
+  if (k.kind === 'leviathan') return { kind: 'leviathan' };
+  if (k.kind === 'sealed') return { kind: 'sealed' };
+  if (k.kind === 'soul' && typeof k.soulId === 'string' && isSaved({ fates }, k.soulId)) {
+    return { kind: 'soul', soulId: k.soulId };
+  }
+  return null;
+}
+
+/**
+ * The soul thread, one answer for every consumer (beats 17, 22, 24): the
+ * sanitized savedOrder when present, else derived from fates insertion order,
+ * deterministically. Pure.
+ */
+export function savedOrderFor(state: CampaignState): SoulId[] {
+  const explicit = sanitizeSavedOrder(state.savedOrder, state.fates);
+  if (explicit.length) return explicit;
+  return (Object.keys(state.fates) as SoulId[]).filter((id) => isSaved(state, id));
 }
 
 /** The finale outcome flags must resolve to at most one truth. If a save ever
@@ -97,16 +156,22 @@ export function loadCampaign(storage: Storage = localStorage): CampaignState | n
     const flags =
       o.flags && typeof o.flags === 'object' ? (o.flags as Record<string, boolean>) : {};
     normalizeOutcome(flags);
+    const completed = Array.isArray(o.completed)
+      ? (o.completed as unknown[]).filter((x): x is string => typeof x === 'string')
+      : [];
+    // Older finished-Act-2 saves predate the act2complete flag — derive it.
+    if (completed.includes('drowned-light')) flags.act2complete = true;
+    const fates = sanitizeFates(o.fates); // pre-Act-2 saves have none → {}
     return {
       started: o.started === true,
       beat: Number.isInteger(o.beat) ? (o.beat as number) : 0,
       armedBeat: Number.isInteger(o.armedBeat) ? (o.armedBeat as number) : null,
-      completed: Array.isArray(o.completed)
-        ? (o.completed as unknown[]).filter((x): x is string => typeof x === 'string')
-        : [],
+      completed,
       unlockedBoats: boats.length ? boats : [START_BOAT],
       flags,
-      fates: sanitizeFates(o.fates), // pre-Act-2 saves have none → {}
+      fates,
+      savedOrder: sanitizeSavedOrder(o.savedOrder, fates),
+      keeper: sanitizeKeeper(o.keeper, fates),
       lastBoat: typeof o.lastBoat === 'string' ? (o.lastBoat as string) : START_BOAT,
     };
   } catch {

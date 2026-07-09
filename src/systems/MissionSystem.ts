@@ -767,6 +767,11 @@ export class MissionSystem {
           const id = this.soulRun.deliver();
           if (id) {
             this.d.state.fates[id as SoulId] = 'saved'; // commits immediately
+            // Act 3 reads the delivery ORDER (the pier casting, the volunteer,
+            // the epilogue) — record it explicitly from now on.
+            if (!this.d.state.savedOrder.includes(id as SoulId)) {
+              this.d.state.savedOrder.push(id as SoulId);
+            }
             saveCampaign(this.d.state);
             if (this.carryGlow) {
               disposeGroup(this.d.scene, this.carryGlow);
