@@ -139,15 +139,34 @@ export function createDrownedHamlet(): THREE.Group {
   return g;
 }
 
+/** Prop palettes (Act 3 plan): the same builders serve Act 2's cold blue and
+ *  Act 3's warm gold. Defaults reproduce today's colors exactly — the shipped
+ *  Act 2 beats render byte-identically when no palette is passed. */
+export interface PresencePalette {
+  body: number;
+  heart: number;
+  mote: number;
+}
+export interface SerpentPalette {
+  hide: number;
+  emissive: number;
+}
+
+const PRESENCE_DEFAULT: PresencePalette = { body: 0xbfe2f2, heart: 0xe8f4fa, mote: 0xbfe2f2 };
+const SERPENT_DEFAULT: SerpentPalette = { hide: 0x1f4a44, emissive: 0x2fae96 };
+
+/** The heart of the deep (Act 3 beats 21-22): warm, gold, alive. */
+export const WARM_GOLD: PresencePalette = { body: 0xe8c982, heart: 0xfaf0d2, mote: 0xf2d89e };
+
 /** The guardian Leviathan (beat 14, mercy branch): a line of dark humps and a
  *  head breaking the surface — a presence circling the boat, not a combatant.
  *  Deliberately NOT a wildlife entity, so weapons and tow lines can't see it. */
-export function createGuardianSerpent(): THREE.Group {
+export function createGuardianSerpent(palette: SerpentPalette = SERPENT_DEFAULT): THREE.Group {
   const g = new THREE.Group();
   const hide = new THREE.MeshStandardMaterial({
-    color: 0x1f4a44,
+    color: palette.hide,
     roughness: 0.55,
-    emissive: 0x2fae96,
+    emissive: palette.emissive,
     emissiveIntensity: 0.25,
   });
   const head = new THREE.Mesh(new THREE.ConeGeometry(2.2, 7, 8), hide);
@@ -183,14 +202,15 @@ export function createMermaidSilhouette(): THREE.Group {
   return g;
 }
 
-/** The drowned light itself (beat 16): a vast pale glow half-lost below the
- *  trench floor — deliberately simple, a presence rather than a creature. */
-export function createDeepPresence(): THREE.Group {
+/** The drowned light itself (beat 16; warm-gold in Act 3): a vast pale glow
+ *  half-lost below the trench floor — deliberately simple, a presence rather
+ *  than a creature. */
+export function createDeepPresence(palette: PresencePalette = PRESENCE_DEFAULT): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.SphereGeometry(55, 20, 14),
     new THREE.MeshBasicMaterial({
-      color: 0xbfe2f2,
+      color: palette.body,
       transparent: true,
       opacity: 0.14,
       depthWrite: false,
@@ -201,7 +221,7 @@ export function createDeepPresence(): THREE.Group {
   const heart = new THREE.Mesh(
     new THREE.SphereGeometry(18, 16, 12),
     new THREE.MeshBasicMaterial({
-      color: 0xe8f4fa,
+      color: palette.heart,
       transparent: true,
       opacity: 0.3,
       depthWrite: false,
@@ -212,7 +232,7 @@ export function createDeepPresence(): THREE.Group {
     const mote = new THREE.Mesh(
       new THREE.SphereGeometry(1.4, 8, 6),
       new THREE.MeshBasicMaterial({
-        color: 0xbfe2f2,
+        color: palette.mote,
         transparent: true,
         opacity: 0.5,
         depthWrite: false,
@@ -221,6 +241,33 @@ export function createDeepPresence(): THREE.Group {
     mote.position.set(Math.sin(i * 2.1) * 30, 6 + (i % 3) * 5, Math.cos(i * 2.1) * 30);
     g.add(mote);
   }
+  return g;
+}
+
+/** The maelstrom's throat (beat 20): three descending tiers of slow motes,
+ *  narrowing with depth — a spiral the sub follows down. The mission rotates
+ *  the group; the prop itself is still. */
+export function createMoteRing(): THREE.Group {
+  const g = new THREE.Group();
+  const tiers: { y: number; r: number; n: number; opacity: number }[] = [
+    { y: -8, r: 55, n: 14, opacity: 0.5 },
+    { y: -34, r: 40, n: 11, opacity: 0.38 },
+    { y: -62, r: 27, n: 8, opacity: 0.28 },
+  ];
+  tiers.forEach((tier, t) => {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xbfe2f2,
+      transparent: true,
+      opacity: tier.opacity,
+      depthWrite: false,
+    });
+    for (let i = 0; i < tier.n; i++) {
+      const mote = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 6), mat);
+      const a = (i / tier.n) * Math.PI * 2 + t * 0.7; // tier offset sells the spiral
+      mote.position.set(Math.cos(a) * tier.r, tier.y, Math.sin(a) * tier.r);
+      g.add(mote);
+    }
+  });
   return g;
 }
 
