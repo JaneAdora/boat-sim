@@ -112,6 +112,9 @@ export interface MissionDeps {
   choice(title: string, line: string, options: string[]): Promise<number>;
   /** Close any pending ask — called on every disarm/dispose. */
   cancelChoice(): void;
+  /** Act 3 (beats 21-22): drive the underwater warm-gold cast, 0..1 by
+   *  nearness to the heart. Reset to 0 on every disarm. */
+  setDeepWarmth(w: number): void;
   /** Current boat speed, engine units (Act 2 finale: calm-approach check). */
   getBoatSpeed(): number;
   /** No-weapons mode (tb-disarmed): the finale is won by luring, not sinking. */
@@ -979,8 +982,10 @@ export class MissionSystem {
         const breathe = 1.35 * (1 + Math.sin(this.time * 0.35) * 0.05);
         this.presenceProp.scale.setScalar(breathe);
       }
-      const inside =
-        inBand(b.y, e.band) && Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z) < e.radius;
+      const dist = Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z);
+      // The water itself goes candle-gold as the sub sinks toward the heart.
+      this.d.setDeepWarmth(b.y < -40 ? Math.max(0, 1 - dist / (e.radius * 2.5)) : 0);
+      const inside = inBand(b.y, e.band) && dist < e.radius;
       this.hold.step(dt, inside);
       if (inside && !this.holdEntered) {
         this.holdEntered = true;
@@ -1002,8 +1007,9 @@ export class MissionSystem {
         const breathe = 1.35 * (1 + Math.sin(this.time * 0.35) * 0.05);
         this.presenceProp.scale.setScalar(breathe);
       }
-      const inside =
-        inBand(b.y, e.band) && Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z) < e.radius;
+      const dist = Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z);
+      this.d.setDeepWarmth(b.y < -40 ? Math.max(0, 1 - dist / (e.radius * 2.5)) : 0);
+      const inside = inBand(b.y, e.band) && dist < e.radius;
       if (inside && !this.keeperAsked && this.d.state.keeper === null) {
         this.keeperAsked = true;
         const token = this.armGen;
@@ -1242,6 +1248,7 @@ export class MissionSystem {
     setEra('act2'); // the deep era never survives a disarm
     this.armGen++; // pending async asks are now provably stale
     this.d.cancelChoice(); // and their UI is closed (no-op when none pending)
+    this.d.setDeepWarmth(0); // the gold never survives a disarm either
     this.marker = null;
     this.d.towing.setPreferredTowable(null);
     // Restore/clear the scripted rescue vessel (no-op if none was scripted).

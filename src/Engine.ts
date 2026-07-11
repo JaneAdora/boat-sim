@@ -689,6 +689,7 @@ export class Engine {
         deepCall: () => this.soundEffects.playDeepCall(),
         choice: (title, line, options) => this.choiceDialog!.show(title, line, options),
         cancelChoice: () => this.choiceDialog?.cancel(),
+        setDeepWarmth: (w) => this.underwater?.setWarmth(w),
         getBoatSpeed: () => {
           const rb = this.world.getComponent<RigidBody>(this.boatEntity, 'RigidBody');
           return rb ? Math.hypot(rb.velocity.x, rb.velocity.z) : 0;
