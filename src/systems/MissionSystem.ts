@@ -9,7 +9,9 @@ import {
   unlockBoat,
   setFlag,
   saveCampaign,
+  savedOrderFor,
 } from '../state/CampaignState';
+import { KEEPER_ASK, keeperOptionsFor, keeperLineFor } from '../state/StoryBeatsAct3';
 import type { StoryBeat, EncounterSpec } from '../state/StoryBeats';
 import type { MissionInstance } from '../components/MissionInstance';
 import { addCredits } from '../state/Wallet';
@@ -199,6 +201,9 @@ export class MissionSystem {
   // ── Act 3 encounter state ──
   /** Beat 20: the maelstrom's slow spiral (the song machine is reused). */
   private moteRing: THREE.Group | null = null;
+  /** Beat 22: the ask fires once per arm — a reload before the commit re-asks
+   *  (arm resets this), and the armGen token proves a late resolution stale. */
+  private keeperAsked = false;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -565,6 +570,16 @@ export class MissionSystem {
         } else {
           this.d.weather.beginScriptedStorm();
         }
+        break;
+      }
+      case 'keeper-choice': {
+        // Beat 22: what the sea asks. Same warm heart as the listen; the
+        // dialog itself fires from update() when the sub is in the band.
+        this.keeperAsked = false;
+        this.presenceProp = createDeepPresence(WARM_GOLD);
+        this.presenceProp.scale.setScalar(1.35);
+        this.presenceProp.position.set(e.spawn.x, TRENCH_ACT3.deepFloor - 14, e.spawn.z);
+        this.d.scene.add(this.presenceProp);
         break;
       }
       case 'listen': {
@@ -977,6 +992,45 @@ export class MissionSystem {
       }
     }
 
+    // Beat 22: the ask. Fires once per arm, only in the band at the heart,
+    // only while unanswered; the resolution re-checks the armGen token before
+    // committing, so a reload or beat change can never take a stale answer.
+    if (beat.encounter.kind === 'keeper-choice' && !this.requiresBoatUnmet(beat)) {
+      const e = beat.encounter;
+      const b = this.d.getBoatPos();
+      if (this.presenceProp) {
+        const breathe = 1.35 * (1 + Math.sin(this.time * 0.35) * 0.05);
+        this.presenceProp.scale.setScalar(breathe);
+      }
+      const inside =
+        inBand(b.y, e.band) && Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z) < e.radius;
+      if (inside && !this.keeperAsked && this.d.state.keeper === null) {
+        this.keeperAsked = true;
+        const token = this.armGen;
+        const options = keeperOptionsFor(
+          !!this.d.state.flags['mercy'],
+          savedOrderFor(this.d.state)[0] ?? null,
+        );
+        this.d
+          .choice(
+            KEEPER_ASK.title,
+            KEEPER_ASK.line,
+            options.map((o) => o.label),
+          )
+          .then((idx) => {
+            if (token !== this.armGen) return; // stale: the beat moved on
+            const chosen = options[idx];
+            if (!chosen) return;
+            // Commit + save BEFORE completion can observe it (next poll).
+            this.d.state.keeper = chosen.keeper;
+            saveCampaign(this.d.state);
+          })
+          .catch(() => {
+            // Cancelled by disarm/dispose — the re-arm re-asks.
+          });
+      }
+    }
+
     // Beat 20: turn the maelstrom and drive the gates — the same machine and
     // the same coaching as the finale, band by band into the deep era.
     if (beat.encounter.kind === 'descent-gates' && this.song && !this.requiresBoatUnmet(beat)) {
@@ -1115,6 +1169,10 @@ export class MissionSystem {
       case 'song-answer':
       case 'descent-gates':
         return !!this.song && this.song.complete();
+      case 'keeper-choice':
+        // The answer IS the completion: the dialog commits keeper + save,
+        // and the next poll sees it (a pre-answered save completes on arm).
+        return this.d.state.keeper !== null;
       default:
         return false;
     }
@@ -1132,6 +1190,10 @@ export class MissionSystem {
       : r.successLine;
     // Branch-flavored closings (beat 14's guardian vs its absence).
     if (r.slainLine && this.d.state.flags['slain']) successLine = r.slainLine;
+    // Beat 22: the closing line belongs to the committed answer.
+    if (beat.encounter.kind === 'keeper-choice' && this.d.state.keeper) {
+      successLine = keeperLineFor(this.d.state.keeper);
+    }
     // The epilogue names the fates: {saved} and {kept} from the choir.
     if (successLine.includes('{saved}') || successLine.includes('{kept}')) {
       const saved = Object.entries(this.d.state.fates)
