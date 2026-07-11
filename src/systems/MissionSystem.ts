@@ -30,7 +30,7 @@ import { RescueSequence } from '../state/RescueSequence';
 import { SongAnswer, type SongViolation } from '../state/SongAnswer';
 import { SOUL_NAMES } from '../state/StoryBeatsAct2';
 import type { SoulId } from '../state/CampaignState';
-import { TRENCH, inBand, setEra } from '../world/TrenchProfile';
+import { TRENCH, TRENCH_ACT3, inBand, setEra } from '../world/TrenchProfile';
 import {
   createWreckHull,
   createSoulSprite,
@@ -41,6 +41,7 @@ import {
   createGuardianSerpent,
   createDeepPresence,
   createMoteRing,
+  WARM_GOLD,
   disposeGroup,
 } from '../props/StoryProps';
 import type { InterludeCard } from '../ui/StoryInterlude';
@@ -566,6 +567,19 @@ export class MissionSystem {
         }
         break;
       }
+      case 'listen': {
+        // Beat 21: the heart of the deep. The guardian's hold clock, wrapped
+        // without its branches — no storm, no serpent, no side effects. The
+        // presence goes warm and gold, and larger than the finale's.
+        this.hold = new HoldTimer(e.seconds);
+        this.holdEntered = false;
+        this.holdMidpointToasted = false;
+        this.presenceProp = createDeepPresence(WARM_GOLD);
+        this.presenceProp.scale.setScalar(1.35);
+        this.presenceProp.position.set(e.spawn.x, TRENCH_ACT3.deepFloor - 14, e.spawn.z);
+        this.d.scene.add(this.presenceProp);
+        break;
+      }
       case 'descent-gates': {
         // Beat 20: the maelstrom. The act3 era (armed above for beats ≥ 20)
         // has already opened the floor to −105; the finale's song machine
@@ -940,6 +954,29 @@ export class MissionSystem {
       }
     }
 
+    // Beat 21: hold in the light and listen — submerged, close, patient. The
+    // clock pauses when you drift out; the midpoint line is the only feedback
+    // (the heart waits; it never fails you).
+    if (beat.encounter.kind === 'listen' && this.hold && !this.requiresBoatUnmet(beat)) {
+      const e = beat.encounter;
+      const b = this.d.getBoatPos();
+      if (this.presenceProp) {
+        const breathe = 1.35 * (1 + Math.sin(this.time * 0.35) * 0.05);
+        this.presenceProp.scale.setScalar(breathe);
+      }
+      const inside =
+        inBand(b.y, e.band) && Math.hypot(b.x - e.spawn.x, b.z - e.spawn.z) < e.radius;
+      this.hold.step(dt, inside);
+      if (inside && !this.holdEntered) {
+        this.holdEntered = true;
+        this.d.hud.showToast(beat.title, 'Warm light, all around. Hold here — and listen.');
+      }
+      if (inside && !this.holdMidpointToasted && this.hold.progress() >= 0.5) {
+        this.holdMidpointToasted = true;
+        this.d.hud.showToast(beat.title, 'It is not singing at you. It is singing to you.');
+      }
+    }
+
     // Beat 20: turn the maelstrom and drive the gates — the same machine and
     // the same coaching as the finale, band by band into the deep era.
     if (beat.encounter.kind === 'descent-gates' && this.song && !this.requiresBoatUnmet(beat)) {
@@ -1070,6 +1107,7 @@ export class MissionSystem {
       case 'soul-transport':
         return !!this.soulRun && this.soulRun.complete();
       case 'guardian':
+      case 'listen':
         // The clock is stepped in update(); completion is just its verdict.
         return !!this.hold && this.hold.complete();
       case 'rescue-sequence':
