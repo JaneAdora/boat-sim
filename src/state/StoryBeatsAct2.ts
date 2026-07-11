@@ -31,6 +31,14 @@ export const SOUL_NAMES: Record<string, string> = {
   soul_deckhand: 'Tomas',
 };
 
+/** Subject pronouns for authored lines that speak about a cast soul (Act 3's
+ *  keeper ask — "she is willing" must survive Tomas being the first saved). */
+export const SOUL_PRONOUNS: Record<string, string> = {
+  survivor_wife: 'she',
+  soul_lampkeeper: 'she',
+  soul_deckhand: 'he',
+};
+
 export const ACT2_BEATS: StoryBeat[] = [
   // ── SHIPPED (stage 2): beats 9–13 — see ACT2_SHIPPED below ──
   {
