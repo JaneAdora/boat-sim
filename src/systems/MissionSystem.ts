@@ -40,6 +40,7 @@ import {
   createMermaidSilhouette,
   createGuardianSerpent,
   createDeepPresence,
+  createMoteRing,
   disposeGroup,
 } from '../props/StoryProps';
 import type { InterludeCard } from '../ui/StoryInterlude';
@@ -70,6 +71,16 @@ const INTERLUDE_PLATES: Record<string, { begin?: number; complete?: number }> = 
 };
 
 const plateUrl = (n: number): string => `/story/panel-${String(n).padStart(2, '0')}.jpg`;
+
+/** Live coaching for the slow deep passes — beat 16's lines, reused verbatim
+ *  by beat 20's gates (the plan: same feedback semantics, gate after gate). */
+const SONG_COACHING: Record<SongViolation, string | null> = {
+  none: null,
+  outside: null, // the marker already leads there
+  'too-fast': 'Slow. Approach like a prayer.',
+  'too-shallow': 'Deeper — the song is below you.',
+  'too-deep': 'Ease up — hold inside the song.',
+};
 
 export interface MissionDeps {
   state: CampaignState;
@@ -184,6 +195,9 @@ export class MissionSystem {
   private callAngle = 0;
   private lastSongViolation: SongViolation = 'none';
   private songToastAt = -10;
+  // ── Act 3 encounter state ──
+  /** Beat 20: the maelstrom's slow spiral (the song machine is reused). */
+  private moteRing: THREE.Group | null = null;
   private time = 0;
 
   constructor(private d: MissionDeps) {}
@@ -262,6 +276,14 @@ export class MissionSystem {
       if (idx !== null) {
         const p = beat.encounter.points[idx];
         return { x: p.x, z: p.z };
+      }
+    }
+    // Beat 20: the marker leads gate to gate, down the spiral.
+    if (beat?.encounter.kind === 'descent-gates' && this.song) {
+      const idx = this.song.currentPoint();
+      if (idx !== null) {
+        const gate = beat.encounter.gates[idx];
+        return { x: gate.x, z: gate.z };
       }
     }
     // Beat 15: track the current stage's vessel; once hooked, point to clear
@@ -542,6 +564,24 @@ export class MissionSystem {
         } else {
           this.d.weather.beginScriptedStorm();
         }
+        break;
+      }
+      case 'descent-gates': {
+        // Beat 20: the maelstrom. The act3 era (armed above for beats ≥ 20)
+        // has already opened the floor to −105; the finale's song machine
+        // runs the gates with per-gate bands, same dwell/violation semantics.
+        this.song = new SongAnswer(e.gates.length, {
+          radius: e.radius,
+          dwellSeconds: e.dwellSeconds,
+          maxSpeed: e.maxSpeed,
+          band: e.gates[0].band,
+          bands: e.gates.map((g) => g.band),
+        });
+        this.lastSongViolation = 'none';
+        this.songToastAt = -10;
+        this.moteRing = createMoteRing();
+        this.moteRing.position.set(e.spawn.x, 0, e.spawn.z);
+        this.d.scene.add(this.moteRing);
         break;
       }
       default:
@@ -889,18 +929,44 @@ export class MissionSystem {
           // after a while — silence when compliant.
           const v = this.song.lastViolation();
           if (v !== 'none' && (v !== this.lastSongViolation || this.time - this.songToastAt > 8)) {
-            const lines: Record<SongViolation, string | null> = {
-              none: null,
-              outside: null, // the marker already leads there
-              'too-fast': 'Slow. Approach like a prayer.',
-              'too-shallow': 'Deeper — the song is below you.',
-              'too-deep': 'Ease up — hold inside the song.',
-            };
-            const line = lines[v];
+            const line = SONG_COACHING[v];
             if (line) {
               this.lastSongViolation = v;
               this.songToastAt = this.time;
               this.d.hud.showToast('The Drowned Light', line);
+            }
+          }
+        }
+      }
+    }
+
+    // Beat 20: turn the maelstrom and drive the gates — the same machine and
+    // the same coaching as the finale, band by band into the deep era.
+    if (beat.encounter.kind === 'descent-gates' && this.song && !this.requiresBoatUnmet(beat)) {
+      const e = beat.encounter;
+      const b = this.d.getBoatPos();
+      if (this.moteRing) this.moteRing.rotation.y += dt * 0.12;
+      const idx = this.song.currentPoint();
+      if (idx !== null) {
+        const gate = e.gates[idx];
+        const dist = Math.hypot(b.x - gate.x, b.z - gate.z);
+        const banked = this.song.step(dt, dist, b.y, this.d.getBoatSpeed());
+        if (banked) {
+          if (!this.song.complete()) {
+            const n = this.song.passesBanked();
+            this.d.hud.showToast(
+              beat.title,
+              `${n} of ${e.gates.length} — the water lets you pass. Deeper.`,
+            );
+          }
+        } else if (dist < e.radius * 2.5) {
+          const v = this.song.lastViolation();
+          if (v !== 'none' && (v !== this.lastSongViolation || this.time - this.songToastAt > 8)) {
+            const line = SONG_COACHING[v];
+            if (line) {
+              this.lastSongViolation = v;
+              this.songToastAt = this.time;
+              this.d.hud.showToast(beat.title, line);
             }
           }
         }
@@ -1009,6 +1075,7 @@ export class MissionSystem {
       case 'rescue-sequence':
         return !!this.rescueSeq && this.rescueSeq.complete();
       case 'song-answer':
+      case 'descent-gates':
         return !!this.song && this.song.complete();
       default:
         return false;
@@ -1125,6 +1192,10 @@ export class MissionSystem {
       this.callSerpent = null;
     }
     this.song = null;
+    if (this.moteRing) {
+      disposeGroup(this.d.scene, this.moteRing);
+      this.moteRing = null;
+    }
     // A mission-owned vessel (the towed Marigold, or a rescued boat) is handed
     // off at beat's end: detach the tow line so she isn't dragged into the next
     // beat, then despawn her. (Scripted-rescue vessels are also cleared by
